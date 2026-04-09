@@ -525,20 +525,23 @@ with tab2:
     render_copy_title_table(copy_pack_candidates, "ID", "Tên Lô", "📋 Copy Auto Title theo từng dòng (Kho Pack)")
 
     with st.expander("⚙️ Quản lý Pack Pet"):
-        p_col1, p_col2 = st.columns([2, 1])
-        with p_col1:
+        st.markdown("##### 🧹 Xóa Pack theo ID")
+        del_col1, del_col2 = st.columns([2.2, 1])
+        with del_col1:
             p_del = st.number_input("ID Pack cần xóa", min_value=0, step=1, key="delete_pack_id")
-        with p_col2:
+        with del_col2:
+            st.markdown("<div style='height: 1.65rem;'></div>", unsafe_allow_html=True)
             if st.button("🗑️ Xóa Pack", key="delete_pack", use_container_width=True):
                 save_data(bulk_df[bulk_df["ID"].astype(int) != p_del], BULK_FILE)
                 st.rerun()
 
         st.markdown("---")
-        st.caption("⚠️ Reset toàn bộ kho pack và lịch sử giao dịch")
-        reset_p_col1, reset_p_col2 = st.columns([2, 1])
-        with reset_p_col1:
-            confirm_reset_pack = st.checkbox("Xác nhận reset tất cả pack", key="reset_pack_check")
-        with reset_p_col2:
+        st.markdown("##### ⚠️ Reset toàn bộ dữ liệu Pack")
+        reset_col1, reset_col2 = st.columns([2.2, 1])
+        with reset_col1:
+            confirm_reset_pack = st.checkbox("Xác nhận reset tất cả pack + lịch sử giao dịch", key="reset_pack_check")
+        with reset_col2:
+            st.markdown("<div style='height: 1.65rem;'></div>", unsafe_allow_html=True)
             if confirm_reset_pack and st.button(
                 "⚠️ RESET ALL PACK", type="secondary", use_container_width=True, key="reset_pack_btn"
             ):
@@ -590,3 +593,100 @@ with tab3:
         )
     with col_chart2:
         draw_chart(bulk_history, "Ngày Bán", "Lợi Nhuận Giao Dịch", "Lợi Nhuận Pack Pet")
+
+    st.markdown("---")
+    st.subheader("📈 Báo cáo quản lý dòng tiền & sản phẩm")
+
+    # 1) Doanh thu theo kênh bán (Pet lẻ vs Pack)
+    sold_single_rev = float(df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False, regex=False)]["Doanh Thu"].sum())
+    sold_pack_rev = float(bulk_history["Doanh Thu Giao Dịch"].sum()) if not bulk_history.empty else 0.0
+    rev_mix = pd.DataFrame(
+        {
+            "Kênh": ["Pet Lẻ", "Pack"],
+            "Doanh Thu": [sold_single_rev, sold_pack_rev],
+        }
+    )
+
+    # 2) Top sản phẩm lợi nhuận cao
+    single_profit_by_pet = (
+        df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False, regex=False)]
+        .groupby("Tên Pet", as_index=False)["Lợi Nhuận"]
+        .sum()
+        .sort_values("Lợi Nhuận", ascending=False)
+        .head(10)
+    )
+
+    pack_profit_by_name = (
+        bulk_history.groupby("Tên Lô", as_index=False)["Lợi Nhuận Giao Dịch"]
+        .sum()
+        .sort_values("Lợi Nhuận Giao Dịch", ascending=False)
+        .head(10)
+        if not bulk_history.empty
+        else pd.DataFrame(columns=["Tên Lô", "Lợi Nhuận Giao Dịch"])
+    )
+
+    # 3) Cơ cấu tồn kho theo trạng thái
+    single_status = df.groupby("Trạng Thái", as_index=False).size().rename(columns={"size": "Số lượng"}) if not df.empty else pd.DataFrame(columns=["Trạng Thái", "Số lượng"])
+    pack_status = bulk_df.groupby("Trạng Thái", as_index=False).size().rename(columns={"size": "Số lượng"}) if not bulk_df.empty else pd.DataFrame(columns=["Trạng Thái", "Số lượng"])
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if rev_mix["Doanh Thu"].sum() > 0:
+            fig_mix = px.pie(rev_mix, names="Kênh", values="Doanh Thu", hole=0.45, title="Tỷ trọng doanh thu theo kênh")
+            fig_mix.update_layout(margin=dict(l=10, r=10, t=50, b=10))
+            st.plotly_chart(fig_mix, use_container_width=True)
+        else:
+            st.info("Chưa có dữ liệu doanh thu để vẽ tỷ trọng kênh bán.")
+
+    with c2:
+        if not single_status.empty or not pack_status.empty:
+            status_mix = pd.DataFrame(
+                {
+                    "Nhóm": ["Pet Lẻ"] * len(single_status) + ["Pack"] * len(pack_status),
+                    "Trạng Thái": single_status.get("Trạng Thái", pd.Series(dtype=str)).tolist()
+                    + pack_status.get("Trạng Thái", pd.Series(dtype=str)).tolist(),
+                    "Số lượng": single_status.get("Số lượng", pd.Series(dtype=float)).tolist()
+                    + pack_status.get("Số lượng", pd.Series(dtype=float)).tolist(),
+                }
+            )
+            fig_status = px.bar(
+                status_mix,
+                x="Nhóm",
+                y="Số lượng",
+                color="Trạng Thái",
+                barmode="stack",
+                title="Cơ cấu tồn kho theo trạng thái",
+            )
+            fig_status.update_layout(margin=dict(l=10, r=10, t=50, b=10))
+            st.plotly_chart(fig_status, use_container_width=True)
+        else:
+            st.info("Chưa có dữ liệu tồn kho để phân tích trạng thái.")
+
+    c3, c4 = st.columns(2)
+    with c3:
+        if not single_profit_by_pet.empty:
+            fig_top_single = px.bar(
+                single_profit_by_pet,
+                x="Tên Pet",
+                y="Lợi Nhuận",
+                title="Top 10 Pet Lẻ theo lợi nhuận",
+                text_auto=".2s",
+            )
+            fig_top_single.update_layout(margin=dict(l=10, r=10, t=50, b=10), xaxis_title="Tên Pet", yaxis_title="Lợi nhuận (VNĐ)")
+            st.plotly_chart(fig_top_single, use_container_width=True)
+        else:
+            st.info("Chưa có dữ liệu pet lẻ đã bán để xếp hạng lợi nhuận.")
+
+    with c4:
+        if not pack_profit_by_name.empty:
+            fig_top_pack = px.bar(
+                pack_profit_by_name,
+                x="Tên Lô",
+                y="Lợi Nhuận Giao Dịch",
+                title="Top 10 Pack theo lợi nhuận giao dịch",
+                text_auto=".2s",
+            )
+            fig_top_pack.update_layout(margin=dict(l=10, r=10, t=50, b=10), xaxis_title="Tên lô", yaxis_title="Lợi nhuận (VNĐ)")
+            st.plotly_chart(fig_top_pack, use_container_width=True)
+        else:
+            st.info("Chưa có dữ liệu giao dịch pack để xếp hạng lợi nhuận.")

@@ -529,9 +529,22 @@ def render_editable_inventory_table(
 
 
 # --- INITIALIZATION ---
-df = load_data(DB_FILE, MAIN_SCHEMA)
-bulk_df = load_data(BULK_FILE, BULK_SCHEMA)
-bulk_history = load_data(BULK_HISTORY, HISTORY_SCHEMA)
+# Always load fresh data from Supabase first on app reboot
+# Disable any caching to ensure latest data is loaded
+try:
+    if USE_SUPABASE:
+        st.cache_data.clear()
+        st.cache_resource.clear()
+    
+    df = load_data_from_supabase("inventory", MAIN_SCHEMA)
+    bulk_df = load_data_from_supabase("bulk_inventory", BULK_SCHEMA)
+    bulk_history = load_data_from_supabase("bulk_history", HISTORY_SCHEMA)
+except Exception as e:
+    st.warning(f"⚠️ Fallback to local CSV: {e}")
+    df = load_data(DB_FILE, MAIN_SCHEMA)
+    bulk_df = load_data(BULK_FILE, BULK_SCHEMA)
+    bulk_history = load_data(BULK_HISTORY, HISTORY_SCHEMA)
+
 pet_db = load_data(PET_LIST_FILE, LIST_SCHEMA)
 ns_db = load_data(NS_LIST_FILE, LIST_SCHEMA)
 trait_db = load_data(TRAIT_LIST_FILE, LIST_SCHEMA)

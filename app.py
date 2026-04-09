@@ -94,7 +94,7 @@ with tab1:
         r2c1, r2c2, r2c3 = st.columns([1.5, 1, 0.8])
         p_ns = r2c1.selectbox("NameStock", [""] + list(ns_db["Name"].values), label_visibility="collapsed")
         p_cost = r2c2.number_input("Cost (VNĐ)", min_value=0.0, step=1000.0, format="%.0f", label_visibility="collapsed")
-        if r2c3.button("💾 Lưu", type="primary", use_container_width=True):
+        if r2c3.button("💾 Lưu", type="primary", use_container_width=True, key="save_single"):
             ms = float(re.sub(r'[^0-9.]', '', ms_raw)) if ms_raw else 0.0
             stt = int(df["STT"].max() + 1) if not df.empty else 1
             save_data(pd.concat([df, pd.DataFrame([{"STT": stt, "Tên Pet": p_name, "M/s": ms, "Mutation": p_mut, "Số Trait": p_trait, "NameStock": p_ns, "Giá Nhập": p_cost, "Giá Bán": 0.0, "Lợi Nhuận": 0.0, "Doanh Thu": 0.0, "Ngày Nhập": datetime.now().strftime("%d/%m/%Y %H:%M"), "Ngày Bán": "-", "Auto Title": generate_auto_title(p_name, p_mut, p_trait, ms, p_ns), "Trạng Thái": "Còn hàng"}])]), DB_FILE); st.rerun()
@@ -111,7 +111,7 @@ with tab1:
                 auto_title = selected_row["Auto Title"].values[0]
                 components.html(f'<button style="width:100%;padding:0.3em;font-size:0.85em;" onclick="navigator.clipboard.writeText({json.dumps(auto_title)})">📋 Copy Title</button>', height=35)
                 s_price = st.number_input("Price ($)", min_value=0.0, label_visibility="collapsed")
-                if st.button("✅ Bán", type="primary", use_container_width=True):
+                if st.button("✅ Bán", type="primary", use_container_width=True, key="sell_single"):
                     idx = df[df["STT"] == int(sel.split(" - ")[0])].index[0]
                     rev = s_price * EXCHANGE_RATE
                     df.loc[idx, ["Giá Bán", "Doanh Thu", "Lợi Nhuận", "Ngày Bán", "Trạng Thái"]] = [s_price, rev, rev - float(df.at[idx, "Giá Nhập"]), datetime.now().strftime("%d/%m/%Y %H:%M"), "Đã bán"]
@@ -122,11 +122,11 @@ with tab1:
     d_col1, d_col2, d_col3 = st.columns([1.5, 1, 1.5])
     with d_col1: d_id = st.number_input("STT Delete", min_value=0, step=1, label_visibility="collapsed")
     with d_col2:
-        if st.button("🗑️ Xóa", use_container_width=True):
+        if st.button("🗑️ Xóa", use_container_width=True, key="delete_single"):
             save_data(df[df["STT"].astype(int) != d_id], DB_FILE); st.rerun()
     with d_col3:
-        if st.checkbox("🔄 Reset All?"):
-            if st.button("⚠️ CLEAR KHO LẺ", type="secondary", use_container_width=True):
+        if st.checkbox("🔄 Reset All?", key="reset_single_check"):
+            if st.button("⚠️ CLEAR KHO LẺ", type="secondary", use_container_width=True, key="reset_single_btn"):
                 save_data(pd.DataFrame(columns=main_cols), DB_FILE); st.rerun()
 
 with tab2:
@@ -142,7 +142,7 @@ with tab2:
         r_cost = st.columns([1.5, 0.8])
         with r_cost[0]: b_cost = st.number_input("Total Cost (VNĐ)", min_value=0.0, step=1000.0, format="%.0f", key="b4", label_visibility="collapsed")
         with r_cost[1]:
-            if st.button("💾 Lưu", type="primary", use_container_width=True):
+            if st.button("💾 Lưu", type="primary", use_container_width=True, key="save_pack"):
                 bid = int(bulk_df["ID"].max() + 1) if not bulk_df.empty else 1
                 save_data(pd.concat([bulk_df, pd.DataFrame([{"ID": bid, "Tên Lô": f"Pack {b_pet} (x{b_qty})", "Số Lượng Gốc": b_qty, "Còn Lại": b_qty, "Giá Nhập Tổng": b_cost, "Doanh Thu Tích Lũy": 0.0, "Lợi Nhuận": -b_cost, "Trạng Thái": "Available", "Auto Title": generate_auto_title(b_pet, b_mut, "None", float(b_ms), b_ns)}])]), BULK_FILE); st.rerun()
     with psl:
@@ -156,7 +156,7 @@ with tab2:
             sr1, sr2 = st.columns([1, 1])
             with sr1: s_qty = st.number_input("Qty", 1, int(target["Còn Lại"]), label_visibility="collapsed")
             with sr2: s_prc = st.number_input("$/pet", 0.0, label_visibility="collapsed")
-            if st.button("✅ Bán Pack", type="primary", use_container_width=True):
+            if st.button("✅ Bán Pack", type="primary", use_container_width=True, key="sell_pack"):
                 idx = bulk_df[bulk_df["ID"] == target["ID"]].index[0]
                 rev = s_qty * s_prc * EXCHANGE_RATE
                 bulk_df.at[idx, "Còn Lại"] -= s_qty
@@ -170,11 +170,11 @@ with tab2:
     p_col1, p_col2, p_col3 = st.columns([1.5, 1, 1.5])
     with p_col1: p_del = st.number_input("ID Pack", min_value=0, step=1, label_visibility="collapsed")
     with p_col2:
-        if st.button("🗑️ Xóa", key="p_del", use_container_width=True):
+        if st.button("🗑️ Xóa", key="delete_pack", use_container_width=True):
             save_data(bulk_df[bulk_df["ID"].astype(int) != p_del], BULK_FILE); st.rerun()
     with p_col3:
-        if st.checkbox("🔄 Reset All?", key="p_reset"):
-            if st.button("⚠️ RESET ALL PACK", type="secondary", use_container_width=True):
+        if st.checkbox("🔄 Reset All?", key="reset_pack_check"):
+            if st.button("⚠️ RESET ALL PACK", type="secondary", use_container_width=True, key="reset_pack_btn"):
                 save_data(pd.DataFrame(columns=bulk_cols), BULK_FILE); save_data(pd.DataFrame(columns=hist_cols), BULK_HISTORY); st.rerun()
 
 with tab3:

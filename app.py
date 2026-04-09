@@ -40,6 +40,7 @@ BULK_SCHEMA = {
     "Tên Lô": "",
     "Số Lượng Gốc": 0,
     "Còn Lại": 0,
+    "Ngày Nhập": "",
     "Giá Nhập Tổng": 0.0,
     "Doanh Thu Tích Lũy": 0.0,
     "Lợi Nhuận": 0.0,
@@ -334,8 +335,8 @@ st.markdown(
 with st.sidebar:
     st.header("⚙️ Danh mục")
 
-    def manage_sidebar(label, db, file, col):
-        with st.expander(f"{label}", expanded=False):
+    def manage_sidebar(label, db, file, col, icon="📁"):
+        with st.expander(f"{icon} {label}", expanded=False):
             c1, c2 = st.columns([3, 1])
             new = c1.text_input(f"Add {label}", key=f"add_{file}", label_visibility="collapsed")
             if c2.button("+", key=f"btn_{file}"):
@@ -352,15 +353,34 @@ with st.sidebar:
                         st.rerun()
 
             st.dataframe(db, use_container_width=True, hide_index=True, height=160)
+
+            st.markdown(f"**🗑️ Xóa mục trong {label}**")
+            if not db.empty:
+                values = db[col].astype(str).tolist()
+                d1, d2 = st.columns([2.2, 1.2])
+                selected_item = d1.selectbox(
+                    f"Chọn mục cần xóa ({label})",
+                    values,
+                    key=f"del_sel_{file}",
+                    label_visibility="collapsed",
+                )
+                d2.markdown("**Thao tác xóa**")
+                if d2.button("🗑️ Xóa mục", key=f"del_btn_{file}", use_container_width=True):
+                    updated = db[db[col].astype(str) != str(selected_item)]
+                    save_data(updated.reset_index(drop=True), file)
+                    st.rerun()
+            else:
+                st.caption("Chưa có dữ liệu để xóa.")
+
             if st.button(f"Clear {label}", key=f"clr_{file}"):
                 save_data(pd.DataFrame(columns=[col]), file)
                 st.rerun()
 
-    manage_sidebar("Pet", pet_db, PET_LIST_FILE, "Name")
-    manage_sidebar("NameStock", ns_db, NS_LIST_FILE, "Name")
-    manage_sidebar("Trait", trait_db, TRAIT_LIST_FILE, "Name")
+    manage_sidebar("Pet", pet_db, PET_LIST_FILE, "Name", icon="🐾")
+    manage_sidebar("NameStock", ns_db, NS_LIST_FILE, "Name", icon="🏷️")
+    manage_sidebar("Trait", trait_db, TRAIT_LIST_FILE, "Name", icon="🧬")
 
-tab1, tab2, tab3 = st.tabs(["📦 Pet Lẻ", "📦 Pack", "📊 Thống kê"])
+tab1, tab2, tab3, tab4 = st.tabs(["📦 Pet Lẻ", "📦 Pack", "📊 Thống kê", "⏳ Tồn lâu"])
 
 with tab1:
     col_input, col_sale = st.columns([1.2, 1])
@@ -517,6 +537,7 @@ with tab2:
                         "Tên Lô": f"Pack {b_pet} (x{int(b_qty)})",
                         "Số Lượng Gốc": int(b_qty),
                         "Còn Lại": int(b_qty),
+                        "Ngày Nhập": datetime.now().strftime("%d/%m/%Y %H:%M"),
                         "Giá Nhập Tổng": b_cost,
                         "Doanh Thu Tích Lũy": 0.0,
                         "Lợi Nhuận": -b_cost,
@@ -620,6 +641,26 @@ with tab3:
     m1, m2 = st.columns(2)
     m1.metric("💵 Tổng lợi nhuận", format_vnd(net_profit))
     m2.metric("📦 Tổng stock", f"{total_stock:,}")
+
+    st.markdown("---")
+    st.subheader("💸 Dòng tiền ròng")
+    total_cost_single = float(df["Giá Nhập"].sum()) if not df.empty else 0.0
+    total_cost_pack = float(bulk_df["Giá Nhập Tổng"].sum()) if not bulk_df.empty else 0.0
+    total_cost = total_cost_single + total_cost_pack
+
+    total_revenue_single = float(df["Doanh Thu"].sum()) if not df.empty else 0.0
+    total_revenue_pack = float(bulk_history["Doanh Thu Giao Dịch"].sum()) if not bulk_history.empty else 0.0
+    total_revenue = total_revenue_single + total_revenue_pack
+
+    single_stock_value = float(df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]["Giá Nhập"].sum())
+    pack_stock_value = float(bulk_df[bulk_df["Trạng Thái"] == "Available"]["Giá Nhập Tổng"].sum())
+    stock_value = single_stock_value + pack_stock_value
+
+    cf1, cf2, cf3, cf4 = st.columns(4)
+    cf1.metric("Vốn nhập", format_vnd(total_cost))
+    cf2.metric("Doanh thu bán", format_vnd(total_revenue))
+    cf3.metric("Lợi nhuận ròng", format_vnd(net_profit))
+    cf4.metric("Tồn kho quy tiền", format_vnd(stock_value))
 
     def profit_text(v):
         v = float(v)
@@ -764,3 +805,42 @@ with tab3:
             st.plotly_chart(fig_top_pack, use_container_width=True)
         else:
             st.info("Chưa có dữ liệu giao dịch pack để xếp hạng lợi nhuận.")
+
+with tab4:
+    st.subheader("⏳ Danh sách item tồn quá lâu")
+    age_threshold = st.slider("Số ngày tồn tối thiểu", min_value=1, max_value=90, value=7, step=1)
+
+    # Pet lẻ còn hàng
+    single_old = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)].copy()
+    if not single_old.empty:
+        single_old["Ngày Nhập DT"] = pd.to_datetime(single_old["Ngày Nhập"], dayfirst=True, errors="coerce")
+        single_old["Ngày Tồn"] = (pd.Timestamp.now() - single_old["Ngày Nhập DT"]).dt.days
+        single_old = single_old[single_old["Ngày Tồn"] >= age_threshold]
+        single_old["Loại"] = "Pet Lẻ"
+        single_old["Item"] = single_old["Tên Pet"].astype(str)
+        single_old["Số lượng còn"] = 1
+        single_old["Giá trị vốn (VNĐ)"] = pd.to_numeric(single_old["Giá Nhập"], errors="coerce").fillna(0)
+        single_old_view = single_old[["Loại", "Item", "Số lượng còn", "Ngày Nhập", "Ngày Tồn", "Giá trị vốn (VNĐ)", "Auto Title"]]
+    else:
+        single_old_view = pd.DataFrame(columns=["Loại", "Item", "Số lượng còn", "Ngày Nhập", "Ngày Tồn", "Giá trị vốn (VNĐ)", "Auto Title"])
+
+    # Pack còn hàng
+    pack_old = bulk_df[bulk_df["Trạng Thái"].astype(str) == "Available"].copy()
+    if not pack_old.empty:
+        pack_old["Ngày Nhập DT"] = pd.to_datetime(pack_old["Ngày Nhập"], dayfirst=True, errors="coerce")
+        pack_old["Ngày Tồn"] = (pd.Timestamp.now() - pack_old["Ngày Nhập DT"]).dt.days
+        pack_old = pack_old[pack_old["Ngày Tồn"] >= age_threshold]
+        pack_old["Loại"] = "Pack"
+        pack_old["Item"] = pack_old["Tên Lô"].astype(str)
+        pack_old["Số lượng còn"] = pd.to_numeric(pack_old["Còn Lại"], errors="coerce").fillna(0).astype(int)
+        pack_old["Giá trị vốn (VNĐ)"] = pd.to_numeric(pack_old["Giá Nhập Tổng"], errors="coerce").fillna(0)
+        pack_old_view = pack_old[["Loại", "Item", "Số lượng còn", "Ngày Nhập", "Ngày Tồn", "Giá trị vốn (VNĐ)", "Auto Title"]]
+    else:
+        pack_old_view = pd.DataFrame(columns=["Loại", "Item", "Số lượng còn", "Ngày Nhập", "Ngày Tồn", "Giá trị vốn (VNĐ)", "Auto Title"])
+
+    old_items = pd.concat([single_old_view, pack_old_view], ignore_index=True)
+    if old_items.empty:
+        st.info("Không có item nào vượt ngưỡng tồn kho đã chọn.")
+    else:
+        old_items = old_items.sort_values(["Ngày Tồn", "Giá trị vốn (VNĐ)"], ascending=[False, False])
+        st.dataframe(old_items, use_container_width=True, hide_index=True, height=380)

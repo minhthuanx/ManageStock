@@ -235,7 +235,7 @@ def save_data_to_supabase(df_data: pd.DataFrame, table_name: str, file: str) -> 
             if processed_records:
                 result = supabase_client.table(table_name).insert(processed_records).execute()
                 if result.data:
-                    st.success(f"✅ Đã lưu {len(result.data)} bản ghi lên Supabase ({table_name})")
+                    st.toast(f"✅ Đã lưu {len(result.data)} bản ghi lên Supabase ({table_name})", icon="💾")
                     # Also save to CSV as backup
                     df_data.to_csv(file, index=False, encoding='utf-8-sig')
                     return
@@ -760,13 +760,13 @@ with tab1:
                         s_price = parse_money_input(s_price_raw)
                         idx = df[df["STT"] == selected_stt].index[0]
                         rev_vnd = s_price * EXCHANGE_RATE
-                        df.loc[idx, ["Giá Bán", "Doanh Thu", "Lợi Nhuận", "Ngày Bán", "Trạng Thái"]] = [
-                            s_price,
-                            rev_vnd,
-                            rev_vnd - float(df.at[idx, "Giá Nhập"]),
-                            datetime.now().strftime("%d/%m/%Y %H:%M"),
-                            "Đã bán",
-                        ]
+                        # ✅ FIX pandas 2.2+ dtype strict check error
+                        # Explicit cast each value to correct dtype
+                        df.at[idx, "Giá Bán"] = float(s_price)
+                        df.at[idx, "Doanh Thu"] = float(rev_vnd)
+                        df.at[idx, "Lợi Nhuận"] = float(rev_vnd - float(df.at[idx, "Giá Nhập"]))
+                        df.at[idx, "Ngày Bán"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
+                        df.at[idx, "Trạng Thái"] = str("Đã bán")
                         save_data_to_supabase(normalize_dataframe(df, MAIN_SCHEMA), "inventory", DB_FILE)
                         st.success("Bán pet thành công.")
                         st.rerun()

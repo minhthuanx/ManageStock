@@ -690,3 +690,5 @@ with tab3:
             )
             fig_top_pack.update_layout(margin=dict(l=10, r=10, t=50, b=10), xaxis_title="Tên lô", yaxis_title="Lợi nhuận (VNĐ)")
             st.plotly_chart(fig_top_pack, use_container_width=True)
+        else:
+            st.info("Chưa có dữ liệu giao dịch pack để xếp hạng lợi nhuận.")

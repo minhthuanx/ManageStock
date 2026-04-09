@@ -325,12 +325,12 @@ div[data-testid="stMetric"] {
 st.markdown(
     """
     <div class="hero">
-        <h2>📦SAB Management</h2>
-        <p>Create in 2026 by MINHTHUAN</p>
+        <h2>📦Dashboard</h2>
     </div>
     """,
     unsafe_allow_html=True,
 )
+st.caption("© 2026 MinhThuan. All rights reserved.")
 
 with st.sidebar:
     st.header("⚙️ Danh mục")

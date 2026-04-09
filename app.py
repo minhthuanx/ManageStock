@@ -760,13 +760,25 @@ with tab1:
                         s_price = parse_money_input(s_price_raw)
                         idx = df[df["STT"] == selected_stt].index[0]
                         rev_vnd = s_price * EXCHANGE_RATE
-                        # ✅ FIX pandas 2.2+ dtype strict check error
-                        # Explicit cast each value to correct dtype
-                        df.at[idx, "Giá Bán"] = float(s_price)
-                        df.at[idx, "Doanh Thu"] = float(rev_vnd)
-                        df.at[idx, "Lợi Nhuận"] = float(rev_vnd - float(df.at[idx, "Giá Nhập"]))
-                        df.at[idx, "Ngày Bán"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
-                        df.at[idx, "Trạng Thái"] = str("Đã bán")
+                        
+                        # ✅ FINAL FIX: pandas 2.2+ / 3.0 strict dtype cast error
+                        # Create full copy to break BlockManager reference, modify then replace
+                        df_new = df.copy()
+                        
+                        df_new.at[idx, "Giá Bán"] = float(s_price)
+                        df_new.at[idx, "Doanh Thu"] = float(rev_vnd)
+                        df_new.at[idx, "Lợi Nhuận"] = float(rev_vnd - float(df_new.at[idx, "Giá Nhập"]))
+                        df_new.at[idx, "Ngày Bán"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
+                        df_new.at[idx, "Trạng Thái"] = str("Đã bán")
+                        
+                        # ✅ Force column types to match schema before save
+                        df = df_new.astype({
+                            "Giá Bán": float,
+                            "Doanh Thu": float,
+                            "Lợi Nhuận": float,
+                            "Ngày Bán": str,
+                            "Trạng Thái": str
+                        })
                         save_data_to_supabase(normalize_dataframe(df, MAIN_SCHEMA), "inventory", DB_FILE)
                         st.success("Bán pet thành công.")
                         st.rerun()

@@ -31,8 +31,8 @@ def save_data(df, file):
 
 # --- INITIALIZATION ---
 main_cols = ["STT", "Tên Pet", "M/s", "Mutation", "Số Trait", "NameStock", "Giá Nhập", "Giá Bán", "Lợi Nhuận", "Doanh Thu", "Ngày Nhập", "Ngày Bán", "Auto Title", "Trạng Thái"]
-bulk_cols = ["ID", "Tên Lô", "Số Lượng Gốc", "Còn Lại", "Giá Nhập Tổng", "Doanh Thu Tích Lũy", "Lợi Nhuận", "Trạng Thái", "Auto Title"]
-hist_cols = ["Ngày Bán", "Tên Lô", "Số Lượng Bán", "Lợi Nhuận Giao Dịch", "Doanh Thu Giao Dịch"]
+bulk_cols = ["ID", "Tên Pack", "Số Lượng", "Còn Lại", "Giá Nhập Tổng", "Doanh Thu", "Lợi Nhuận", "Trạng Thái", "Auto Title"]
+hist_cols = ["Ngày Bán", "Tên Pack", "Số Lượng Bán", "Lợi Nhuận Giao Dịch", "Doanh Thu Giao Dịch"]
 
 df = load_data(DB_FILE, main_cols)
 bulk_df = load_data(BULK_FILE, bulk_cols)
@@ -131,12 +131,12 @@ with tab2:
         b_cost = st.number_input("Total Cost (VNĐ)", min_value=0.0, step=1000.0, format="%.0f", key="b4")
         if st.button("Lưu Pack", type="primary"):
             bid = int(bulk_df["ID"].max() + 1) if not bulk_df.empty else 1
-            save_data(pd.concat([bulk_df, pd.DataFrame([{"ID": bid, "Tên Lô": f"Pack {b_pet} (x{b_qty})", "Số Lượng Gốc": b_qty, "Còn Lại": b_qty, "Giá Nhập Tổng": b_cost, "Doanh Thu Tích Lũy": 0.0, "Lợi Nhuận": -b_cost, "Trạng Thái": "Available", "Auto Title": generate_auto_title(b_pet, b_mut, "None", float(b_ms), "")}])]), BULK_FILE); st.rerun()
+            save_data(pd.concat([bulk_df, pd.DataFrame([{"ID": bid, "Tên Pack": f"Pack {b_pet} (x{b_qty})", "Số Lượng": b_qty, "Còn Lại": b_qty, "Giá Nhập Tổng": b_cost, "Doanh Thu": 0.0, "Lợi Nhuận": -b_cost, "Trạng Thái": "Available", "Auto Title": generate_auto_title(b_pet, b_mut, "None", float(b_ms), "")}])]), BULK_FILE); st.rerun()
     with psl:
         st.caption("💰 Sale Pack")
         avail = bulk_df[bulk_df["Trạng Thái"].astype(str) == "Available"]
         if not avail.empty:
-            sel_b = st.selectbox("Select Pack", avail["ID"].astype(str) + " - " + avail["Tên Lô"])
+            sel_b = st.selectbox("Select Pack", avail["ID"].astype(str) + " - " + avail["Tên Pack"])
             target = avail[avail["ID"] == int(sel_b.split(" - ")[0])].iloc[0]
             sr1, sr2, sr3 = st.columns([1, 1, 1])
             s_qty = sr1.number_input("Qty Sell", 1, int(target["Còn Lại"]))
@@ -145,10 +145,10 @@ with tab2:
                 idx = bulk_df[bulk_df["ID"] == target["ID"]].index[0]
                 rev = s_qty * s_prc * EXCHANGE_RATE
                 bulk_df.at[idx, "Còn Lại"] -= s_qty
-                bulk_df.at[idx, "Doanh Thu Tích Lũy"] += rev
-                bulk_df.at[idx, "Lợi Nhuận"] = bulk_df.at[idx, "Doanh Thu Tích Lũy"] - bulk_df.at[idx, "Giá Nhập Tổng"]
+                bulk_df.at[idx, "Doanh Thu"] += rev
+                bulk_df.at[idx, "Lợi Nhuận"] = bulk_df.at[idx, "Doanh Thu"] - bulk_df.at[idx, "Giá Nhập Tổng"]
                 if bulk_df.at[idx, "Còn Lại"] <= 0: bulk_df.at[idx, "Trạng Thái"] = "Sold Out"
-                save_data(pd.concat([bulk_history, pd.DataFrame([{"Ngày Bán": datetime.now().strftime("%d/%m/%Y"), "Tên Lô": target["Tên Lô"], "Số Lượng Bán": s_qty, "Lợi Nhuận Giao Dịch": (rev - (target["Giá Nhập Tổng"]/target["Số Lượng Gốc"]*s_qty)), "Doanh Thu Giao Dịch": rev}])]), BULK_HISTORY)
+                save_data(pd.concat([bulk_history, pd.DataFrame([{"Ngày Bán": datetime.now().strftime("%d/%m/%Y"), "Tên Pack": target["Tên Pack"], "Số Lượng Bán": s_qty, "Lợi Nhuận Giao Dịch": (rev - (target["Giá Nhập Tổng"]/target["Số Lượng"]*s_qty)), "Doanh Thu Giao Dịch": rev}])]), BULK_HISTORY)
                 save_data(bulk_df, BULK_FILE); st.rerun()
     st.dataframe(bulk_df, use_container_width=True, hide_index=True, height=250)
 

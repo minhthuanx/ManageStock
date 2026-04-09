@@ -119,6 +119,16 @@ def parse_ms_input(value: str) -> float:
         return 0.0
 
 
+def parse_money_input(value: str) -> float:
+    if not value:
+        return 0.0
+    cleaned = re.sub(r"[^0-9.]", "", str(value))
+    try:
+        return float(cleaned) if cleaned else 0.0
+    except ValueError:
+        return 0.0
+
+
 def next_id(df_data: pd.DataFrame, col: str) -> int:
     if df_data.empty:
         return 1
@@ -344,18 +354,17 @@ with tab1:
             p_name = st.selectbox("Tên Pet", pet_options)
 
             r1c1, r1c2, r1c3 = st.columns([1, 1, 1])
-            ms_raw = r1c1.text_input("Tốc độ (M/s)", "1000")
+            ms_raw = r1c1.text_input("Tốc độ (M/s)", placeholder="Ví dụ: 1000")
             p_mut = r1c2.selectbox("Mutation", mutation_options)
             p_trait = r1c3.selectbox("Số Trait", trait_options)
 
             r2c1, r2c2 = st.columns([1.5, 1])
             p_ns = r2c1.selectbox("NameStock", ns_options)
-            p_cost = r2c2.number_input(
-                "Giá nhập (VNĐ)", min_value=0.0, step=1000.0, format="%.0f"
-            )
+            p_cost_raw = r2c2.text_input("Giá nhập (VNĐ)", placeholder="Ví dụ: 150000")
 
             if st.button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True, key="save_single"):
                 ms = parse_ms_input(ms_raw)
+                p_cost = parse_money_input(p_cost_raw)
                 if p_name == "None":
                     st.error("Bạn cần thêm Pet ở sidebar trước khi lưu.")
                 else:
@@ -402,8 +411,9 @@ with tab1:
                         f"Pet: **{selected_row['Tên Pet']}** | Giá nhập: **{format_vnd(float(selected_row['Giá Nhập']))}**"
                     )
 
-                    s_price = st.number_input("Giá bán ($)", min_value=0.0, step=0.5)
+                    s_price_raw = st.text_input("Giá bán ($)", placeholder="Ví dụ: 5.5")
                     if st.button("✅ Xác nhận bán", type="primary", use_container_width=True, key="sell_single"):
+                        s_price = parse_money_input(s_price_raw)
                         idx = df[df["STT"] == selected_stt].index[0]
                         rev_vnd = s_price * EXCHANGE_RATE
                         df.loc[idx, ["Giá Bán", "Doanh Thu", "Lợi Nhuận", "Ngày Bán", "Trạng Thái"]] = [
@@ -463,13 +473,11 @@ with tab2:
 
             br1, br2, br3 = st.columns([1, 1, 1])
             b_qty = br1.number_input("Số lượng", min_value=1, max_value=500, value=10)
-            b_ms = br2.text_input("Tốc độ (M/s)", "1000", key="b2")
+            b_ms = br2.text_input("Tốc độ (M/s)", key="b2", placeholder="Ví dụ: 1000")
             b_mut = br3.selectbox("Mutation", mutation_options, key="b3")
 
             b_ns = st.selectbox("NameStock", [""] + get_name_options(ns_db, fallback=""), key="b5")
-            b_cost = st.number_input(
-                "Tổng giá nhập (VNĐ)", min_value=0.0, step=1000.0, format="%.0f", key="b4"
-            )
+            b_cost_raw = st.text_input("Tổng giá nhập (VNĐ)", key="b4", placeholder="Ví dụ: 2000000")
 
             if st.button("💾 Lưu Pack", type="primary", use_container_width=True, key="save_pack"):
                 if b_pet == "None":
@@ -477,6 +485,7 @@ with tab2:
                 else:
                     bid = next_id(bulk_df, "ID")
                     ms_value = parse_ms_input(b_ms)
+                    b_cost = parse_money_input(b_cost_raw)
                     row = {
                         "ID": bid,
                         "Tên Lô": f"Pack {b_pet} (x{int(b_qty)})",
@@ -507,9 +516,10 @@ with tab2:
                 with sr1:
                     s_qty = st.number_input("Số lượng bán", min_value=1, max_value=int(target["Còn Lại"]))
                 with sr2:
-                    s_prc = st.number_input("Giá bán ($/pet)", min_value=0.0, step=0.5)
+                    s_prc_raw = st.text_input("Giá bán ($/pet)", placeholder="Ví dụ: 3.5")
 
                 if st.button("✅ Bán Pack", type="primary", use_container_width=True, key="sell_pack"):
+                    s_prc = parse_money_input(s_prc_raw)
                     idx = bulk_df[bulk_df["ID"] == target["ID"]].index[0]
                     rev_vnd = s_qty * s_prc * EXCHANGE_RATE
                     bulk_df.at[idx, "Còn Lại"] = max(0, float(bulk_df.at[idx, "Còn Lại"]) - float(s_qty))
@@ -692,3 +702,17 @@ with tab3:
             st.plotly_chart(fig_top_single, use_container_width=True)
         else:
             st.info("Chưa có dữ liệu pet lẻ đã bán để xếp hạng lợi nhuận.")
+
+    with c4:
+        if not pack_profit_by_name.empty:
+            fig_top_pack = px.bar(
+                pack_profit_by_name,
+                x="Tên Lô",
+                y="Lợi Nhuận Giao Dịch",
+                title="Top 10 Pack theo lợi nhuận giao dịch",
+                text_auto=".2s",
+            )
+            fig_top_pack.update_layout(margin=dict(l=10, r=10, t=50, b=10), xaxis_title="Tên lô", yaxis_title="Lợi nhuận (VNĐ)")
+            st.plotly_chart(fig_top_pack, use_container_width=True)
+        else:
+            st.info("Chưa có dữ liệu giao dịch pack để xếp hạng lợi nhuận.")

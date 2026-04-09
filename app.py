@@ -110,12 +110,42 @@ def supabase_select_by_id(table_name: str, id_col: str, id_value) -> pd.DataFram
         st.error(f"❌ Lỗi khi đọc dữ liệu từ {table_name}: {e}")
         return pd.DataFrame()
 
-def load_data_from_supabase(table_name: str, schema: dict, order_by: str = "id") -> pd.DataFrame:
+def load_data_from_supabase(table_name: str, schema: dict, order_by: str = None) -> pd.DataFrame:
     """Load data from Supabase with fallback to CSV"""
     if USE_SUPABASE:
         try:
             df_supabase = supabase_select(table_name, order_by)
             if not df_supabase.empty:
+                # Reverse map snake_case columns back to original names
+                reverse_mapping = {
+                    'stt': 'STT',
+                    'ten_pet': 'Tên Pet',
+                    'ms': 'M/s',
+                    'mutation': 'Mutation',
+                    'so_trait': 'Số Trait',
+                    'namestock': 'NameStock',
+                    'gia_nhap': 'Giá Nhập',
+                    'gia_ban': 'Giá Bán',
+                    'loi_nhuan': 'Lợi Nhuận',
+                    'doanh_thu': 'Doanh Thu',
+                    'ngay_nhap': 'Ngày Nhập',
+                    'ngay_ban': 'Ngày Bán',
+                    'auto_title': 'Auto Title',
+                    'trang_thai': 'Trạng Thái',
+                    'id': 'ID',
+                    'ten_lo': 'Tên Lô',
+                    'so_luong_goc': 'Số Lượng Gốc',
+                    'con_lai': 'Còn Lại',
+                    'gia_nhap_tong': 'Giá Nhập Tổng',
+                    'doanh_thu_tich_luy': 'Doanh Thu Tích Lũy',
+                    'so_luong_ban': 'Số Lượng Bán',
+                    'loi_nhuan_giao_dich': 'Lợi Nhuận Giao Dịch',
+                    'doanh_thu_giao_dich': 'Doanh Thu Giao Dịch'
+                }
+                
+                # Rename columns if they exist
+                df_supabase = df_supabase.rename(columns=reverse_mapping)
+                
                 st.info(f"📊 Đã tải {len(df_supabase)} dòng từ Supabase ({table_name})")
                 return normalize_dataframe(df_supabase, schema)
         except Exception as e:
@@ -135,12 +165,49 @@ def save_data_to_supabase(df_data: pd.DataFrame, table_name: str, file: str) -> 
             # Convert DataFrame to list of dicts
             records = df_data.to_dict('records')
             
+            # Map column names to snake_case for Supabase compatibility
+            # Fix error "column 'Auto Title' does not exist"
+            column_mapping = {
+                'STT': 'stt',
+                'Tên Pet': 'ten_pet',
+                'M/s': 'ms',
+                'Mutation': 'mutation',
+                'Số Trait': 'so_trait',
+                'NameStock': 'namestock',
+                'Giá Nhập': 'gia_nhap',
+                'Giá Bán': 'gia_ban',
+                'Lợi Nhuận': 'loi_nhuan',
+                'Doanh Thu': 'doanh_thu',
+                'Ngày Nhập': 'ngay_nhap',
+                'Ngày Bán': 'ngay_ban',
+                'Auto Title': 'auto_title',
+                'Trạng Thái': 'trang_thai',
+                'ID': 'id',
+                'Tên Lô': 'ten_lo',
+                'Số Lượng Gốc': 'so_luong_goc',
+                'Còn Lại': 'con_lai',
+                'Giá Nhập Tổng': 'gia_nhap_tong',
+                'Doanh Thu Tích Lũy': 'doanh_thu_tich_luy',
+                'Số Lượng Bán': 'so_luong_ban',
+                'Lợi Nhuận Giao Dịch': 'loi_nhuan_giao_dich',
+                'Doanh Thu Giao Dịch': 'doanh_thu_giao_dich'
+            }
+            
             # Clear table and insert new data (simple approach)
             # Note: For production, you might want to use upsert or handle updates more carefully
+            processed_records = []
             for record in records:
                 # Remove pandas index if present
                 if 'index' in record:
                     del record['index']
+                
+                # Convert column names to snake_case for Supabase
+                new_record = {}
+                for key, value in record.items():
+                    mapped_key = column_mapping.get(key, key.lower().replace(' ', '_').replace('/', '_'))
+                    new_record[mapped_key] = value
+                
+                processed_records.append(new_record)
             
             # Clear existing data and insert new (for simplicity)
             # In production, you'd want more sophisticated sync logic
@@ -163,8 +230,8 @@ def save_data_to_supabase(df_data: pd.DataFrame, table_name: str, file: str) -> 
                     # Last resort: just proceed without deleting
                     pass
             
-            if records:
-                result = supabase_client.table(table_name).insert(records).execute()
+            if processed_records:
+                result = supabase_client.table(table_name).insert(processed_records).execute()
                 if result.data:
                     st.success(f"✅ Đã lưu {len(result.data)} bản ghi lên Supabase ({table_name})")
                     # Also save to CSV as backup

@@ -75,11 +75,20 @@ def supabase_delete(table_name: str, condition_col: str, condition_value) -> boo
         st.error(f"❌ Lỗi khi xóa dữ liệu trong {table_name}: {e}")
         return False
 
-def supabase_select(table_name: str, order_by: str = "id") -> pd.DataFrame:
+def supabase_select(table_name: str, order_by: str = None) -> pd.DataFrame:
     """Select all data from Supabase table"""
     if not USE_SUPABASE or not supabase_client:
         return pd.DataFrame()
     try:
+        # Auto detect correct order column based on table name
+        if order_by is None:
+            if table_name == 'inventory':
+                order_by = 'STT'
+            elif table_name == 'bulk_inventory':
+                order_by = 'ID'
+            else:
+                order_by = 'id'
+                
         result = supabase_client.table(table_name).select("*").order(order_by).execute()
         if result.data:
             return pd.DataFrame(result.data)
@@ -135,7 +144,24 @@ def save_data_to_supabase(df_data: pd.DataFrame, table_name: str, file: str) -> 
             
             # Clear existing data and insert new (for simplicity)
             # In production, you'd want more sophisticated sync logic
-            supabase_client.table(table_name).delete().neq('id', 0).execute()
+            # Use correct ID column based on table name
+            id_column = 'id'  # default fallback
+            if table_name == 'inventory':
+                id_column = 'STT'
+            elif table_name == 'bulk_inventory':
+                id_column = 'ID'
+                
+            # Delete all records (using id column that actually exists)
+            try:
+                # Try with correct column first
+                supabase_client.table(table_name).delete().neq(id_column, 0).execute()
+            except Exception:
+                # Fallback if table has different ID column
+                try:
+                    supabase_client.table(table_name).delete().neq('id', 0).execute()
+                except Exception:
+                    # Last resort: just proceed without deleting
+                    pass
             
             if records:
                 result = supabase_client.table(table_name).insert(records).execute()

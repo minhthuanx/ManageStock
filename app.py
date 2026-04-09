@@ -325,7 +325,7 @@ div[data-testid="stMetric"] {
 st.markdown(
     """
     <div class="hero">
-        <h2>📦 GhostlyStock Management</h2>
+        <h2>📦SAB Management</h2>
         <p>Create in 2026 by MINHTHUAN</p>
     </div>
     """,

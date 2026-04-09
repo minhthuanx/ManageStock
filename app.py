@@ -8,9 +8,6 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 import streamlit.components.v1 as components
-import pytesseract
-from PIL import Image
-import numpy as np
 
 # --- CONFIGURATION ---
 DB_FILE = "inventory.csv"
@@ -186,76 +183,6 @@ def get_name_options(db: pd.DataFrame, fallback: str = "None"):
 def append_row(df_data: pd.DataFrame, row: dict, schema: dict) -> pd.DataFrame:
     updated = pd.concat([df_data, pd.DataFrame([row])], ignore_index=True)
     return normalize_dataframe(updated, schema)
-
-
-def extract_pet_info_from_image(image):
-    """Trích xuất thông tin pet từ ảnh bằng OCR"""
-    try:
-        # Chuyển đổi ảnh sang grayscale để cải thiện độ chính xác OCR
-        if isinstance(image, np.ndarray):
-            img = Image.fromarray(image)
-        else:
-            img = image
-        
-        # Chuyển sang grayscale
-        img_gray = img.convert('L')
-        
-        # Sử dụng pytesseract để trích xuất văn bản
-        text = pytesseract.image_to_string(img_gray, lang='eng')
-        
-        # Làm sạch văn bản
-        text = re.sub(r'\s+', ' ', text.strip())
-        
-        if not text:
-            return None, None, None
-        
-        # Các từ khóa mutation
-        mutation_keywords = [m.lower() for m in mutation_options]
-        
-        # Tìm mutation đầu tiên trong văn bản
-        found_mutation = None
-        for keyword in mutation_keywords:
-            if keyword in text.lower():
-                found_mutation = keyword.capitalize()
-                break
-        
-        # Loại bỏ mutation khỏi văn bản để tìm tên pet
-        text_without_mutation = text
-        if found_mutation:
-            text_without_mutation = re.sub(rf'\b{re.escape(found_mutation)}\b', '', text, flags=re.IGNORECASE)
-        
-        # Tìm tốc độ (M/s hoặc B/s)
-        ms_pattern = r'(\d+(?:\.\d+)?)(?:B|M)/s'
-        ms_match = re.search(ms_pattern, text_without_mutation, re.IGNORECASE)
-        
-        found_ms = 0.0
-        if ms_match:
-            ms_value = ms_match.group(1)
-            unit = ms_match.group(0).lower()
-            if 'b' in unit:
-                found_ms = float(ms_value) * 1000  # Chuyển B/s sang M/s
-            else:
-                found_ms = float(ms_value)
-        
-        # Loại bỏ tốc độ khỏi văn bản để tìm tên pet
-        text_without_ms = text_without_mutation
-        if ms_match:
-            text_without_ms = re.sub(ms_pattern, '', text_without_ms, flags=re.IGNORECASE)
-        
-        # Tìm tên pet (giả sử là phần còn lại sau khi loại bỏ mutation và tốc độ)
-        # Loại bỏ các ký tự đặc biệt và số
-        pet_name = re.sub(r'[^a-zA-Z\s]', '', text_without_ms)
-        pet_name = pet_name.strip()
-        
-        # Nếu không tìm thấy mutation, mặc định là Normal
-        if not found_mutation:
-            found_mutation = "Normal"
-        
-        return found_mutation, pet_name, found_ms
-        
-    except Exception as e:
-        st.error(f"Lỗi xử lý ảnh: {str(e)}")
-        return None, None, None
 
 
 def render_editable_inventory_table(
@@ -444,70 +371,21 @@ with tab1:
     with col_input:
         with st.container(border=True):
             st.subheader("📥 Nhập Pet Lẻ")
-            
-            # OCR Section
-            st.markdown("### 📸 Nhập từ ảnh (OCR)")
-            uploaded_image = st.file_uploader("Tải lên ảnh chụp màn hình pet", type=["png", "jpg", "jpeg"], key="ocr_image")
-            
-            if uploaded_image is not None:
-                try:
-                    # Hiển thị ảnh
-                    image = Image.open(uploaded_image)
-                    st.image(image, caption="Ảnh đã tải lên", use_column_width=True)
-                    
-                    # Trích xuất thông tin
-                    with st.spinner("Đang xử lý ảnh..."):
-                        found_mutation, found_name, found_ms = extract_pet_info_from_image(image)
-                    
-                    if found_mutation and found_name and found_ms > 0:
-                        st.success("✅ Đã nhận diện thành công!")
-                        col_ocr1, col_ocr2, col_ocr3 = st.columns(3)
-                        with col_ocr1:
-                            st.write(f"**Mutation:** {found_mutation}")
-                        with col_ocr2:
-                            st.write(f"**Tên Pet:** {found_name}")
-                        with col_ocr3:
-                            st.write(f"**Tốc độ:** {found_ms:.0f}M/s")
-                        
-                        # Nút điền tự động
-                        if st.button("🔄 Điền tự động", use_container_width=True, type="primary"):
-                            st.session_state.ocr_mutation = found_mutation
-                            st.session_state.ocr_name = found_name
-                            st.session_state.ocr_ms = str(found_ms)
-                            st.rerun()
-                    else:
-                        st.warning("❌ Không thể nhận diện thông tin từ ảnh. Vui lòng thử lại với ảnh rõ hơn.")
-                
-                except Exception as e:
-                    st.error(f"Lỗi xử lý ảnh: {str(e)}")
-            
-            st.markdown("---")
-            
-            # Manual Input Section
-            st.markdown("### ✏️ Nhập thủ công")
             pet_options = get_name_options(pet_db)
             trait_options = ["None"] + get_name_options(trait_db)
             ns_options = [""] + get_name_options(ns_db, fallback="")
-            
-            # Khởi tạo session state cho OCR
-            if 'ocr_mutation' not in st.session_state:
-                st.session_state.ocr_mutation = "Normal"
-            if 'ocr_name' not in st.session_state:
-                st.session_state.ocr_name = ""
-            if 'ocr_ms' not in st.session_state:
-                st.session_state.ocr_ms = ""
-            
-            p_name = st.selectbox("Tên Pet", pet_options, index=pet_options.index(st.session_state.ocr_name) if st.session_state.ocr_name in pet_options else 0)
-            
+
+            p_name = st.selectbox("Tên Pet", pet_options)
+
             r1c1, r1c2, r1c3 = st.columns([1, 1, 1])
-            ms_raw = r1c1.text_input("Tốc độ (M/s)", value=st.session_state.ocr_ms, placeholder="Ví dụ: 1000")
-            p_mut = r1c2.selectbox("Mutation", mutation_options, index=mutation_options.index(st.session_state.ocr_mutation) if st.session_state.ocr_mutation in mutation_options else 0)
+            ms_raw = r1c1.text_input("Tốc độ (M/s)", placeholder="Ví dụ: 1000")
+            p_mut = r1c2.selectbox("Mutation", mutation_options)
             p_trait = r1c3.selectbox("Số Trait", trait_options)
-            
+
             r2c1, r2c2 = st.columns([1.5, 1])
             p_ns = r2c1.selectbox("NameStock", ns_options)
             p_cost_raw = r2c2.text_input("Giá nhập (VNĐ)", placeholder="Ví dụ: 150000")
-            
+
             if st.button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True, key="save_single"):
                 ms = parse_ms_input(ms_raw)
                 p_cost = parse_money_input(p_cost_raw)
@@ -533,10 +411,6 @@ with tab1:
                     }
                     save_data(append_row(df, row, MAIN_SCHEMA), DB_FILE)
                     st.success("Đã lưu pet lẻ.")
-                    # Xóa session state sau khi lưu
-                    st.session_state.ocr_mutation = "Normal"
-                    st.session_state.ocr_name = ""
-                    st.session_state.ocr_ms = ""
                     st.rerun()
 
     with col_sale:

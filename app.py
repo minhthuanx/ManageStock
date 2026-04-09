@@ -22,8 +22,8 @@ USE_SUPABASE = False
 # Initialize Supabase if secrets are available
 if "SUPABASE_URL" in st.secrets and "SUPABASE_KEY" in st.secrets:
     try:
-        supabase_url = st.secrets["https://dokbvzgrtoyrudlglcyt.supabase.co"]
-        supabase_key = st.secrets["sb_publishable_lLBWLqN06lkDf0kBXwCn0w_vZukGLcQ"]
+        supabase_url = st.secrets["SUPABASE_URL"]
+        supabase_key = st.secrets["SUPABASE_KEY"]
         supabase_client = create_client(supabase_url, supabase_key)
         USE_SUPABASE = True
         st.success("✅ Connected to Supabase!")
@@ -40,6 +40,125 @@ elif "supabase" in st.secrets and "url" in st.secrets["supabase"] and "key" in s
     except Exception as e:
         st.warning(f"⚠️ Could not connect to Supabase: {e}. Using local CSV files.")
         USE_SUPABASE = False
+
+# --- SUPABASE CRUD FUNCTIONS ---
+def supabase_insert(table_name: str, data: dict) -> bool:
+    """Insert data into Supabase table"""
+    if not USE_SUPABASE or not supabase_client:
+        return False
+    try:
+        result = supabase_client.table(table_name).insert(data).execute()
+        return len(result.data) > 0 if result.data else False
+    except Exception as e:
+        st.error(f"❌ Lỗi khi thêm dữ liệu vào {table_name}: {e}")
+        return False
+
+def supabase_update(table_name: str, data: dict, condition_col: str, condition_value) -> bool:
+    """Update data in Supabase table"""
+    if not USE_SUPABASE or not supabase_client:
+        return False
+    try:
+        result = supabase_client.table(table_name).update(data).eq(condition_col, condition_value).execute()
+        return len(result.data) > 0 if result.data else False
+    except Exception as e:
+        st.error(f"❌ Lỗi khi cập nhật dữ liệu trong {table_name}: {e}")
+        return False
+
+def supabase_delete(table_name: str, condition_col: str, condition_value) -> bool:
+    """Delete data from Supabase table"""
+    if not USE_SUPABASE or not supabase_client:
+        return False
+    try:
+        result = supabase_client.table(table_name).delete().eq(condition_col, condition_value).execute()
+        return result.data is not None
+    except Exception as e:
+        st.error(f"❌ Lỗi khi xóa dữ liệu trong {table_name}: {e}")
+        return False
+
+def supabase_select(table_name: str, order_by: str = "id") -> pd.DataFrame:
+    """Select all data from Supabase table"""
+    if not USE_SUPABASE or not supabase_client:
+        return pd.DataFrame()
+    try:
+        result = supabase_client.table(table_name).select("*").order(order_by).execute()
+        if result.data:
+            return pd.DataFrame(result.data)
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"❌ Lỗi khi đọc dữ liệu từ {table_name}: {e}")
+        return pd.DataFrame()
+
+def supabase_select_by_id(table_name: str, id_col: str, id_value) -> pd.DataFrame:
+    """Select data by ID from Supabase table"""
+    if not USE_SUPABASE or not supabase_client:
+        return pd.DataFrame()
+    try:
+        result = supabase_client.table(table_name).select("*").eq(id_col, id_value).execute()
+        if result.data:
+            return pd.DataFrame(result.data)
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"❌ Lỗi khi đọc dữ liệu từ {table_name}: {e}")
+        return pd.DataFrame()
+
+def load_data_from_supabase(table_name: str, schema: dict, order_by: str = "id") -> pd.DataFrame:
+    """Load data from Supabase with fallback to CSV"""
+    if USE_SUPABASE:
+        try:
+            df_supabase = supabase_select(table_name, order_by)
+            if not df_supabase.empty:
+                st.info(f"📊 Đã tải {len(df_supabase)} dòng từ Supabase ({table_name})")
+                return normalize_dataframe(df_supabase, schema)
+        except Exception as e:
+            st.warning(f"⚠️ Không thể đọc từ Supabase: {e}. Đang dùng CSV.")
+    
+    # Fallback to CSV
+    return load_data(f"{table_name}.csv", schema)
+
+def save_data_to_supabase(df_data: pd.DataFrame, table_name: str, file: str) -> None:
+    """Save data to Supabase with fallback to CSV"""
+    # Always create backup for CSV
+    create_backup(file)
+    
+    # Try to save to Supabase
+    if USE_SUPABASE:
+        try:
+            # Convert DataFrame to list of dicts
+            records = df_data.to_dict('records')
+            
+            # Clear table and insert new data (simple approach)
+            # Note: For production, you might want to use upsert or handle updates more carefully
+            for record in records:
+                # Remove pandas index if present
+                if 'index' in record:
+                    del record['index']
+            
+            # Clear existing data and insert new (for simplicity)
+            # In production, you'd want more sophisticated sync logic
+            supabase_client.table(table_name).delete().neq('id', 0).execute()
+            
+            if records:
+                result = supabase_client.table(table_name).insert(records).execute()
+                if result.data:
+                    st.success(f"✅ Đã lưu {len(result.data)} bản ghi lên Supabase ({table_name})")
+                    # Also save to CSV as backup
+                    df_data.to_csv(file, index=False, encoding='utf-8-sig')
+                    return
+            
+        except Exception as e:
+            st.error(f"❌ Lỗi khi lưu lên Supabase: {e}")
+    
+    # Fallback to CSV
+    temp_file = f"{file}.tmp"
+    try:
+        df_data.to_csv(temp_file, index=False, encoding='utf-8-sig')
+        os.replace(temp_file, file)
+        if not USE_SUPABASE:
+            st.info(f"💾 Đã lưu {len(df_data)} bản ghi vào CSV ({file})")
+    except Exception as e:
+        st.error(f"Lỗi khi lưu dữ liệu: {e}")
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
 
 # --- CONFIGURATION ---
 DB_FILE = "inventory.csv"

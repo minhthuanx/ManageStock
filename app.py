@@ -2,12 +2,44 @@ import json
 import os
 import re
 import html
+import shutil
 from datetime import datetime
+from io import StringIO
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 import streamlit.components.v1 as components
+
+# --- SUPABASE CONFIGURATION ---
+from supabase import create_client, Client
+
+# --- SUPABASE CONFIGURATION ---
+# Supabase clients
+supabase_client = None
+USE_SUPABASE = False
+
+# Initialize Supabase if secrets are available
+if "SUPABASE_URL" in st.secrets and "SUPABASE_KEY" in st.secrets:
+    try:
+        supabase_url = st.secrets["https://dokbvzgrtoyrudlglcyt.supabase.co"]
+        supabase_key = st.secrets["sb_publishable_lLBWLqN06lkDf0kBXwCn0w_vZukGLcQ"]
+        supabase_client = create_client(supabase_url, supabase_key)
+        USE_SUPABASE = True
+        st.success("✅ Connected to Supabase!")
+    except Exception as e:
+        st.warning(f"⚠️ Could not connect to Supabase: {e}. Using local CSV files.")
+        USE_SUPABASE = False
+elif "supabase" in st.secrets and "url" in st.secrets["supabase"] and "key" in st.secrets["supabase"]:
+    try:
+        supabase_url = st.secrets["supabase"]["url"]
+        supabase_key = st.secrets["supabase"]["key"]
+        supabase_client = create_client(supabase_url, supabase_key)
+        USE_SUPABASE = True
+        st.success("✅ Connected to Supabase!")
+    except Exception as e:
+        st.warning(f"⚠️ Could not connect to Supabase: {e}. Using local CSV files.")
+        USE_SUPABASE = False
 
 # --- CONFIGURATION ---
 DB_FILE = "inventory.csv"
@@ -16,6 +48,8 @@ BULK_HISTORY = "bulk_history.csv"
 PET_LIST_FILE = "pet_list.csv"
 NS_LIST_FILE = "namestock_list.csv"
 TRAIT_LIST_FILE = "traits_list.csv"
+SQLITE_DB = "ghostlystock.db"
+BACKUP_DIR = "backups"
 EXCHANGE_RATE = 20400
 
 MAIN_SCHEMA = {
@@ -106,10 +140,38 @@ def load_data(file: str, schema: dict) -> pd.DataFrame:
         return pd.DataFrame(columns=schema.keys())
 
 
+def create_backup(file: str) -> None:
+    """Tạo backup tự động trước khi ghi dữ liệu"""
+    if not os.path.exists(file):
+        return
+    
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file = os.path.join(BACKUP_DIR, f"{os.path.basename(file)}_{timestamp}.bak")
+    shutil.copy2(file, backup_file)
+    
+    # Giữ chỉ 10 backup gần nhất cho mỗi file
+    basename = os.path.basename(file)
+    backup_files = sorted([f for f in os.listdir(BACKUP_DIR) if f.startswith(basename)])
+    if len(backup_files) > 10:
+        for old_file in backup_files[:-10]:
+            os.remove(os.path.join(BACKUP_DIR, old_file))
+
+
 def save_data(df_data: pd.DataFrame, file: str) -> None:
+    """Lưu dữ liệu với backup tự động"""
+    # Tạo backup trước khi ghi
+    create_backup(file)
+    
+    # Ghi dữ liệu an toàn với file tạm
     temp_file = f"{file}.tmp"
-    df_data.to_csv(temp_file, index=False)
-    os.replace(temp_file, file)
+    try:
+        df_data.to_csv(temp_file, index=False, encoding='utf-8-sig')
+        os.replace(temp_file, file)
+    except Exception as e:
+        st.error(f"Lỗi khi lưu dữ liệu: {e}")
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
 
 
 def reindex_sequential(df_data: pd.DataFrame, id_col: str) -> pd.DataFrame:

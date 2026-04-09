@@ -609,47 +609,64 @@ with tab2:
 with tab3:
     st.subheader("📊 Analytics")
 
-    single_stock_value = float(df[df["Trạng Thái"] == "Còn hàng"]["Giá Nhập"].sum())
-    pack_stock_value = float(bulk_df[bulk_df["Trạng Thái"] == "Available"]["Giá Nhập Tổng"].sum())
-    stock_value = single_stock_value + pack_stock_value
-
     single_profit = float(df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False, regex=False)]["Lợi Nhuận"].sum())
     pack_profit = float(bulk_df["Lợi Nhuận"].sum())
     net_profit = single_profit + pack_profit
 
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Stock Value", format_vnd(stock_value))
-    m2.metric("Single Profit", format_vnd(single_profit))
-    m3.metric("Net Profit", format_vnd(net_profit))
+    single_stock_count = int(df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)].shape[0])
+    pack_stock_count = int(pd.to_numeric(bulk_df[bulk_df["Trạng Thái"] == "Available"]["Còn Lại"], errors="coerce").fillna(0).sum())
+    total_stock = single_stock_count + pack_stock_count
 
-    def draw_chart(data, x_col, y_col, title):
-        if data.empty:
-            st.info(f"Chưa có dữ liệu cho: {title}")
-            return
+    m1, m2 = st.columns(2)
+    m1.metric("💵 Tổng lợi nhuận", format_vnd(net_profit))
+    m2.metric("📦 Tổng stock", f"{total_stock:,}")
 
-        view = data.copy()
-        view["Day"] = pd.to_datetime(view[x_col], dayfirst=True, errors="coerce").dt.strftime("%Y-%m-%d")
-        view = view.dropna(subset=["Day"])
-        if view.empty:
-            st.info(f"Không parse được ngày cho: {title}")
-            return
+    def profit_text(v):
+        v = float(v)
+        if abs(v) >= 1_000_000:
+            return f"{v / 1_000_000:.3f}M"
+        return f"{int(round(v)):,}".replace(",", "")
 
-        chart_data = view.groupby("Day", as_index=False)[y_col].sum()
-        fig = px.bar(chart_data, x="Day", y=y_col, title=title, text_auto=".2s")
-        fig.update_xaxes(type="category", title="Ngày")
-        fig.update_layout(margin=dict(l=10, r=10, t=50, b=10))
-        st.plotly_chart(fig, use_container_width=True)
+    single_day = df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False, regex=False)][["Ngày Bán", "Lợi Nhuận"]].copy()
+    single_day.columns = ["Ngày", "Lợi Nhuận"]
 
-    col_chart1, col_chart2 = st.columns(2)
-    with col_chart1:
-        draw_chart(
-            df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False, regex=False)],
-            "Ngày Bán",
-            "Lợi Nhuận",
-            "Lợi Nhuận Pet Lẻ",
-        )
-    with col_chart2:
-        draw_chart(bulk_history, "Ngày Bán", "Lợi Nhuận Giao Dịch", "Lợi Nhuận Pack Pet")
+    pack_day = bulk_history[["Ngày Bán", "Lợi Nhuận Giao Dịch"]].copy() if not bulk_history.empty else pd.DataFrame(columns=["Ngày Bán", "Lợi Nhuận Giao Dịch"])
+    pack_day.columns = ["Ngày", "Lợi Nhuận"]
+
+    profit_by_day = pd.concat([single_day, pack_day], ignore_index=True)
+
+    if not profit_by_day.empty:
+        parsed_dt = pd.to_datetime(profit_by_day["Ngày"], dayfirst=True, errors="coerce")
+        parsed_dt = parsed_dt.dt.tz_localize("Asia/Ho_Chi_Minh", nonexistent="NaT", ambiguous="NaT")
+        profit_by_day["NgàyDT"] = parsed_dt
+        profit_by_day = profit_by_day.dropna(subset=["NgàyDT"])
+
+        if not profit_by_day.empty:
+            profit_by_day["Ngày"] = profit_by_day["NgàyDT"].dt.strftime("%d/%m/%Y")
+            day_chart = (
+                profit_by_day.groupby(["Ngày", "NgàyDT"], as_index=False)["Lợi Nhuận"]
+                .sum()
+                .sort_values("NgàyDT")
+            )
+            day_chart["Label"] = day_chart["Lợi Nhuận"].apply(profit_text)
+
+            fig_profit_day = px.bar(day_chart, x="Ngày", y="Lợi Nhuận", title="Lợi nhuận theo ngày (Giờ VN)")
+            fig_profit_day.update_traces(
+                text=day_chart["Label"],
+                textposition="outside",
+                textfont=dict(size=16, color="#f9fafb", family="Source Sans Pro"),
+                cliponaxis=False,
+            )
+            fig_profit_day.update_xaxes(type="category", title="Ngày")
+            fig_profit_day.update_layout(
+                margin=dict(l=10, r=10, t=60, b=10),
+                yaxis_title="Lợi nhuận (VNĐ)",
+            )
+            st.plotly_chart(fig_profit_day, use_container_width=True)
+        else:
+            st.info("Chưa có dữ liệu ngày hợp lệ để vẽ biểu đồ lợi nhuận theo ngày.")
+    else:
+        st.info("Chưa có dữ liệu lợi nhuận để vẽ biểu đồ theo ngày.")
 
     st.markdown("---")
     st.subheader("📈 Báo cáo quản lý dòng tiền & sản phẩm")

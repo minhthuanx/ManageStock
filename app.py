@@ -467,19 +467,6 @@ with tab1:
         main_cols,
     )
 
-    with st.expander("⚙️ Quản lý Pet Lẻ"):
-        st.markdown("##### ⚠️ Reset toàn bộ dữ liệu Pet Lẻ")
-        reset_s_col1, reset_s_col2 = st.columns([2.2, 1])
-        with reset_s_col1:
-            confirm_reset_single = st.checkbox("Xác nhận reset kho pet lẻ", key="reset_single_check")
-        with reset_s_col2:
-            st.markdown("**Thực thi**")
-            if confirm_reset_single and st.button(
-                "⚠️ CLEAR KHO LẺ", type="secondary", use_container_width=True, key="reset_single_btn"
-            ):
-                save_data(pd.DataFrame(columns=main_cols), DB_FILE)
-                st.rerun()
-
 with tab2:
     col_pack_input, col_pack_sale = st.columns([1.2, 1])
 
@@ -579,20 +566,6 @@ with tab2:
         "ID",
         bulk_cols,
     )
-
-    with st.expander("⚙️ Quản lý Pack Pet"):
-        st.markdown("##### ⚠️ Reset toàn bộ dữ liệu Pack")
-        reset_col1, reset_col2 = st.columns([2.2, 1])
-        with reset_col1:
-            confirm_reset_pack = st.checkbox("Xác nhận reset tất cả pack + lịch sử giao dịch", key="reset_pack_check")
-        with reset_col2:
-            st.markdown("**Thực thi**")
-            if confirm_reset_pack and st.button(
-                "⚠️ RESET ALL PACK", type="secondary", use_container_width=True, key="reset_pack_btn"
-            ):
-                save_data(pd.DataFrame(columns=bulk_cols), BULK_FILE)
-                save_data(pd.DataFrame(columns=hist_cols), BULK_HISTORY)
-                st.rerun()
 
 with tab3:
     st.subheader("📊 Analytics")

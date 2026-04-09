@@ -224,8 +224,8 @@ def render_inventory_table_with_copy(data: pd.DataFrame, title: str, columns_ord
     )
 
     table_html = f"""
-    <div style='border:1px solid #2d3748;border-radius:10px;overflow:hidden;margin-top:8px;'>
-        <div style='padding:10px 12px;background:#111827;border-bottom:1px solid #2d3748;font-weight:600;'>{html.escape(title)}</div>
+    <div style='border:1px solid #2d3748;border-radius:10px;overflow:hidden;margin-top:8px;background:#0b1220;color:#e5e7eb;'>
+        <div style='padding:10px 12px;background:#111827;border-bottom:1px solid #2d3748;font-weight:600;color:#f9fafb;'>{html.escape(title)}</div>
         <div style='max-height:260px;overflow:auto;'>
             <table style='width:max-content;min-width:100%;border-collapse:collapse;font-size:0.92em;'>
                 <thead style='position:sticky;top:0;background:#0f172a;'>

@@ -420,7 +420,17 @@ def render_editable_inventory_table(
         ).fillna(0)
 
     if not after.astype(str).equals(before.astype(str)):
-        save_data(after, file)
+        # Determine table name based on file
+        if file == DB_FILE:
+            table_name = "inventory"
+        elif file == BULK_FILE:
+            table_name = "bulk_inventory"
+        elif file == BULK_HISTORY:
+            table_name = "bulk_history"
+        else:
+            table_name = file.replace(".csv", "")
+        
+        save_data_to_supabase(after, table_name, file)
         st.toast("✅ Đã tự động lưu thay đổi.", icon="💾")
         st.rerun()
 
@@ -596,7 +606,7 @@ with tab1:
                             "Auto Title": generate_auto_title(p_name, p_mut, p_trait, ms, p_ns),
                             "Trạng Thái": "Còn hàng",
                         }
-                        save_data(append_row(df, row, MAIN_SCHEMA), DB_FILE)
+                        save_data_to_supabase(append_row(df, row, MAIN_SCHEMA), "inventory", DB_FILE)
                         st.success("Đã lưu pet lẻ.")
                         st.rerun()
             with col_btn2:
@@ -637,7 +647,7 @@ with tab1:
                             datetime.now().strftime("%d/%m/%Y %H:%M"),
                             "Đã bán",
                         ]
-                        save_data(normalize_dataframe(df, MAIN_SCHEMA), DB_FILE)
+                        save_data_to_supabase(normalize_dataframe(df, MAIN_SCHEMA), "inventory", DB_FILE)
                         st.success("Bán pet thành công.")
                         st.rerun()
                 else:
@@ -703,7 +713,7 @@ with tab2:
                             "Trạng Thái": "Available",
                             "Auto Title": generate_auto_title(b_pet, b_mut, "None", ms_value, b_ns),
                         }
-                        save_data(append_row(bulk_df, row, BULK_SCHEMA), BULK_FILE)
+                        save_data_to_supabase(append_row(bulk_df, row, BULK_SCHEMA), "bulk_inventory", BULK_FILE)
                         st.success("Đã lưu pack.")
                         st.rerun()
             with col_pack_btn2:
@@ -748,8 +758,8 @@ with tab2:
                         "Doanh Thu Giao Dịch": rev_vnd,
                     }
 
-                    save_data(append_row(bulk_history, history_row, HISTORY_SCHEMA), BULK_HISTORY)
-                    save_data(normalize_dataframe(bulk_df, BULK_SCHEMA), BULK_FILE)
+                    save_data_to_supabase(append_row(bulk_history, history_row, HISTORY_SCHEMA), "bulk_history", BULK_HISTORY)
+                    save_data_to_supabase(normalize_dataframe(bulk_df, BULK_SCHEMA), "bulk_inventory", BULK_FILE)
                     st.success("Bán pack thành công.")
                     st.rerun()
             else:

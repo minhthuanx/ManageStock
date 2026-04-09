@@ -468,18 +468,6 @@ with tab1:
     )
 
     with st.expander("⚙️ Quản lý Pet Lẻ"):
-        st.markdown("##### 🧹 Xóa Pet theo STT")
-        del_s_col1, del_s_col2 = st.columns([2.2, 1])
-        with del_s_col1:
-            d_id = st.number_input("STT Pet cần xóa", min_value=0, step=1, key="delete_single_id")
-        with del_s_col2:
-            st.markdown("**Thao tác**")
-            if st.button("🗑️ Xóa Pet Lẻ", use_container_width=True, key="delete_single"):
-                remained = df[df["STT"].astype(int) != int(d_id)]
-                save_data(reindex_sequential(normalize_dataframe(remained, MAIN_SCHEMA), "STT"), DB_FILE)
-                st.rerun()
-
-        st.markdown("---")
         st.markdown("##### ⚠️ Reset toàn bộ dữ liệu Pet Lẻ")
         reset_s_col1, reset_s_col2 = st.columns([2.2, 1])
         with reset_s_col1:
@@ -593,18 +581,6 @@ with tab2:
     )
 
     with st.expander("⚙️ Quản lý Pack Pet"):
-        st.markdown("##### 🧹 Xóa Pack theo ID")
-        del_col1, del_col2 = st.columns([2.2, 1])
-        with del_col1:
-            p_del = st.number_input("ID Pack cần xóa", min_value=0, step=1, key="delete_pack_id")
-        with del_col2:
-            st.markdown("**Thao tác**")
-            if st.button("🗑️ Xóa Pack", key="delete_pack", use_container_width=True):
-                remained = bulk_df[bulk_df["ID"].astype(int) != int(p_del)]
-                save_data(reindex_sequential(normalize_dataframe(remained, BULK_SCHEMA), "ID"), BULK_FILE)
-                st.rerun()
-
-        st.markdown("---")
         st.markdown("##### ⚠️ Reset toàn bộ dữ liệu Pack")
         reset_col1, reset_col2 = st.columns([2.2, 1])
         with reset_col1:

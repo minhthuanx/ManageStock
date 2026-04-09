@@ -415,6 +415,7 @@ with tab1:
         with d_col1:
             d_id = st.number_input("STT Pet cần xóa", min_value=0, step=1, key="delete_single_id")
         with d_col2:
+            st.markdown("**Thao tác**")
             if st.button("🗑️ Xóa Pet Lẻ", use_container_width=True, key="delete_single"):
                 save_data(df[df["STT"].astype(int) != d_id], DB_FILE)
                 st.rerun()
@@ -425,6 +426,7 @@ with tab1:
         with reset_col1:
             confirm_reset_single = st.checkbox("Xác nhận reset kho pet lẻ", key="reset_single_check")
         with reset_col2:
+            st.markdown("**Thực thi**")
             if confirm_reset_single and st.button(
                 "⚠️ CLEAR KHO LẺ", type="secondary", use_container_width=True, key="reset_single_btn"
             ):
@@ -530,7 +532,7 @@ with tab2:
         with del_col1:
             p_del = st.number_input("ID Pack cần xóa", min_value=0, step=1, key="delete_pack_id")
         with del_col2:
-            st.markdown("<div style='height: 1.65rem;'></div>", unsafe_allow_html=True)
+            st.markdown("**Thao tác**")
             if st.button("🗑️ Xóa Pack", key="delete_pack", use_container_width=True):
                 save_data(bulk_df[bulk_df["ID"].astype(int) != p_del], BULK_FILE)
                 st.rerun()
@@ -541,7 +543,7 @@ with tab2:
         with reset_col1:
             confirm_reset_pack = st.checkbox("Xác nhận reset tất cả pack + lịch sử giao dịch", key="reset_pack_check")
         with reset_col2:
-            st.markdown("<div style='height: 1.65rem;'></div>", unsafe_allow_html=True)
+            st.markdown("**Thực thi**")
             if confirm_reset_pack and st.button(
                 "⚠️ RESET ALL PACK", type="secondary", use_container_width=True, key="reset_pack_btn"
             ):
@@ -688,5 +690,3 @@ with tab3:
             )
             fig_top_pack.update_layout(margin=dict(l=10, r=10, t=50, b=10), xaxis_title="Tên lô", yaxis_title="Lợi nhuận (VNĐ)")
             st.plotly_chart(fig_top_pack, use_container_width=True)
-        else:
-            st.info("Chưa có dữ liệu giao dịch pack để xếp hạng lợi nhuận.")

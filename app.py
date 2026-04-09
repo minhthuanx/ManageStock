@@ -679,8 +679,20 @@ with tab1:
                 if st.button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True, key="save_single"):
                     ms = parse_ms_input(ms_raw)
                     p_cost = parse_money_input(p_cost_raw)
+                    errors = []
+                    
                     if p_name == "None":
-                        st.error("Bạn cần thêm Pet ở sidebar trước khi lưu.")
+                        errors.append("❌ Bạn cần thêm Pet ở sidebar trước khi lưu.")
+                    if ms <= 0:
+                        errors.append("❌ Bạn phải nhập M/s lớn hơn 0")
+                    if p_cost <= 0:
+                        errors.append("❌ Bạn phải nhập Giá nhập lớn hơn 0")
+                    if not p_ns or str(p_ns).strip() == "":
+                        errors.append("❌ Bạn phải chọn NameStock")
+                    
+                    if len(errors) > 0:
+                        for err in errors:
+                            st.error(err)
                     else:
                         stt = next_id(df, "STT")
                         row = {
@@ -788,8 +800,22 @@ with tab2:
             col_pack_btn1, col_pack_btn2 = st.columns([3, 1])
             with col_pack_btn1:
                 if st.button("💾 Lưu Pack", type="primary", use_container_width=True, key="save_pack"):
+                    b_cost = parse_money_input(b_cost_raw)
+                    ms_value = parse_ms_input(b_ms)
+                    errors = []
+                    
                     if b_pet == "None":
-                        st.error("Bạn cần thêm Pet ở sidebar trước khi tạo pack.")
+                        errors.append("❌ Bạn cần thêm Pet ở sidebar trước khi tạo pack.")
+                    if ms_value <= 0:
+                        errors.append("❌ Bạn phải nhập M/s lớn hơn 0")
+                    if b_cost <= 0:
+                        errors.append("❌ Bạn phải nhập Giá nhập lớn hơn 0")
+                    if not b_ns or str(b_ns).strip() == "":
+                        errors.append("❌ Bạn phải chọn NameStock")
+                    
+                    if len(errors) > 0:
+                        for err in errors:
+                            st.error(err)
                     else:
                         bid = next_id(bulk_df, "ID")
                         ms_value = parse_ms_input(b_ms)

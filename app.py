@@ -275,7 +275,7 @@ main_cols = list(MAIN_SCHEMA.keys())
 bulk_cols = list(BULK_SCHEMA.keys())
 hist_cols = list(HISTORY_SCHEMA.keys())
 
-st.set_page_config(page_title="Dashboard|MỉnhThuan", layout="wide")
+st.set_page_config(page_title="Dashboard", layout="wide")
 
 st.markdown(
     """

@@ -175,7 +175,12 @@ def append_row(df_data: pd.DataFrame, row: dict, schema: dict) -> pd.DataFrame:
     return normalize_dataframe(updated, schema)
 
 
-def render_inventory_table_with_copy(data: pd.DataFrame, title: str, columns_order: list[str] | None = None):
+def render_inventory_table_with_copy(
+    data: pd.DataFrame,
+    title: str,
+    key_prefix: str,
+    columns_order: list[str] | None = None,
+):
     if data.empty:
         st.info("Không có dữ liệu để hiển thị.")
         return
@@ -184,6 +189,22 @@ def render_inventory_table_with_copy(data: pd.DataFrame, title: str, columns_ord
     if columns_order:
         cols = [c for c in columns_order if c in view.columns]
         view = view[cols]
+
+    search_q = st.text_input(
+        "🔎 Tìm trong bảng kho",
+        key=f"search_{key_prefix}",
+        placeholder="Nhập ký tự để lọc nhanh theo bất kỳ cột nào...",
+    )
+
+    if search_q:
+        mask = pd.Series(False, index=view.index)
+        for col in view.columns:
+            mask = mask | view[col].astype(str).str.contains(search_q, case=False, na=False, regex=False)
+        view = view[mask]
+
+    if view.empty:
+        st.info("Không có dòng nào khớp với từ khóa tìm kiếm.")
+        return
 
     table_cols = list(view.columns)
     if "Auto Title" not in table_cols:
@@ -224,9 +245,9 @@ def render_inventory_table_with_copy(data: pd.DataFrame, title: str, columns_ord
     )
 
     table_html = f"""
-    <div style='border:1px solid #2d3748;border-radius:10px;overflow:hidden;margin-top:8px;background:#0b1220;color:#e5e7eb;'>
+    <div style='border:1px solid #2d3748;border-radius:10px;overflow:hidden;margin-top:8px;background:#0b1220;color:#e5e7eb;font-family:"Source Sans Pro",sans-serif;'>
         <div style='padding:10px 12px;background:#111827;border-bottom:1px solid #2d3748;font-weight:600;color:#f9fafb;'>{html.escape(title)}</div>
-        <div style='max-height:260px;overflow:auto;'>
+        <div style='max-height:420px;overflow:auto;'>
             <table style='width:max-content;min-width:100%;border-collapse:collapse;font-size:0.92em;'>
                 <thead style='position:sticky;top:0;background:#0f172a;'>
                     <tr>{header_html}</tr>
@@ -238,7 +259,7 @@ def render_inventory_table_with_copy(data: pd.DataFrame, title: str, columns_ord
         </div>
     </div>
     """
-    components.html(table_html, height=340, scrolling=True)
+    components.html(table_html, height=460, scrolling=True)
 
 
 # --- INITIALIZATION ---
@@ -433,7 +454,12 @@ with tab1:
 
     st.markdown("---")
     st.subheader("📋 Kho Pet Lẻ")
-    render_inventory_table_with_copy(df[main_cols], "📋 Kho Pet Lẻ (Copy nằm trực tiếp trong ô Auto Title)", main_cols)
+    render_inventory_table_with_copy(
+        df[main_cols],
+        "📋 Kho Pet Lẻ (Copy nằm trực tiếp trong ô Auto Title)",
+        "single_inventory",
+        main_cols,
+    )
 
     with st.expander("⚙️ Quản lý Pet Lẻ"):
         st.markdown("##### 🧹 Xóa Pet theo STT")
@@ -548,7 +574,12 @@ with tab2:
 
     st.markdown("---")
     st.subheader("📦 Kho Pack Pet")
-    render_inventory_table_with_copy(bulk_df[bulk_cols], "📦 Kho Pack Pet (Copy nằm trực tiếp trong ô Auto Title)", bulk_cols)
+    render_inventory_table_with_copy(
+        bulk_df[bulk_cols],
+        "📦 Kho Pack Pet (Copy nằm trực tiếp trong ô Auto Title)",
+        "pack_inventory",
+        bulk_cols,
+    )
 
     with st.expander("⚙️ Quản lý Pack Pet"):
         st.markdown("##### 🧹 Xóa Pack theo ID")

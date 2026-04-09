@@ -337,9 +337,11 @@ with st.sidebar:
 
     def manage_sidebar(label, db, file, col, icon="📁"):
         with st.expander(f"{icon} {label}", expanded=False):
-            c1, c2 = st.columns([3, 1])
-            new = c1.text_input(f"Add {label}", key=f"add_{file}", label_visibility="collapsed")
-            if c2.button("+", key=f"btn_{file}"):
+            with st.form(key=f"form_add_{file}", clear_on_submit=True):
+                c1, c2 = st.columns([3, 1])
+                new = c1.text_input(f"Thêm {label}", key=f"add_{file}", label_visibility="collapsed", placeholder=f"Nhập {label} mới...")
+                add_submit = c2.form_submit_button("➕", use_container_width=True)
+            if add_submit:
                 candidate = (new or "").strip()
                 if not candidate:
                     st.warning("Tên không được để trống.")
@@ -352,27 +354,27 @@ with st.sidebar:
                         save_data(updated, file)
                         st.rerun()
 
-            st.dataframe(db, use_container_width=True, hide_index=True, height=160)
+            st.dataframe(db, use_container_width=True, hide_index=True, height=130)
 
-            st.markdown(f"**🗑️ Xóa mục trong {label}**")
+            st.caption(f"Xóa nhanh 1 mục trong {label}")
             if not db.empty:
-                values = db[col].astype(str).tolist()
-                d1, d2 = st.columns([2.2, 1.2])
-                selected_item = d1.selectbox(
-                    f"Chọn mục cần xóa ({label})",
-                    values,
-                    key=f"del_sel_{file}",
-                    label_visibility="collapsed",
-                )
-                d2.markdown("**Thao tác xóa**")
-                if d2.button("🗑️ Xóa mục", key=f"del_btn_{file}", use_container_width=True):
+                with st.form(key=f"form_del_{file}"):
+                    d1, d2 = st.columns([2.7, 1.3])
+                    selected_item = d1.selectbox(
+                        f"Chọn mục cần xóa ({label})",
+                        db[col].astype(str).tolist(),
+                        key=f"del_sel_{file}",
+                        label_visibility="collapsed",
+                    )
+                    del_submit = d2.form_submit_button("🗑️ Xóa", use_container_width=True)
+                if del_submit:
                     updated = db[db[col].astype(str) != str(selected_item)]
                     save_data(updated.reset_index(drop=True), file)
                     st.rerun()
             else:
                 st.caption("Chưa có dữ liệu để xóa.")
 
-            if st.button(f"Clear {label}", key=f"clr_{file}"):
+            if st.button(f"🧹 Clear {label}", key=f"clr_{file}", use_container_width=True):
                 save_data(pd.DataFrame(columns=[col]), file)
                 st.rerun()
 

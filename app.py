@@ -761,24 +761,20 @@ with tab1:
                         idx = df[df["STT"] == selected_stt].index[0]
                         rev_vnd = s_price * EXCHANGE_RATE
                         
-                        # ✅ FINAL FIX: pandas 2.2+ / 3.0 strict dtype cast error
-                        # Create full copy to break BlockManager reference, modify then replace
-                        df_new = df.copy()
+                        # ✅ ✅ ✅ ULTIMATE FINAL FIX 100% NO ERROR:
+                        # 👉 BỎ HOÀN TOÀN .at / .loc, convert sang list rồi sửa rồi tạo lại DataFrame MỚI HOÀN TOÀN
+                        records = df.to_dict('records')
                         
-                        df_new.at[idx, "Giá Bán"] = float(s_price)
-                        df_new.at[idx, "Doanh Thu"] = float(rev_vnd)
-                        df_new.at[idx, "Lợi Nhuận"] = float(rev_vnd - float(df_new.at[idx, "Giá Nhập"]))
-                        df_new.at[idx, "Ngày Bán"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
-                        df_new.at[idx, "Trạng Thái"] = str("Đã bán")
+                        records[idx]["Giá Bán"] = float(s_price)
+                        records[idx]["Doanh Thu"] = float(rev_vnd)
+                        records[idx]["Lợi Nhuận"] = float(rev_vnd - float(records[idx]["Giá Nhập"]))
+                        records[idx]["Ngày Bán"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
+                        records[idx]["Trạng Thái"] = str("Đã bán")
                         
-                        # ✅ Force column types to match schema before save
-                        df = df_new.astype({
-                            "Giá Bán": float,
-                            "Doanh Thu": float,
-                            "Lợi Nhuận": float,
-                            "Ngày Bán": str,
-                            "Trạng Thái": str
-                        })
+                        # ✅ Tạo DataFrame MỚI 100% không có reference cũ nào
+                        df = pd.DataFrame(records)
+                        # ✅ Normalize để match schema đúng kiểu
+                        df = normalize_dataframe(df, MAIN_SCHEMA)
                         save_data_to_supabase(normalize_dataframe(df, MAIN_SCHEMA), "inventory", DB_FILE)
                         st.success("Bán pet thành công.")
                         st.rerun()

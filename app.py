@@ -165,44 +165,61 @@ def append_row(df_data: pd.DataFrame, row: dict, schema: dict) -> pd.DataFrame:
     return normalize_dataframe(updated, schema)
 
 
-def render_copy_title_table(data: pd.DataFrame, id_col: str, name_col: str, title: str):
+def render_inventory_table_with_copy(data: pd.DataFrame, title: str, columns_order: list[str] | None = None):
     if data.empty:
-        st.info("Không có dữ liệu để copy title.")
+        st.info("Không có dữ liệu để hiển thị.")
         return
 
+    view = data.copy()
+    if columns_order:
+        cols = [c for c in columns_order if c in view.columns]
+        view = view[cols]
+
+    table_cols = list(view.columns)
+    if "Auto Title" not in table_cols:
+        st.dataframe(view, use_container_width=True, hide_index=True)
+        return
+
+    def _cell_value(row, col):
+        value = row[col]
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value)
+
     rows_html = []
-    for _, row in data.iterrows():
-        item_id = str(int(float(row[id_col]))) if str(row[id_col]).replace(".", "", 1).isdigit() else str(row[id_col])
-        item_name = html.escape(str(row[name_col]))
-        auto_title = str(row["Auto Title"])
-        auto_title_show = html.escape(auto_title)
-        copy_payload = json.dumps(auto_title)
-        rows_html.append(
-            f"""
-            <tr>
-                <td style='padding:8px;border-bottom:1px solid #2d3748;'>{item_id}</td>
-                <td style='padding:8px;border-bottom:1px solid #2d3748;'>{item_name}</td>
-                <td style='padding:8px;border-bottom:1px solid #2d3748;'>
-                    <div style='display:flex;gap:8px;align-items:center;'>
-                        <div style='flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' title='{auto_title_show}'>{auto_title_show}</div>
-                        <button onclick='navigator.clipboard.writeText({copy_payload})' style='border:1px solid #3b82f6;background:#1d4ed8;color:white;border-radius:6px;padding:4px 8px;cursor:pointer;'>📋 Copy</button>
-                    </div>
-                </td>
-            </tr>
-            """
-        )
+    for _, row in view.iterrows():
+        row_cells = []
+        for col in table_cols:
+            if col == "Auto Title":
+                auto_title = _cell_value(row, col)
+                auto_title_show = html.escape(auto_title)
+                copy_payload = json.dumps(auto_title)
+                row_cells.append(
+                    f"""
+                    <td style='padding:8px;border-bottom:1px solid #2d3748;min-width:300px;'>
+                        <div style='display:flex;gap:8px;align-items:center;'>
+                            <div style='flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' title='{auto_title_show}'>{auto_title_show}</div>
+                            <button onclick='navigator.clipboard.writeText({copy_payload})' style='border:1px solid #3b82f6;background:#1d4ed8;color:white;border-radius:6px;padding:4px 8px;cursor:pointer;'>📋</button>
+                        </div>
+                    </td>
+                    """
+                )
+            else:
+                cell_value = html.escape(_cell_value(row, col))
+                row_cells.append(f"<td style='padding:8px;border-bottom:1px solid #2d3748;'>{cell_value}</td>")
+        rows_html.append(f"<tr>{''.join(row_cells)}</tr>")
+
+    header_html = "".join(
+        [f"<th style='text-align:left;padding:8px;border-bottom:1px solid #2d3748;'>{html.escape(col)}</th>" for col in table_cols]
+    )
 
     table_html = f"""
     <div style='border:1px solid #2d3748;border-radius:10px;overflow:hidden;margin-top:8px;'>
         <div style='padding:10px 12px;background:#111827;border-bottom:1px solid #2d3748;font-weight:600;'>{html.escape(title)}</div>
         <div style='max-height:260px;overflow:auto;'>
-            <table style='width:100%;border-collapse:collapse;font-size:0.92em;'>
+            <table style='width:max-content;min-width:100%;border-collapse:collapse;font-size:0.92em;'>
                 <thead style='position:sticky;top:0;background:#0f172a;'>
-                    <tr>
-                        <th style='text-align:left;padding:8px;border-bottom:1px solid #2d3748;'>ID</th>
-                        <th style='text-align:left;padding:8px;border-bottom:1px solid #2d3748;'>Tên</th>
-                        <th style='text-align:left;padding:8px;border-bottom:1px solid #2d3748;'>Auto Title</th>
-                    </tr>
+                    <tr>{header_html}</tr>
                 </thead>
                 <tbody>
                     {''.join(rows_html)}
@@ -211,7 +228,7 @@ def render_copy_title_table(data: pd.DataFrame, id_col: str, name_col: str, titl
         </div>
     </div>
     """
-    components.html(table_html, height=320, scrolling=True)
+    components.html(table_html, height=340, scrolling=True)
 
 
 # --- INITIALIZATION ---
@@ -406,26 +423,25 @@ with tab1:
 
     st.markdown("---")
     st.subheader("📋 Kho Pet Lẻ")
-    st.dataframe(df[main_cols], use_container_width=True, hide_index=True, height=320)
-    copy_candidates = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
-    render_copy_title_table(copy_candidates, "STT", "Tên Pet", "📋 Copy Auto Title theo từng dòng (Kho Pet Lẻ)")
+    render_inventory_table_with_copy(df[main_cols], "📋 Kho Pet Lẻ (Copy nằm trực tiếp trong ô Auto Title)", main_cols)
 
     with st.expander("⚙️ Quản lý Pet Lẻ"):
-        d_col1, d_col2 = st.columns([2, 1])
-        with d_col1:
+        st.markdown("##### 🧹 Xóa Pet theo STT")
+        del_s_col1, del_s_col2 = st.columns([2.2, 1])
+        with del_s_col1:
             d_id = st.number_input("STT Pet cần xóa", min_value=0, step=1, key="delete_single_id")
-        with d_col2:
+        with del_s_col2:
             st.markdown("**Thao tác**")
             if st.button("🗑️ Xóa Pet Lẻ", use_container_width=True, key="delete_single"):
                 save_data(df[df["STT"].astype(int) != d_id], DB_FILE)
                 st.rerun()
 
         st.markdown("---")
-        st.caption("⚠️ Reset toàn bộ kho pet lẻ")
-        reset_col1, reset_col2 = st.columns([2, 1])
-        with reset_col1:
+        st.markdown("##### ⚠️ Reset toàn bộ dữ liệu Pet Lẻ")
+        reset_s_col1, reset_s_col2 = st.columns([2.2, 1])
+        with reset_s_col1:
             confirm_reset_single = st.checkbox("Xác nhận reset kho pet lẻ", key="reset_single_check")
-        with reset_col2:
+        with reset_s_col2:
             st.markdown("**Thực thi**")
             if confirm_reset_single and st.button(
                 "⚠️ CLEAR KHO LẺ", type="secondary", use_container_width=True, key="reset_single_btn"
@@ -522,9 +538,7 @@ with tab2:
 
     st.markdown("---")
     st.subheader("📦 Kho Pack Pet")
-    st.dataframe(bulk_df[bulk_cols], use_container_width=True, hide_index=True, height=280)
-    copy_pack_candidates = bulk_df[bulk_df["Trạng Thái"].astype(str) == "Available"]
-    render_copy_title_table(copy_pack_candidates, "ID", "Tên Lô", "📋 Copy Auto Title theo từng dòng (Kho Pack)")
+    render_inventory_table_with_copy(bulk_df[bulk_cols], "📦 Kho Pack Pet (Copy nằm trực tiếp trong ô Auto Title)", bulk_cols)
 
     with st.expander("⚙️ Quản lý Pack Pet"):
         st.markdown("##### 🧹 Xóa Pack theo ID")
@@ -678,17 +692,3 @@ with tab3:
             st.plotly_chart(fig_top_single, use_container_width=True)
         else:
             st.info("Chưa có dữ liệu pet lẻ đã bán để xếp hạng lợi nhuận.")
-
-    with c4:
-        if not pack_profit_by_name.empty:
-            fig_top_pack = px.bar(
-                pack_profit_by_name,
-                x="Tên Lô",
-                y="Lợi Nhuận Giao Dịch",
-                title="Top 10 Pack theo lợi nhuận giao dịch",
-                text_auto=".2s",
-            )
-            fig_top_pack.update_layout(margin=dict(l=10, r=10, t=50, b=10), xaxis_title="Tên lô", yaxis_title="Lợi nhuận (VNĐ)")
-            st.plotly_chart(fig_top_pack, use_container_width=True)
-        else:
-            st.info("Chưa có dữ liệu giao dịch pack để xếp hạng lợi nhuận.")

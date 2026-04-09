@@ -81,11 +81,12 @@ def supabase_select(table_name: str, order_by: str = None) -> pd.DataFrame:
         return pd.DataFrame()
     try:
         # Auto detect correct order column based on table name
+        # ✅ IMPORTANT: Use SNAKE_CASE column names that actually exist in database
         if order_by is None:
             if table_name == 'inventory':
-                order_by = 'STT'
+                order_by = 'stt'
             elif table_name == 'bulk_inventory':
-                order_by = 'ID'
+                order_by = 'id'
             else:
                 order_by = 'id'
                 
@@ -212,11 +213,12 @@ def save_data_to_supabase(df_data: pd.DataFrame, table_name: str, file: str) -> 
             # Clear existing data and insert new (for simplicity)
             # In production, you'd want more sophisticated sync logic
             # Use correct ID column based on table name
+            # ✅ IMPORTANT: Use SNAKE_CASE column names that actually exist in database
             id_column = 'id'  # default fallback
             if table_name == 'inventory':
-                id_column = 'STT'
+                id_column = 'stt'
             elif table_name == 'bulk_inventory':
-                id_column = 'ID'
+                id_column = 'id'
                 
             # Delete all records (using id column that actually exists)
             try:

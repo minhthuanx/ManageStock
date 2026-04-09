@@ -326,7 +326,7 @@ st.markdown(
     """
     <div class="hero">
         <h2>📦 GhostlyStock Management</h2>
-        <p>Tối ưu quản lý kho pet lẻ/pack, giao diện gọn gàng hơn và dữ liệu an toàn hơn.</p>
+        <h3>Product by Minh Thuan 2026</h3>
     </div>
     """,
     unsafe_allow_html=True,

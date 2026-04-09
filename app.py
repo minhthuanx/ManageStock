@@ -267,7 +267,7 @@ st.markdown(
     --accent: #22c55e;
 }
 
-.block-container {padding-top: 1.2rem; padding-bottom: 1.4rem;}
+.block-container {padding-top: 2rem; padding-bottom: 2.5rem;}
 
 .hero {
     background: linear-gradient(135deg, #111827 0%, #0f172a 50%, #1f2937 100%);

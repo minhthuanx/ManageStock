@@ -326,7 +326,7 @@ st.markdown(
     """
     <div class="hero">
         <h2>📦 GhostlyStock Management</h2>
-        <h3>Product by Minh Thuan 2026</h3>
+        <p>Create in 2026 by MINHTHUAN</p>
     </div>
     """,
     unsafe_allow_html=True,

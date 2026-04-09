@@ -384,33 +384,42 @@ with tab1:
 
             r2c1, r2c2 = st.columns([1.5, 1])
             p_ns = r2c1.selectbox("NameStock", ns_options)
-            p_cost_raw = r2c2.text_input("Giá nhập (VNĐ)", placeholder="Ví dụ: 150000")
+            p_cost_raw = r2c2.text_input(
+                "Giá nhập (VNĐ)", 
+                placeholder="Ví dụ: 150.000",
+                help="Nhập giá theo dạng có dấu chấm (ví dụ: 150.000 = 150 nghìn VNĐ)"
+            )
 
-            if st.button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True, key="save_single"):
-                ms = parse_ms_input(ms_raw)
-                p_cost = parse_money_input(p_cost_raw)
-                if p_name == "None":
-                    st.error("Bạn cần thêm Pet ở sidebar trước khi lưu.")
-                else:
-                    stt = next_id(df, "STT")
-                    row = {
-                        "STT": stt,
-                        "Tên Pet": p_name,
-                        "M/s": ms,
-                        "Mutation": p_mut,
-                        "Số Trait": p_trait,
-                        "NameStock": p_ns,
-                        "Giá Nhập": p_cost,
-                        "Giá Bán": 0.0,
-                        "Lợi Nhuận": 0.0,
-                        "Doanh Thu": 0.0,
-                        "Ngày Nhập": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        "Ngày Bán": "-",
-                        "Auto Title": generate_auto_title(p_name, p_mut, p_trait, ms, p_ns),
-                        "Trạng Thái": "Còn hàng",
-                    }
-                    save_data(append_row(df, row, MAIN_SCHEMA), DB_FILE)
-                    st.success("Đã lưu pet lẻ.")
+            col_btn1, col_btn2 = st.columns([3, 1])
+            with col_btn1:
+                if st.button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True, key="save_single"):
+                    ms = parse_ms_input(ms_raw)
+                    p_cost = parse_money_input(p_cost_raw)
+                    if p_name == "None":
+                        st.error("Bạn cần thêm Pet ở sidebar trước khi lưu.")
+                    else:
+                        stt = next_id(df, "STT")
+                        row = {
+                            "STT": stt,
+                            "Tên Pet": p_name,
+                            "M/s": ms,
+                            "Mutation": p_mut,
+                            "Số Trait": p_trait,
+                            "NameStock": p_ns,
+                            "Giá Nhập": p_cost,
+                            "Giá Bán": 0.0,
+                            "Lợi Nhuận": 0.0,
+                            "Doanh Thu": 0.0,
+                            "Ngày Nhập": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                            "Ngày Bán": "-",
+                            "Auto Title": generate_auto_title(p_name, p_mut, p_trait, ms, p_ns),
+                            "Trạng Thái": "Còn hàng",
+                        }
+                        save_data(append_row(df, row, MAIN_SCHEMA), DB_FILE)
+                        st.success("Đã lưu pet lẻ.")
+                        st.rerun()
+            with col_btn2:
+                if st.button("🗑️ Xóa", use_container_width=True, key="clear_single"):
                     st.rerun()
 
     with col_sale:
@@ -485,29 +494,39 @@ with tab2:
             b_mut = br3.selectbox("Mutation", mutation_options, key="b3")
 
             b_ns = st.selectbox("NameStock", [""] + get_name_options(ns_db, fallback=""), key="b5")
-            b_cost_raw = st.text_input("Tổng giá nhập (VNĐ)", key="b4", placeholder="Ví dụ: 2000000")
+            b_cost_raw = st.text_input(
+                "Tổng giá nhập (VNĐ)", 
+                key="b4", 
+                placeholder="Ví dụ: 2.000.000",
+                help="Nhập giá theo dạng có dấu chấm (ví dụ: 2.000.000 = 2 triệu VNĐ)"
+            )
 
-            if st.button("💾 Lưu Pack", type="primary", use_container_width=True, key="save_pack"):
-                if b_pet == "None":
-                    st.error("Bạn cần thêm Pet ở sidebar trước khi tạo pack.")
-                else:
-                    bid = next_id(bulk_df, "ID")
-                    ms_value = parse_ms_input(b_ms)
-                    b_cost = parse_money_input(b_cost_raw)
-                    row = {
-                        "ID": bid,
-                        "Tên Lô": f"Pack {b_pet} (x{int(b_qty)})",
-                        "Số Lượng Gốc": int(b_qty),
-                        "Còn Lại": int(b_qty),
-                        "Ngày Nhập": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        "Giá Nhập Tổng": b_cost,
-                        "Doanh Thu Tích Lũy": 0.0,
-                        "Lợi Nhuận": -b_cost,
-                        "Trạng Thái": "Available",
-                        "Auto Title": generate_auto_title(b_pet, b_mut, "None", ms_value, b_ns),
-                    }
-                    save_data(append_row(bulk_df, row, BULK_SCHEMA), BULK_FILE)
-                    st.success("Đã lưu pack.")
+            col_pack_btn1, col_pack_btn2 = st.columns([3, 1])
+            with col_pack_btn1:
+                if st.button("💾 Lưu Pack", type="primary", use_container_width=True, key="save_pack"):
+                    if b_pet == "None":
+                        st.error("Bạn cần thêm Pet ở sidebar trước khi tạo pack.")
+                    else:
+                        bid = next_id(bulk_df, "ID")
+                        ms_value = parse_ms_input(b_ms)
+                        b_cost = parse_money_input(b_cost_raw)
+                        row = {
+                            "ID": bid,
+                            "Tên Lô": f"Pack {b_pet} (x{int(b_qty)})",
+                            "Số Lượng Gốc": int(b_qty),
+                            "Còn Lại": int(b_qty),
+                            "Ngày Nhập": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                            "Giá Nhập Tổng": b_cost,
+                            "Doanh Thu Tích Lũy": 0.0,
+                            "Lợi Nhuận": -b_cost,
+                            "Trạng Thái": "Available",
+                            "Auto Title": generate_auto_title(b_pet, b_mut, "None", ms_value, b_ns),
+                        }
+                        save_data(append_row(bulk_df, row, BULK_SCHEMA), BULK_FILE)
+                        st.success("Đã lưu pack.")
+                        st.rerun()
+            with col_pack_btn2:
+                if st.button("🗑️ Xóa", use_container_width=True, key="clear_pack"):
                     st.rerun()
 
     with col_pack_sale:

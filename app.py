@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import html
 from datetime import datetime
 
 import pandas as pd
@@ -164,6 +165,55 @@ def append_row(df_data: pd.DataFrame, row: dict, schema: dict) -> pd.DataFrame:
     return normalize_dataframe(updated, schema)
 
 
+def render_copy_title_table(data: pd.DataFrame, id_col: str, name_col: str, title: str):
+    if data.empty:
+        st.info("Không có dữ liệu để copy title.")
+        return
+
+    rows_html = []
+    for _, row in data.iterrows():
+        item_id = str(int(float(row[id_col]))) if str(row[id_col]).replace(".", "", 1).isdigit() else str(row[id_col])
+        item_name = html.escape(str(row[name_col]))
+        auto_title = str(row["Auto Title"])
+        auto_title_show = html.escape(auto_title)
+        copy_payload = json.dumps(auto_title)
+        rows_html.append(
+            f"""
+            <tr>
+                <td style='padding:8px;border-bottom:1px solid #2d3748;'>{item_id}</td>
+                <td style='padding:8px;border-bottom:1px solid #2d3748;'>{item_name}</td>
+                <td style='padding:8px;border-bottom:1px solid #2d3748;'>
+                    <div style='display:flex;gap:8px;align-items:center;'>
+                        <div style='flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' title='{auto_title_show}'>{auto_title_show}</div>
+                        <button onclick='navigator.clipboard.writeText({copy_payload})' style='border:1px solid #3b82f6;background:#1d4ed8;color:white;border-radius:6px;padding:4px 8px;cursor:pointer;'>📋 Copy</button>
+                    </div>
+                </td>
+            </tr>
+            """
+        )
+
+    table_html = f"""
+    <div style='border:1px solid #2d3748;border-radius:10px;overflow:hidden;margin-top:8px;'>
+        <div style='padding:10px 12px;background:#111827;border-bottom:1px solid #2d3748;font-weight:600;'>{html.escape(title)}</div>
+        <div style='max-height:260px;overflow:auto;'>
+            <table style='width:100%;border-collapse:collapse;font-size:0.92em;'>
+                <thead style='position:sticky;top:0;background:#0f172a;'>
+                    <tr>
+                        <th style='text-align:left;padding:8px;border-bottom:1px solid #2d3748;'>ID</th>
+                        <th style='text-align:left;padding:8px;border-bottom:1px solid #2d3748;'>Tên</th>
+                        <th style='text-align:left;padding:8px;border-bottom:1px solid #2d3748;'>Auto Title</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(rows_html)}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    """
+    components.html(table_html, height=320, scrolling=True)
+
+
 # --- INITIALIZATION ---
 df = load_data(DB_FILE, MAIN_SCHEMA)
 bulk_df = load_data(BULK_FILE, BULK_SCHEMA)
@@ -274,17 +324,17 @@ with tab1:
             trait_options = ["None"] + get_name_options(trait_db)
             ns_options = [""] + get_name_options(ns_db, fallback="")
 
-            p_name = st.selectbox("Tên Pet", pet_options, label_visibility="collapsed")
+            p_name = st.selectbox("Tên Pet", pet_options)
 
             r1c1, r1c2, r1c3 = st.columns([1, 1, 1])
-            ms_raw = r1c1.text_input("M/s", "1000", label_visibility="collapsed")
-            p_mut = r1c2.selectbox("Mutation", mutation_options, label_visibility="collapsed")
-            p_trait = r1c3.selectbox("Số Trait", trait_options, label_visibility="collapsed")
+            ms_raw = r1c1.text_input("Tốc độ (M/s)", "1000")
+            p_mut = r1c2.selectbox("Mutation", mutation_options)
+            p_trait = r1c3.selectbox("Số Trait", trait_options)
 
             r2c1, r2c2 = st.columns([1.5, 1])
-            p_ns = r2c1.selectbox("NameStock", ns_options, label_visibility="collapsed")
+            p_ns = r2c1.selectbox("NameStock", ns_options)
             p_cost = r2c2.number_input(
-                "Giá Nhập (VNĐ)", min_value=0.0, step=1000.0, format="%.0f", label_visibility="collapsed"
+                "Giá nhập (VNĐ)", min_value=0.0, step=1000.0, format="%.0f"
             )
 
             if st.button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True, key="save_single"):
@@ -317,7 +367,7 @@ with tab1:
         with st.container(border=True):
             st.subheader("💰 Bán Pet Lẻ")
             active = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
-            q = st.text_input("🔍 Tìm kiếm (ID/Tên)", placeholder="ID hoặc title", label_visibility="collapsed")
+            q = st.text_input("🔍 Tìm kiếm theo ID hoặc title", placeholder="VD: 15 hoặc Rainbow")
 
             if not active.empty:
                 filt = active[
@@ -327,18 +377,15 @@ with tab1:
 
                 if not filt.empty:
                     sel = st.selectbox(
-                        "Chọn Pet", filt["STT"].astype(str) + " - " + filt["Auto Title"], label_visibility="collapsed"
+                        "Chọn Pet cần bán", filt["STT"].astype(str) + " - " + filt["Auto Title"]
                     )
                     selected_stt = int(sel.split(" - ")[0])
                     selected_row = filt[filt["STT"] == selected_stt].iloc[0]
-                    auto_title = selected_row["Auto Title"]
-
-                    components.html(
-                        f'<button style="width:100%;padding:0.35em 0.5em;font-size:0.86em;border-radius:8px;margin-top:0.45em;" onclick="navigator.clipboard.writeText({json.dumps(auto_title)})">📋 Copy Auto Title</button>',
-                        height=48,
+                    st.caption(
+                        f"Pet: **{selected_row['Tên Pet']}** | Giá nhập: **{format_vnd(float(selected_row['Giá Nhập']))}**"
                     )
 
-                    s_price = st.number_input("Giá Bán ($)", min_value=0.0, step=0.5, label_visibility="collapsed")
+                    s_price = st.number_input("Giá bán ($)", min_value=0.0, step=0.5)
                     if st.button("✅ Xác nhận bán", type="primary", use_container_width=True, key="sell_single"):
                         idx = df[df["STT"] == selected_stt].index[0]
                         rev_vnd = s_price * EXCHANGE_RATE
@@ -360,17 +407,24 @@ with tab1:
     st.markdown("---")
     st.subheader("📋 Kho Pet Lẻ")
     st.dataframe(df[main_cols], use_container_width=True, hide_index=True, height=320)
+    copy_candidates = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
+    render_copy_title_table(copy_candidates, "STT", "Tên Pet", "📋 Copy Auto Title theo từng dòng (Kho Pet Lẻ)")
 
     with st.expander("⚙️ Quản lý Pet Lẻ"):
-        d_col1, d_col2, d_col3 = st.columns([1.5, 1, 1.5])
+        d_col1, d_col2 = st.columns([2, 1])
         with d_col1:
-            d_id = st.number_input("STT Pet cần xóa", min_value=0, step=1, label_visibility="collapsed")
+            d_id = st.number_input("STT Pet cần xóa", min_value=0, step=1, key="delete_single_id")
         with d_col2:
             if st.button("🗑️ Xóa Pet Lẻ", use_container_width=True, key="delete_single"):
                 save_data(df[df["STT"].astype(int) != d_id], DB_FILE)
                 st.rerun()
-        with d_col3:
-            confirm_reset_single = st.checkbox("🔄 Xác nhận Reset Kho Lẻ?", key="reset_single_check")
+
+        st.markdown("---")
+        st.caption("⚠️ Reset toàn bộ kho pet lẻ")
+        reset_col1, reset_col2 = st.columns([2, 1])
+        with reset_col1:
+            confirm_reset_single = st.checkbox("Xác nhận reset kho pet lẻ", key="reset_single_check")
+        with reset_col2:
             if confirm_reset_single and st.button(
                 "⚠️ CLEAR KHO LẺ", type="secondary", use_container_width=True, key="reset_single_btn"
             ):
@@ -387,17 +441,16 @@ with tab2:
                 "Tên Pet",
                 get_name_options(pet_db),
                 key="b1",
-                label_visibility="collapsed",
             )
 
             br1, br2, br3 = st.columns([1, 1, 1])
-            b_qty = br1.number_input("Số Lượng", min_value=1, max_value=500, value=10, label_visibility="collapsed")
-            b_ms = br2.text_input("M/s", "1000", key="b2", label_visibility="collapsed")
-            b_mut = br3.selectbox("Mutation", mutation_options, key="b3", label_visibility="collapsed")
+            b_qty = br1.number_input("Số lượng", min_value=1, max_value=500, value=10)
+            b_ms = br2.text_input("Tốc độ (M/s)", "1000", key="b2")
+            b_mut = br3.selectbox("Mutation", mutation_options, key="b3")
 
-            b_ns = st.selectbox("NameStock", [""] + get_name_options(ns_db, fallback=""), key="b5", label_visibility="collapsed")
+            b_ns = st.selectbox("NameStock", [""] + get_name_options(ns_db, fallback=""), key="b5")
             b_cost = st.number_input(
-                "Tổng Giá Nhập (VNĐ)", min_value=0.0, step=1000.0, format="%.0f", key="b4", label_visibility="collapsed"
+                "Tổng giá nhập (VNĐ)", min_value=0.0, step=1000.0, format="%.0f", key="b4"
             )
 
             if st.button("💾 Lưu Pack", type="primary", use_container_width=True, key="save_pack"):
@@ -426,20 +479,17 @@ with tab2:
             st.subheader("💰 Bán Pack Pet")
             avail = bulk_df[bulk_df["Trạng Thái"].astype(str) == "Available"]
             if not avail.empty:
-                sel_b = st.selectbox("Chọn Pack", avail["ID"].astype(str) + " - " + avail["Tên Lô"], label_visibility="collapsed")
+                sel_b = st.selectbox("Chọn pack cần bán", avail["ID"].astype(str) + " - " + avail["Tên Lô"])
                 target = avail[avail["ID"] == int(sel_b.split(" - ")[0])].iloc[0]
-                auto_title_pack = target["Auto Title"]
-
-                components.html(
-                    f'<button style="width:100%;padding:0.35em 0.5em;font-size:0.86em;border-radius:8px;margin-top:0.45em;" onclick="navigator.clipboard.writeText({json.dumps(auto_title_pack)})">📋 Copy Auto Title</button>',
-                    height=48,
+                st.caption(
+                    f"Tên lô: **{target['Tên Lô']}** | Còn lại: **{int(target['Còn Lại'])}** | Giá nhập: **{format_vnd(float(target['Giá Nhập Tổng']))}**"
                 )
 
                 sr1, sr2 = st.columns([1, 1])
                 with sr1:
-                    s_qty = st.number_input("Số Lượng Bán", min_value=1, max_value=int(target["Còn Lại"]), label_visibility="collapsed")
+                    s_qty = st.number_input("Số lượng bán", min_value=1, max_value=int(target["Còn Lại"]))
                 with sr2:
-                    s_prc = st.number_input("Giá Bán ($/pet)", min_value=0.0, step=0.5, label_visibility="collapsed")
+                    s_prc = st.number_input("Giá bán ($/pet)", min_value=0.0, step=0.5)
 
                 if st.button("✅ Bán Pack", type="primary", use_container_width=True, key="sell_pack"):
                     idx = bulk_df[bulk_df["ID"] == target["ID"]].index[0]
@@ -471,17 +521,24 @@ with tab2:
     st.markdown("---")
     st.subheader("📦 Kho Pack Pet")
     st.dataframe(bulk_df[bulk_cols], use_container_width=True, hide_index=True, height=280)
+    copy_pack_candidates = bulk_df[bulk_df["Trạng Thái"].astype(str) == "Available"]
+    render_copy_title_table(copy_pack_candidates, "ID", "Tên Lô", "📋 Copy Auto Title theo từng dòng (Kho Pack)")
 
     with st.expander("⚙️ Quản lý Pack Pet"):
-        p_col1, p_col2, p_col3 = st.columns([1.5, 1, 1.5])
+        p_col1, p_col2 = st.columns([2, 1])
         with p_col1:
-            p_del = st.number_input("ID Pack cần xóa", min_value=0, step=1, label_visibility="collapsed")
+            p_del = st.number_input("ID Pack cần xóa", min_value=0, step=1, key="delete_pack_id")
         with p_col2:
             if st.button("🗑️ Xóa Pack", key="delete_pack", use_container_width=True):
                 save_data(bulk_df[bulk_df["ID"].astype(int) != p_del], BULK_FILE)
                 st.rerun()
-        with p_col3:
-            confirm_reset_pack = st.checkbox("🔄 Xác nhận Reset Tất cả Pack?", key="reset_pack_check")
+
+        st.markdown("---")
+        st.caption("⚠️ Reset toàn bộ kho pack và lịch sử giao dịch")
+        reset_p_col1, reset_p_col2 = st.columns([2, 1])
+        with reset_p_col1:
+            confirm_reset_pack = st.checkbox("Xác nhận reset tất cả pack", key="reset_pack_check")
+        with reset_p_col2:
             if confirm_reset_pack and st.button(
                 "⚠️ RESET ALL PACK", type="secondary", use_container_width=True, key="reset_pack_btn"
             ):

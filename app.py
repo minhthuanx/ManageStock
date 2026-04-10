@@ -547,7 +547,7 @@ main_cols = list(MAIN_SCHEMA.keys())
 bulk_cols = list(BULK_SCHEMA.keys())
 hist_cols = list(HISTORY_SCHEMA.keys())
 
-st.set_page_config(page_title="Dashboard", layout="wide")
+st.set_page_config(page_title="GhostlyStock Inventory", layout="wide")
 
 st.markdown(
     """
@@ -597,8 +597,8 @@ div[data-testid="stMetric"] {
 st.markdown(
     """
     <div class="hero">
-        <h2>📦Management</h2>
-        <p>© 2026 MinhThuan. All rights reserved.</p>
+        <h2>📦 GhostlyStock Management</h2>
+        <p>Tối ưu quản lý kho pet lẻ/pack, giao diện gọn gàng hơn và dữ liệu an toàn hơn.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -654,14 +654,14 @@ with st.sidebar:
     manage_sidebar("NameStock", ns_db, NS_LIST_FILE, "Name", icon="🏷️")
     manage_sidebar("Trait", trait_db, TRAIT_LIST_FILE, "Name", icon="🧬")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📦 Pet", "📦 Pack", "📊 Thống kê", "⏳Hàng tồn", "🕵️‍♂️ Eldorado Spy"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📦 Pet Lẻ", "📦 Pack", "📊 Thống kê", "⏳ Tồn lâu", "🕵️‍♂️ Eldorado Spy"])
 
 with tab1:
     col_input, col_sale = st.columns([1.2, 1])
 
     with col_input:
         with st.container(border=True):
-            st.subheader("📥 Nhập pet")
+            st.subheader("📥 Nhập Pet Lẻ")
             pet_options = get_name_options(pet_db)
             trait_options = ["None"] + get_name_options(trait_db)
             ns_options = [""] + get_name_options(ns_db, fallback="")
@@ -690,7 +690,7 @@ with tab1:
 
             col_btn1, col_btn2 = st.columns([3, 1])
             with col_btn1:
-                if st.button("💾 Lưu pet", type="primary", use_container_width=True, key="save_single"):
+                if st.button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True, key="save_single"):
                     ms = parse_usd_input(ms_raw)  # M/s là số thập phân
                     p_cost = parse_vnd_input(p_cost_raw)  # Giá nhập là VNĐ
                     errors = []
@@ -730,7 +730,7 @@ with tab1:
                             supabase_insert("inventory", map_to_supabase(row))
                         load_data_from_supabase.clear()
                         load_data.clear()
-                        st.success("Đã lưu pet.")
+                        st.success("Đã lưu pet lẻ.")
                         st.rerun()
             with col_btn2:
                 if st.button("🗑️ Xóa", use_container_width=True, key="clear_single"):
@@ -738,7 +738,7 @@ with tab1:
 
     with col_sale:
         with st.container(border=True):
-            st.subheader("💰 Bán pet")
+            st.subheader("💰 Bán Pet Lẻ")
             active = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
             q = st.text_input("🔍 Tìm kiếm theo ID hoặc title", placeholder="VD: 15 hoặc Rainbow")
 
@@ -797,13 +797,13 @@ with tab1:
                 else:
                     st.info("Không có kết quả phù hợp.")
             else:
-                st.info("Không có pet nào để bán.")
+                st.info("Không có pet lẻ nào để bán.")
 
     st.markdown("---")
-    st.subheader("📋 Kho pet")
+    st.subheader("📋 Kho Pet Lẻ")
     render_editable_inventory_table(
         df[main_cols],
-        "📋 Kho pet",
+        "📋 Kho Pet Lẻ",
         "single_inventory",
         DB_FILE,
         MAIN_SCHEMA,
@@ -1052,12 +1052,12 @@ with tab3:
     st.markdown("---")
     st.subheader("📈 Báo cáo quản lý dòng tiền & sản phẩm")
 
-    # 1) Doanh thu theo kênh bán (pet vs Pack)
+    # 1) Doanh thu theo kênh bán (Pet lẻ vs Pack)
     sold_single_rev = float(df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False, regex=False)]["Doanh Thu"].sum())
     sold_pack_rev = float(bulk_history["Doanh Thu Giao Dịch"].sum()) if not bulk_history.empty else 0.0
     rev_mix = pd.DataFrame(
         {
-            "Kênh": ["pet", "Pack"],
+            "Kênh": ["Pet Lẻ", "Pack"],
             "Doanh Thu": [sold_single_rev, sold_pack_rev],
         }
     )
@@ -1097,7 +1097,7 @@ with tab3:
         if not single_status.empty or not pack_status.empty:
             status_mix = pd.DataFrame(
                 {
-                    "Nhóm": ["pet"] * len(single_status) + ["Pack"] * len(pack_status),
+                    "Nhóm": ["Pet Lẻ"] * len(single_status) + ["Pack"] * len(pack_status),
                     "Trạng Thái": single_status.get("Trạng Thái", pd.Series(dtype=str)).tolist()
                     + pack_status.get("Trạng Thái", pd.Series(dtype=str)).tolist(),
                     "Số lượng": single_status.get("Số lượng", pd.Series(dtype=float)).tolist()
@@ -1124,13 +1124,13 @@ with tab3:
                 single_profit_by_pet,
                 x="Tên Pet",
                 y="Lợi Nhuận",
-                title="Top 10 pet theo lợi nhuận",
+                title="Top 10 Pet Lẻ theo lợi nhuận",
                 text_auto=".2s",
             )
             fig_top_single.update_layout(margin=dict(l=10, r=10, t=50, b=10), xaxis_title="Tên Pet", yaxis_title="Lợi nhuận (VNĐ)")
             st.plotly_chart(fig_top_single, use_container_width=True)
         else:
-            st.info("Chưa có dữ liệu pet đã bán để xếp hạng lợi nhuận.")
+            st.info("Chưa có dữ liệu pet lẻ đã bán để xếp hạng lợi nhuận.")
 
     with c4:
         if not pack_profit_by_name.empty:
@@ -1150,13 +1150,13 @@ with tab4:
     st.subheader("⏳ Danh sách item tồn quá lâu")
     age_threshold = st.slider("Số ngày tồn tối thiểu", min_value=1, max_value=90, value=7, step=1)
 
-    # pet còn hàng
+    # Pet lẻ còn hàng
     single_old = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)].copy()
     if not single_old.empty:
         single_old["Ngày Nhập DT"] = pd.to_datetime(single_old["Ngày Nhập"], dayfirst=True, errors="coerce")
         single_old["Ngày Tồn"] = (pd.Timestamp.now() - single_old["Ngày Nhập DT"]).dt.days
         single_old = single_old[single_old["Ngày Tồn"] >= age_threshold]
-        single_old["Loại"] = "pet"
+        single_old["Loại"] = "Pet Lẻ"
         single_old["Item"] = single_old["Tên Pet"].astype(str)
         single_old["Số lượng còn"] = 1
         single_old["Giá trị vốn (VNĐ)"] = pd.to_numeric(single_old["Giá Nhập"], errors="coerce").fillna(0)
@@ -1186,38 +1186,73 @@ with tab4:
         st.dataframe(old_items, use_container_width=True, hide_index=True, height=380)
 
 with tab5:
-    st.subheader("🕵️‍♂️ Eldorado Intelligence Tool")
+    st.subheader("🕵️‍♂️ Eldorado Spy — Steal a Brainrot")
     
     spy_col1, spy_col2 = st.columns([1, 1.2])
     
     with spy_col1:
         with st.container(border=True):
-            st.markdown("### 🔍 Tìm Giá Rẻ Nhất")
-            pet_to_search = st.selectbox("Chọn Pet để check giá", get_name_options(pet_db))
-            mut_to_search = st.selectbox("Mutation", ["None"] + mutation_options, key="spy_mut")
+            st.markdown("### 🔍 Tìm Giá Rẻ Nhất trên Sàn")
+
+            spy_name = st.text_input("Tên Brainrot", placeholder="VD: Festive Lucky Block, Sigma Cat...")
+            
+            spy_mut_options = ["Không lọc", "Normal", "Gold", "Diamond", "Bloodrot", "Candy", "Divine", "Lava", "Galaxy", "Yin-Yang", "Radioactive", "Cursed", "Rainbow"]
+            spy_mut = st.selectbox("Mutation", spy_mut_options, key="spy_mut_filter")
+            
+            spy_ms_options = {
+                "Không lọc": "",
+                "0-24 M/s": "0-24-ms",
+                "25-49 M/s": "25-49-ms",
+                "50-99 M/s": "50-99-ms",
+                "100-249 M/s": "100-249-ms",
+                "250-499 M/s": "250-499-ms",
+                "500-999 M/s": "500-999-ms",
+                "1000+ M/s": "1000-ms",
+            }
+            spy_ms = st.selectbox("Tốc độ (M/s)", list(spy_ms_options.keys()), key="spy_ms_filter")
             
             if st.button("🚀 Quét Giá Sàn", use_container_width=True):
-                search_q = f"Pet Simulator 99 {pet_to_search}"
-                if mut_to_search != "None":
-                    search_q = f"Pet Simulator 99 {mut_to_search} {pet_to_search}"
+                # Xây dựng URL với filter params
+                base_url = "https://www.eldorado.gg/steal-a-brainrot-brainrots/i/259"
+                params = {}
                 
-                query = urllib.parse.quote(search_q)
-                url = f"https://www.eldorado.gg/pet-simulator-99-items/ica/12e-12p?search={query}&sort=price:asc"
+                if spy_name.strip():
+                    params["te_v2"] = spy_name.strip()
+                if spy_mut != "Không lọc":
+                    params["steal-a-brainrot-mutations"] = spy_mut.lower()
+                if spy_ms_options[spy_ms]:
+                    params["steal-a-brainrot-ms"] = spy_ms_options[spy_ms]
                 
-                st.info(f"Đang kiểm tra: `{search_q}`...")
+                params["gamePageOfferIndex"] = "1"
+                params["gamePageOfferSize"] = "24"
+                
+                url = base_url + "?" + urllib.parse.urlencode(params) if params else base_url
+                
+                filter_desc = []
+                if spy_name.strip():
+                    filter_desc.append(f"Tên: {spy_name.strip()}")
+                if spy_mut != "Không lọc":
+                    filter_desc.append(f"Mut: {spy_mut}")
+                if spy_ms != "Không lọc":
+                    filter_desc.append(f"Speed: {spy_ms}")
+                
+                st.info(f"Đang quét: {' | '.join(filter_desc) if filter_desc else 'Tất cả'}...")
                 
                 try:
                     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"}
                     resp = requests.get(url, headers=headers, timeout=10)
                     
-                    # Regex tìm giá dạng $X.XX
                     prices = re.findall(r'\$(\d+\.\d+)', resp.text)
                     if prices:
-                        min_p = min([float(p) for p in prices])
-                        st.success(f"💎 Giá thấp nhất hiện tại: **${min_p:.2f}**")
-                        st.caption(f"Khoảng {min_p * EXCHANGE_RATE:,.0f} VNĐ")
+                        float_prices = sorted(set([float(p) for p in prices]))
+                        top3 = float_prices[:3]
+                        st.success(f"💎 Giá thấp nhất: **${top3[0]:.2f}** ≈ {top3[0] * EXCHANGE_RATE:,.0f} VNĐ")
+                        if len(top3) >= 2:
+                            cols_price = st.columns(len(top3))
+                            for i, p in enumerate(top3):
+                                cols_price[i].metric(f"#{i+1}", f"${p:.2f}", f"≈ {p * EXCHANGE_RATE:,.0f}đ")
                     else:
-                        st.warning("⚠️ Không tìm thấy giá tự động. Có thể do Eldorado chặn hoặc không có hàng.")
+                        st.warning("⚠️ Không tìm thấy giá. Eldorado có thể chặn bot hoặc không có hàng phù hợp.")
                 except Exception as e:
                     st.error(f"Lỗi quét giá: {e}")
                 

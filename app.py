@@ -598,7 +598,7 @@ st.markdown(
     """
     <div class="hero">
         <h2>📦Management</h2>
-        <p>© 2026 GhostlyStock. All rights reserved.</p>
+        <p>© 2026 MinhThuan. All rights reserved.</p>
     </div>
     """,
     unsafe_allow_html=True,

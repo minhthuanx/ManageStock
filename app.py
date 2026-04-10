@@ -380,19 +380,23 @@ def reindex_sequential(df_data: pd.DataFrame, id_col: str) -> pd.DataFrame:
     return df_data
 
 
-def parse_ms_input(value: str) -> float:
+def parse_vnd_input(value: str) -> float:
+    """Parse VNĐ (e.g. 150.000 or 1.500.000 -> 150000)"""
     if not value:
         return 0.0
-    cleaned = re.sub(r"[^0-9.]", "", str(value))
+    # Remove all dots and commas (VND uses `.` as thousands separator)
+    cleaned = re.sub(r"[^0-9]", "", str(value))
     try:
         return float(cleaned) if cleaned else 0.0
     except ValueError:
         return 0.0
 
 
-def parse_money_input(value: str) -> float:
+def parse_usd_input(value: str) -> float:
+    """Parse USD (e.g. 5.5 -> 5.5, keep decimal dot)"""
     if not value:
         return 0.0
+    # Keep only digits and first decimal dot
     cleaned = re.sub(r"[^0-9.]", "", str(value))
     try:
         return float(cleaned) if cleaned else 0.0
@@ -665,16 +669,23 @@ with tab1:
             r2c1, r2c2 = st.columns([1.5, 1])
             p_ns = r2c1.selectbox("NameStock", ns_options)
             p_cost_raw = r2c2.text_input(
-                "Giá nhập (VNĐ)", 
-                placeholder="Ví dụ: 150.000",
-                help="Nhập giá theo dạng có dấu chấm (ví dụ: 150.000 = 150 nghìn VNĐ)"
+                "Giá nhập (VNĐ)",
+                placeholder="VD: 150000 hoặc 150.000",
             )
+            _p_cost_preview = parse_vnd_input(p_cost_raw)
+            if _p_cost_preview > 0:
+                r2c2.caption(f"➡️ {_p_cost_preview:,.0f} VNĐ")
+            
+            _ms_preview = parse_usd_input(ms_raw)
+            if _ms_preview > 0:
+                display_ms = f"{_ms_preview/1000:.2f}B/s" if _ms_preview >= 1000 else f"{_ms_preview:.0f}M/s"
+                r1c1.caption(f"➡️ {display_ms}")
 
             col_btn1, col_btn2 = st.columns([3, 1])
             with col_btn1:
                 if st.button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True, key="save_single"):
-                    ms = parse_ms_input(ms_raw)
-                    p_cost = parse_money_input(p_cost_raw)
+                    ms = parse_usd_input(ms_raw)  # M/s là số thập phân
+                    p_cost = parse_vnd_input(p_cost_raw)  # Giá nhập là VNĐ
                     errors = []
                     
                     if p_name == "None":
@@ -740,32 +751,42 @@ with tab1:
                         f"Pet: **{selected_row['Tên Pet']}** | Giá nhập: **{format_vnd(float(selected_row['Giá Nhập']))}**"
                     )
 
-                    s_price_raw = st.text_input("Giá bán ($)", placeholder="Ví dụ: 5.5")
+                    s_price_raw = st.text_input("Giá bán ($)", placeholder="VD: 5.5")
+                    _sp_preview = parse_usd_input(s_price_raw)
+                    if _sp_preview > 0:
+                        st.caption(f"➡️ ${_sp_preview:.2f} ≈ {_sp_preview * EXCHANGE_RATE:,.0f} VNĐ")
                     if st.button("✅ Xác nhận bán", type="primary", use_container_width=True, key="sell_single"):
-                        s_price = parse_money_input(s_price_raw)
-                        idx = df[df["STT"] == selected_stt].index[0]
-                        rev_vnd = s_price * EXCHANGE_RATE
-                        
-                        # ✅ ✅ ✅ ULTIMATE FINAL FIX 100% NO ERROR:
-                        # 👉 BỎ HOÀN TOÀN .at / .loc, convert sang list rồi sửa rồi tạo lại DataFrame MỚI HOÀN TOÀN
-                        records = df.to_dict('records')
-                        
-                        records[idx]["Giá Bán"] = float(s_price)
-                        records[idx]["Doanh Thu"] = float(rev_vnd)
-                        records[idx]["Lợi Nhuận"] = float(rev_vnd - float(records[idx]["Giá Nhập"]))
-                        records[idx]["Ngày Bán"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
-                        records[idx]["Trạng Thái"] = str("Đã bán")
-                        
-                        # ✅ Tạo DataFrame MỚI 100% không có reference cũ nào
-                        df = pd.DataFrame(records)
-                        # ✅ Normalize để match schema đúng kiểu
-                        df = normalize_dataframe(df, MAIN_SCHEMA)
-                        if USE_SUPABASE:
-                            supabase_update("inventory", map_to_supabase(records[idx]), "stt", selected_stt)
-                        load_data_from_supabase.clear()
-                        load_data.clear()
-                        st.success("Bán pet thành công.")
-                        st.rerun()
+                        s_price = parse_usd_input(s_price_raw)  # Giá bán là USD
+                        if s_price <= 0:
+                            st.error("❌ Bạn phải nhập Giá bán lớn hơn 0")
+                        else:
+                            # Tìm đúng vị trí dòng bằng chỉ số thực (positional), không dùng pd index label
+                            match_positions = df.index[df["STT"] == selected_stt].tolist()
+                            if not match_positions:
+                                st.error("❌ Không tìm thấy Pet với STT đã chọn.")
+                            else:
+                                iloc_pos = df.index.get_loc(match_positions[0])
+                                rev_vnd = s_price * EXCHANGE_RATE
+                                records = df.to_dict('records')
+                                records[iloc_pos]["Giá Bán"] = float(s_price)
+                                records[iloc_pos]["Doanh Thu"] = float(rev_vnd)
+                                records[iloc_pos]["Lợi Nhuận"] = float(rev_vnd - float(records[iloc_pos]["Giá Nhập"]))
+                                records[iloc_pos]["Ngày Bán"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
+                                records[iloc_pos]["Trạng Thái"] = "Đã bán"
+                                df = normalize_dataframe(pd.DataFrame(records), MAIN_SCHEMA)
+                                if USE_SUPABASE:
+                                    update_payload = {
+                                        "gia_ban": float(s_price),
+                                        "doanh_thu": float(rev_vnd),
+                                        "loi_nhuan": float(rev_vnd - float(records[iloc_pos]["Giá Nhập"])),
+                                        "ngay_ban": str(datetime.now().strftime("%d/%m/%Y %H:%M")),
+                                        "trang_thai": "Đã bán",
+                                    }
+                                    supabase_update("inventory", update_payload, "stt", selected_stt)
+                                load_data_from_supabase.clear()
+                                load_data.clear()
+                                st.success("Bán pet thành công.")
+                                st.rerun()
                 else:
                     st.info("Không có kết quả phù hợp.")
             else:
@@ -802,17 +823,24 @@ with tab2:
 
             b_ns = st.selectbox("NameStock", [""] + get_name_options(ns_db, fallback=""), key="b5")
             b_cost_raw = st.text_input(
-                "Tổng giá nhập (VNĐ)", 
-                key="b4", 
-                placeholder="Ví dụ: 2.000.000",
-                help="Nhập giá theo dạng có dấu chấm (ví dụ: 2.000.000 = 2 triệu VNĐ)"
+                "Tổng giá nhập (VNĐ)",
+                key="b4",
+                placeholder="VD: 2000000 hoặc 2.000.000",
             )
+            _b_cost_preview = parse_vnd_input(b_cost_raw)
+            if _b_cost_preview > 0:
+                st.caption(f"➡️ {_b_cost_preview:,.0f} VNĐ")
+            
+            _b_ms_preview = parse_usd_input(b_ms)
+            if _b_ms_preview > 0:
+                display_b_ms = f"{_b_ms_preview/1000:.2f}B/s" if _b_ms_preview >= 1000 else f"{_b_ms_preview:.0f}M/s"
+                br2.caption(f"➡️ {display_b_ms}")
 
             col_pack_btn1, col_pack_btn2 = st.columns([3, 1])
             with col_pack_btn1:
                 if st.button("💾 Lưu Pack", type="primary", use_container_width=True, key="save_pack"):
-                    b_cost = parse_money_input(b_cost_raw)
-                    ms_value = parse_ms_input(b_ms)
+                    b_cost = parse_vnd_input(b_cost_raw)  # Tổng giá nhập là VNĐ
+                    ms_value = parse_usd_input(b_ms)  # M/s là số thập phân
                     errors = []
                     
                     if b_pet == "None":
@@ -829,8 +857,8 @@ with tab2:
                             st.error(err)
                     else:
                         bid = next_id(bulk_df, "ID")
-                        ms_value = parse_ms_input(b_ms)
-                        b_cost = parse_money_input(b_cost_raw)
+                        ms_value = parse_usd_input(b_ms)
+                        b_cost = parse_vnd_input(b_cost_raw)
                         row = {
                             "ID": bid,
                             "Tên Lô": f"Pack {b_pet} (x{int(b_qty)})",
@@ -869,39 +897,54 @@ with tab2:
                 with sr1:
                     s_qty = st.number_input("Số lượng bán", min_value=1, max_value=int(target["Còn Lại"]))
                 with sr2:
-                    s_prc_raw = st.text_input("Giá bán ($/pet)", placeholder="Ví dụ: 3.5")
+                    s_prc_raw = st.text_input("Giá bán ($/pet)", placeholder="VD: 3.5")
+                    _sprc_preview = parse_usd_input(s_prc_raw)
+                    if _sprc_preview > 0 and s_qty > 0:
+                        total_rev = _sprc_preview * int(s_qty) * EXCHANGE_RATE
+                        st.caption(f"➡️ ${_sprc_preview:.2f}/pet | Tổng ≈ {total_rev:,.0f} VNĐ")
 
                 if st.button("✅ Bán Pack", type="primary", use_container_width=True, key="sell_pack"):
-                    s_prc = parse_money_input(s_prc_raw)
-                    idx = bulk_df[bulk_df["ID"] == target["ID"]].index[0]
-                    rev_vnd = s_qty * s_prc * EXCHANGE_RATE
-                    bulk_df.at[idx, "Còn Lại"] = max(0, float(bulk_df.at[idx, "Còn Lại"]) - float(s_qty))
-                    bulk_df.at[idx, "Doanh Thu Tích Lũy"] = float(bulk_df.at[idx, "Doanh Thu Tích Lũy"]) + rev_vnd
-                    bulk_df.at[idx, "Lợi Nhuận"] = float(bulk_df.at[idx, "Doanh Thu Tích Lũy"]) - float(bulk_df.at[idx, "Giá Nhập Tổng"])
+                    s_prc = parse_usd_input(s_prc_raw)  # Giá bán là USD
+                    if s_prc <= 0:
+                        st.error("❌ Bạn phải nhập Giá bán lớn hơn 0")
+                    else:
+                        idx = bulk_df[bulk_df["ID"] == target["ID"]].index[0]
+                        iloc_pos = bulk_df.index.get_loc(idx)
+                        rev_vnd = s_qty * s_prc * EXCHANGE_RATE
 
-                    if float(bulk_df.at[idx, "Còn Lại"]) <= 0:
-                        bulk_df.at[idx, "Trạng Thái"] = "Sold Out"
+                        new_con_lai = max(0.0, float(bulk_df.at[idx, "Còn Lại"]) - float(s_qty))
+                        new_doanh_thu = float(bulk_df.at[idx, "Doanh Thu Tích Lũy"]) + rev_vnd
+                        new_loi_nhuan = new_doanh_thu - float(bulk_df.at[idx, "Giá Nhập Tổng"])
+                        new_trang_thai = "Sold Out" if new_con_lai <= 0 else "Available"
 
-                    base_qty = max(float(target["Số Lượng Gốc"]), 1.0)
-                    base_unit_cost = float(target["Giá Nhập Tổng"]) / base_qty
-                    history_row = {
-                        "Ngày Bán": datetime.now().strftime("%d/%m/%Y"),
-                        "Tên Lô": target["Tên Lô"],
-                        "Số Lượng Bán": s_qty,
-                        "Lợi Nhuận Giao Dịch": rev_vnd - (base_unit_cost * s_qty),
-                        "Doanh Thu Giao Dịch": rev_vnd,
-                    }
+                        bulk_df.at[idx, "Còn Lại"] = new_con_lai
+                        bulk_df.at[idx, "Doanh Thu Tích Lũy"] = new_doanh_thu
+                        bulk_df.at[idx, "Lợi Nhuận"] = new_loi_nhuan
+                        bulk_df.at[idx, "Trạng Thái"] = new_trang_thai
 
-                    new_history_df = append_row(bulk_history, history_row, HISTORY_SCHEMA)
-                    normalized_bulk_df = normalize_dataframe(bulk_df, BULK_SCHEMA)
-                    if USE_SUPABASE:
-                        supabase_insert("bulk_history", map_to_supabase(history_row))
-                        updated_pack = normalized_bulk_df.iloc[idx].to_dict()
-                        supabase_update("bulk_inventory", map_to_supabase(updated_pack), "id", int(target["ID"]))
-                    load_data_from_supabase.clear()
-                    load_data.clear()
-                    st.success("Bán pack thành công.")
-                    st.rerun()
+                        base_qty = max(float(target["Số Lượng Gốc"]), 1.0)
+                        base_unit_cost = float(target["Giá Nhập Tổng"]) / base_qty
+                        history_row = {
+                            "Ngày Bán": datetime.now().strftime("%d/%m/%Y"),
+                            "Tên Lô": target["Tên Lô"],
+                            "Số Lượng Bán": s_qty,
+                            "Lợi Nhuận Giao Dịch": rev_vnd - (base_unit_cost * s_qty),
+                            "Doanh Thu Giao Dịch": rev_vnd,
+                        }
+
+                        if USE_SUPABASE:
+                            # Chỉ gửi các trường thay đổi lên Supabase (không gửi toàn bộ record)
+                            supabase_insert("bulk_history", map_to_supabase(history_row))
+                            supabase_update("bulk_inventory", {
+                                "con_lai": new_con_lai,
+                                "doanh_thu_tich_luy": new_doanh_thu,
+                                "loi_nhuan": new_loi_nhuan,
+                                "trang_thai": new_trang_thai,
+                            }, "id", int(target["ID"]))
+                        load_data_from_supabase.clear()
+                        load_data.clear()
+                        st.success("Bán pack thành công.")
+                        st.rerun()
             else:
                 st.info("Không có pack pet nào để bán.")
 

@@ -191,55 +191,37 @@ def load_data_from_supabase(table_name: str, schema: dict, order_by: str = None)
     # Fallback to CSV
     return load_data(f"{table_name}.csv", schema)
 
-def save_data_to_supabase(df_data: pd.DataFrame, table_name: str, file: str) -> None:
-    """Save data to Supabase (CSV generation disabled)"""
-    
-    # Try to save to Supabase
-    if USE_SUPABASE:
-        try:
-            # Convert DataFrame to list of dicts
-            records = df_data.to_dict('records')
-            
-            # Map column names to snake_case for Supabase compatibility
-            processed_records = [map_to_supabase(record) for record in records]
-            
-            # Clear existing data and insert new (for simplicity)
-            # In production, you'd want more sophisticated sync logic
-            # Use correct ID column based on table name
-            # ✅ IMPORTANT: Use SNAKE_CASE column names that actually exist in database
-            id_column = 'id'  # default fallback
-            if table_name == 'inventory':
-                id_column = 'stt'
-            elif table_name == 'bulk_inventory':
-                id_column = 'id'
-                
-            # Delete all records (using id column that actually exists)
-            try:
-                # Try with correct column first
-                supabase_client.table(table_name).delete().neq(id_column, 0).execute()
-            except Exception:
-                # Fallback if table has different ID column
-                try:
-                    supabase_client.table(table_name).delete().neq('id', 0).execute()
-                except Exception:
-                    # Last resort: just proceed without deleting
-                    pass
-            
-            if processed_records:
-                result = supabase_client.table(table_name).insert(processed_records).execute()
-                if result.data:
-                    st.toast(f"✅ Đã lưu {len(result.data)} bản ghi lên Supabase ({table_name})", icon="💾")
-                    # Clear cache to ensure next fetch gets latest data
-                    load_data_from_supabase.clear()
-                    load_data.clear()
-                    return
-            
-        except Exception as e:
-            st.error(f"❌ Lỗi khi lưu lên Supabase: {e}")
-    
-    # Fallback when no Supabase
+def save_data_to_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame, table_name: str, file: str) -> None:
+    """Save data to Supabase (optimized with upsert and delete for sync)"""
     if not USE_SUPABASE:
-        st.warning("⚠️ Không thể lưu vì kết nối Supabase hiện không khả dụng. Chế độ dùng CSV local cho file kho đã bị tắt.")
+        st.warning("⚠️ Không thể lưu vì kết nối Supabase hiện không khả dụng.")
+        return
+
+    try:
+        id_column = 'stt' if table_name == 'inventory' else 'id'
+        id_col_df = "STT" if table_name == 'inventory' else "ID"
+
+        # Find deleted records and delete them
+        if not df_before.empty and not df_after.empty:
+            before_ids = set(df_before[id_col_df].dropna().astype(str).tolist())
+            after_ids = set(df_after[id_col_df].dropna().astype(str).tolist())
+            deleted_ids = before_ids - after_ids
+
+            for d_id in deleted_ids:
+                try:
+                    supabase_client.table(table_name).delete().eq(id_column, int(float(d_id))).execute()
+                except Exception:
+                    pass
+
+        # Upsert remaining records
+        records = df_after.to_dict('records')
+        processed_records = [map_to_supabase(record) for record in records]
+        
+        if processed_records:
+            supabase_client.table(table_name).upsert(processed_records).execute()
+            
+    except Exception as e:
+        st.error(f"❌ Lỗi khi lưu lên Supabase: {e}")
 
 # --- CONFIGURATION ---
 DB_FILE = "inventory.csv"
@@ -250,11 +232,6 @@ NS_LIST_FILE = "namestock_list.csv"
 TRAIT_LIST_FILE = "traits_list.csv"
 SQLITE_DB = "ghostlystock.db"
 BACKUP_DIR = "backups"
-SPY_URLS_FILE = "spy_urls.csv"
-SPY_LOG_FILE = "spy_history.csv"
-
-SPY_URL_SCHEMA = {"Name": "", "URL": "", "LastState": ""}
-SPY_LOG_SCHEMA = {"Timestamp": "", "Shop": "", "Item": "", "Event": "Sold"}
 EXCHANGE_RATE = 20400
 
 MAIN_SCHEMA = {
@@ -521,23 +498,35 @@ def render_editable_inventory_table(
         else:
             table_name = file.replace(".csv", "")
         
-        save_data_to_supabase(after, table_name, file)
-        st.toast("✅ Đã tự động lưu thay đổi.", icon="💾")
+        save_data_to_supabase(after, before, table_name, file)
+        
+        # Cập nhật Local Session thay vì clean cache
+        if file == DB_FILE:
+            st.session_state.df = after
+        elif file == BULK_FILE:
+            st.session_state.bulk_df = after
+        elif file == BULK_HISTORY:
+            st.session_state.bulk_history = after
+            
+        st.toast("✅ Đã thao tác lưu thay đổi.", icon="💾")
         st.rerun()
 
 
 # --- INITIALIZATION ---
-# Always load fresh data from Supabase first on app reboot
-# Disable any caching to ensure latest data is loaded
-try:
-    df = load_data_from_supabase("inventory", MAIN_SCHEMA)
-    bulk_df = load_data_from_supabase("bulk_inventory", BULK_SCHEMA)
-    bulk_history = load_data_from_supabase("bulk_history", HISTORY_SCHEMA)
-except Exception as e:
-    st.warning(f"⚠️ Fallback to local CSV: {e}")
-    df = load_data(DB_FILE, MAIN_SCHEMA)
-    bulk_df = load_data(BULK_FILE, BULK_SCHEMA)
-    bulk_history = load_data(BULK_HISTORY, HISTORY_SCHEMA)
+if "df" not in st.session_state:
+    try:
+        st.session_state.df = load_data_from_supabase("inventory", MAIN_SCHEMA)
+        st.session_state.bulk_df = load_data_from_supabase("bulk_inventory", BULK_SCHEMA)
+        st.session_state.bulk_history = load_data_from_supabase("bulk_history", HISTORY_SCHEMA)
+    except Exception as e:
+        st.warning(f"⚠️ Fallback to local CSV: {e}")
+        st.session_state.df = load_data(DB_FILE, MAIN_SCHEMA)
+        st.session_state.bulk_df = load_data(BULK_FILE, BULK_SCHEMA)
+        st.session_state.bulk_history = load_data(BULK_HISTORY, HISTORY_SCHEMA)
+
+df = st.session_state.df
+bulk_df = st.session_state.bulk_df
+bulk_history = st.session_state.bulk_history
 
 pet_db = load_data(PET_LIST_FILE, LIST_SCHEMA)
 ns_db = load_data(NS_LIST_FILE, LIST_SCHEMA)
@@ -654,43 +643,36 @@ with st.sidebar:
     manage_sidebar("NameStock", ns_db, NS_LIST_FILE, "Name", icon="🏷️")
     manage_sidebar("Trait", trait_db, TRAIT_LIST_FILE, "Name", icon="🧬")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📦 Pet Lẻ", "📦 Pack", "📊 Thống kê", "⏳ Tồn lâu", "🕵️‍♂️ Eldorado Spy"])
+tab1, tab2, tab3, tab4 = st.tabs(["📦 Pet Lẻ", "📦 Lô (Pack)", "📊 Thống kê", "⏳ Tồn lâu"])
 
 with tab1:
     col_input, col_sale = st.columns([1.2, 1])
 
     with col_input:
         with st.container(border=True):
-            st.subheader("📥 Nhập Pet Lẻ")
+            st.subheader("📥 Nhập Kho")
             pet_options = get_name_options(pet_db)
             trait_options = ["None"] + get_name_options(trait_db)
             ns_options = [""] + get_name_options(ns_db, fallback="")
 
-            p_name = st.selectbox("Tên Pet", pet_options)
+            with st.form("add_pet_form", clear_on_submit=True):
+                p_name = st.selectbox("Tên Pet", pet_options)
 
-            r1c1, r1c2, r1c3 = st.columns([1, 1, 1])
-            ms_raw = r1c1.text_input("Tốc độ (M/s)", placeholder="Ví dụ: 1000")
-            p_mut = r1c2.selectbox("Mutation", mutation_options)
-            p_trait = r1c3.selectbox("Số Trait", trait_options)
+                r1c1, r1c2, r1c3 = st.columns([1, 1, 1])
+                ms_raw = r1c1.text_input("Tốc độ (M/s)", placeholder="Ví dụ: 1000")
+                p_mut = r1c2.selectbox("Mutation", mutation_options)
+                p_trait = r1c3.selectbox("Số Trait", trait_options)
 
-            r2c1, r2c2 = st.columns([1.5, 1])
-            p_ns = r2c1.selectbox("NameStock", ns_options)
-            p_cost_raw = r2c2.text_input(
-                "Giá nhập (VNĐ)",
-                placeholder="VD: 150000 hoặc 150.000",
-            )
-            _p_cost_preview = parse_vnd_input(p_cost_raw)
-            if _p_cost_preview > 0:
-                r2c2.caption(f"➡️ {_p_cost_preview:,.0f} VNĐ")
-            
-            _ms_preview = parse_usd_input(ms_raw)
-            if _ms_preview > 0:
-                display_ms = f"{_ms_preview/1000:.2f}B/s" if _ms_preview >= 1000 else f"{_ms_preview:.0f}M/s"
-                r1c1.caption(f"➡️ {display_ms}")
+                r2c1, r2c2 = st.columns([1.5, 1])
+                p_ns = r2c1.selectbox("NameStock", ns_options)
+                p_cost_raw = r2c2.text_input(
+                    "Giá nhập (VNĐ)",
+                    placeholder="VD: 150000 hoặc 150.000",
+                )
+                
+                sumbit_add_1 = st.form_submit_button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True)
 
-            col_btn1, col_btn2 = st.columns([3, 1])
-            with col_btn1:
-                if st.button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True, key="save_single"):
+            if sumbit_add_1:
                     ms = parse_usd_input(ms_raw)  # M/s là số thập phân
                     p_cost = parse_vnd_input(p_cost_raw)  # Giá nhập là VNĐ
                     errors = []
@@ -725,20 +707,17 @@ with tab1:
                             "Auto Title": generate_auto_title(p_name, p_mut, p_trait, ms, p_ns),
                             "Trạng Thái": "Còn hàng",
                         }
-                        new_df = append_row(df, row, MAIN_SCHEMA)
+                        df = append_row(df, row, MAIN_SCHEMA)
+                        st.session_state.df = df
                         if USE_SUPABASE:
                             supabase_insert("inventory", map_to_supabase(row))
-                        load_data_from_supabase.clear()
-                        load_data.clear()
-                        st.success("Đã lưu pet lẻ.")
+                        st.success("Đã lưu pet lẻ!")
                         st.rerun()
-            with col_btn2:
-                if st.button("🗑️ Xóa", use_container_width=True, key="clear_single"):
-                    st.rerun()
+
 
     with col_sale:
         with st.container(border=True):
-            st.subheader("💰 Bán Pet Lẻ")
+            st.subheader("💰 Bán")
             active = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
             q = st.text_input("🔍 Tìm kiếm theo ID hoặc title", placeholder="VD: 15 hoặc Rainbow")
 
@@ -758,11 +737,11 @@ with tab1:
                         f"Pet: **{selected_row['Tên Pet']}** | Giá nhập: **{format_vnd(float(selected_row['Giá Nhập']))}**"
                     )
 
-                    s_price_raw = st.text_input("Giá bán ($)", placeholder="VD: 5.5")
-                    _sp_preview = parse_usd_input(s_price_raw)
-                    if _sp_preview > 0:
-                        st.caption(f"➡️ ${_sp_preview:.2f} ≈ {_sp_preview * EXCHANGE_RATE:,.0f} VNĐ")
-                    if st.button("✅ Xác nhận bán", type="primary", use_container_width=True, key="sell_single"):
+                    with st.form("sell_pet_form", clear_on_submit=True):
+                        s_price_raw = st.text_input("Giá bán ($)", placeholder="VD: 5.5")
+                        submit_sell_1 = st.form_submit_button("✅ Xác nhận bán", type="primary", use_container_width=True)
+                        
+                    if submit_sell_1:
                         s_price = parse_usd_input(s_price_raw)  # Giá bán là USD
                         if s_price <= 0:
                             st.error("❌ Bạn phải nhập Giá bán lớn hơn 0")
@@ -781,6 +760,7 @@ with tab1:
                                 records[iloc_pos]["Ngày Bán"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
                                 records[iloc_pos]["Trạng Thái"] = "Đã bán"
                                 df = normalize_dataframe(pd.DataFrame(records), MAIN_SCHEMA)
+                                st.session_state.df = df
                                 if USE_SUPABASE:
                                     update_payload = {
                                         "gia_ban": float(s_price),
@@ -790,8 +770,6 @@ with tab1:
                                         "trang_thai": "Đã bán",
                                     }
                                     supabase_update("inventory", update_payload, "stt", selected_stt)
-                                load_data_from_supabase.clear()
-                                load_data.clear()
                                 st.success("Bán pet thành công.")
                                 st.rerun()
                 else:
@@ -800,10 +778,10 @@ with tab1:
                 st.info("Không có pet lẻ nào để bán.")
 
     st.markdown("---")
-    st.subheader("📋 Kho Pet Lẻ")
+    st.subheader("📋 Tồn Kho Lẻ")
     render_editable_inventory_table(
         df[main_cols],
-        "📋 Kho Pet Lẻ",
+        "📋 Danh Sách",
         "single_inventory",
         DB_FILE,
         MAIN_SCHEMA,
@@ -816,36 +794,29 @@ with tab2:
 
     with col_pack_input:
         with st.container(border=True):
-            st.subheader("📥 Nhập Pack Pet")
-            b_pet = st.selectbox(
-                "Tên Pet",
-                get_name_options(pet_db),
-                key="b1",
-            )
+            st.subheader("📥 Nhập Lô")
+            with st.form("add_pack_form", clear_on_submit=True):
+                b_pet = st.selectbox(
+                    "Tên Pet",
+                    get_name_options(pet_db),
+                    key="b1",
+                )
 
-            br1, br2, br3 = st.columns([1, 1, 1])
-            b_qty = br1.number_input("Số lượng", min_value=1, max_value=500, value=10)
-            b_ms = br2.text_input("Tốc độ (M/s)", key="b2", placeholder="Ví dụ: 1000")
-            b_mut = br3.selectbox("Mutation", mutation_options, key="b3")
+                br1, br2, br3 = st.columns([1, 1, 1])
+                b_qty = br1.number_input("Số lượng", min_value=1, max_value=500, value=10)
+                b_ms = br2.text_input("Tốc độ (M/s)", key="b2", placeholder="Ví dụ: 1000")
+                b_mut = br3.selectbox("Mutation", mutation_options, key="b3")
 
-            b_ns = st.selectbox("NameStock", [""] + get_name_options(ns_db, fallback=""), key="b5")
-            b_cost_raw = st.text_input(
-                "Tổng giá nhập (VNĐ)",
-                key="b4",
-                placeholder="VD: 2000000 hoặc 2.000.000",
-            )
-            _b_cost_preview = parse_vnd_input(b_cost_raw)
-            if _b_cost_preview > 0:
-                st.caption(f"➡️ {_b_cost_preview:,.0f} VNĐ")
-            
-            _b_ms_preview = parse_usd_input(b_ms)
-            if _b_ms_preview > 0:
-                display_b_ms = f"{_b_ms_preview/1000:.2f}B/s" if _b_ms_preview >= 1000 else f"{_b_ms_preview:.0f}M/s"
-                br2.caption(f"➡️ {display_b_ms}")
+                b_ns = st.selectbox("NameStock", [""] + get_name_options(ns_db, fallback=""), key="b5")
+                b_cost_raw = st.text_input(
+                    "Tổng giá nhập (VNĐ)",
+                    key="b4",
+                    placeholder="VD: 2000000 hoặc 2.000.000",
+                )
+                
+                submit_pack_1 = st.form_submit_button("💾 Lưu Pack", type="primary", use_container_width=True)
 
-            col_pack_btn1, col_pack_btn2 = st.columns([3, 1])
-            with col_pack_btn1:
-                if st.button("💾 Lưu Pack", type="primary", use_container_width=True, key="save_pack"):
+            if submit_pack_1:
                     b_cost = parse_vnd_input(b_cost_raw)  # Tổng giá nhập là VNĐ
                     ms_value = parse_usd_input(b_ms)  # M/s là số thập phân
                     errors = []
@@ -878,20 +849,16 @@ with tab2:
                             "Trạng Thái": "Available",
                             "Auto Title": generate_auto_title(b_pet, b_mut, "None", ms_value, b_ns),
                         }
-                        new_bulk_df = append_row(bulk_df, row, BULK_SCHEMA)
+                        bulk_df = append_row(bulk_df, row, BULK_SCHEMA)
+                        st.session_state.bulk_df = bulk_df
                         if USE_SUPABASE:
                             supabase_insert("bulk_inventory", map_to_supabase(row))
-                        load_data_from_supabase.clear()
-                        load_data.clear()
                         st.success("Đã lưu pack.")
                         st.rerun()
-            with col_pack_btn2:
-                if st.button("🗑️ Xóa", use_container_width=True, key="clear_pack"):
-                    st.rerun()
 
     with col_pack_sale:
         with st.container(border=True):
-            st.subheader("💰 Bán Pack Pet")
+            st.subheader("💰 Bán (Từ Lô)")
             avail = bulk_df[bulk_df["Trạng Thái"].astype(str) == "Available"]
             if not avail.empty:
                 sel_b = st.selectbox("Chọn pack cần bán", avail["ID"].astype(str) + " - " + avail["Tên Lô"])
@@ -900,17 +867,16 @@ with tab2:
                     f"Tên lô: **{target['Tên Lô']}** | Còn lại: **{int(target['Còn Lại'])}** | Giá nhập: **{format_vnd(float(target['Giá Nhập Tổng']))}**"
                 )
 
-                sr1, sr2 = st.columns([1, 1])
-                with sr1:
-                    s_qty = st.number_input("Số lượng bán", min_value=1, max_value=int(target["Còn Lại"]))
-                with sr2:
-                    s_prc_raw = st.text_input("Giá bán ($/pet)", placeholder="VD: 3.5")
-                    _sprc_preview = parse_usd_input(s_prc_raw)
-                    if _sprc_preview > 0 and s_qty > 0:
-                        total_rev = _sprc_preview * int(s_qty) * EXCHANGE_RATE
-                        st.caption(f"➡️ ${_sprc_preview:.2f}/pet | Tổng ≈ {total_rev:,.0f} VNĐ")
+                with st.form("sell_pack_form", clear_on_submit=True):
+                    sr1, sr2 = st.columns([1, 1])
+                    with sr1:
+                        s_qty = st.number_input("Số lượng bán", min_value=1, max_value=int(target["Còn Lại"]))
+                    with sr2:
+                        s_prc_raw = st.text_input("Giá bán ($/pet)", placeholder="VD: 3.5")
+                        
+                    submit_sell_pack_1 = st.form_submit_button("✅ Bán Pack", type="primary", use_container_width=True)
 
-                if st.button("✅ Bán Pack", type="primary", use_container_width=True, key="sell_pack"):
+                if submit_sell_pack_1:
                     s_prc = parse_usd_input(s_prc_raw)  # Giá bán là USD
                     if s_prc <= 0:
                         st.error("❌ Bạn phải nhập Giá bán lớn hơn 0")
@@ -939,6 +905,8 @@ with tab2:
                             "Doanh Thu Giao Dịch": rev_vnd,
                         }
 
+                        st.session_state.bulk_df = bulk_df
+                        st.session_state.bulk_history = bulk_history if 'bulk_history' in locals() else load_data(BULK_HISTORY, HISTORY_SCHEMA)
                         if USE_SUPABASE:
                             # Chỉ gửi các trường thay đổi lên Supabase (không gửi toàn bộ record)
                             supabase_insert("bulk_history", map_to_supabase(history_row))
@@ -948,18 +916,16 @@ with tab2:
                                 "loi_nhuan": new_loi_nhuan,
                                 "trang_thai": new_trang_thai,
                             }, "id", int(target["ID"]))
-                        load_data_from_supabase.clear()
-                        load_data.clear()
                         st.success("Bán pack thành công.")
                         st.rerun()
             else:
                 st.info("Không có pack pet nào để bán.")
 
     st.markdown("---")
-    st.subheader("📦 Kho Pack Pet")
+    st.subheader("📦 Tồn Kho Lô")
     render_editable_inventory_table(
         bulk_df[bulk_cols],
-        "📦 Kho Pack Pet",
+        "📦 Danh Sách",
         "pack_inventory",
         BULK_FILE,
         BULK_SCHEMA,
@@ -968,7 +934,7 @@ with tab2:
     )
 
 with tab3:
-    st.subheader("📊 Analytics")
+    st.subheader("📊 Tổng Quan")
 
     single_profit = float(df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False, regex=False)]["Lợi Nhuận"].sum())
     pack_profit = float(bulk_df["Lợi Nhuận"].sum())
@@ -983,7 +949,7 @@ with tab3:
     m2.metric("📦 Tổng stock", f"{total_stock:,}")
 
     st.markdown("---")
-    st.subheader("💸 Dòng tiền ròng")
+    st.subheader("💸 Tài Chính")
     total_cost_single = float(df["Giá Nhập"].sum()) if not df.empty else 0.0
     total_cost_pack = float(bulk_df["Giá Nhập Tổng"].sum()) if not bulk_df.empty else 0.0
     total_cost = total_cost_single + total_cost_pack
@@ -1050,7 +1016,7 @@ with tab3:
         st.info("Chưa có dữ liệu lợi nhuận để vẽ biểu đồ theo ngày.")
 
     st.markdown("---")
-    st.subheader("📈 Báo cáo quản lý dòng tiền & sản phẩm")
+    st.subheader("📈 Phân Tích")
 
     # 1) Doanh thu theo kênh bán (Pet lẻ vs Pack)
     sold_single_rev = float(df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False, regex=False)]["Doanh Thu"].sum())
@@ -1147,7 +1113,7 @@ with tab3:
             st.info("Chưa có dữ liệu giao dịch pack để xếp hạng lợi nhuận.")
 
 with tab4:
-    st.subheader("⏳ Danh sách item tồn quá lâu")
+    st.subheader("⏳ Hàng Tồn Lâu")
     age_threshold = st.slider("Số ngày tồn tối thiểu", min_value=1, max_value=90, value=7, step=1)
 
     # Pet lẻ còn hàng
@@ -1184,227 +1150,3 @@ with tab4:
     else:
         old_items = old_items.sort_values(["Ngày Tồn", "Giá trị vốn (VNĐ)"], ascending=[False, False])
         st.dataframe(old_items, use_container_width=True, hide_index=True, height=380)
-
-with tab5:
-    st.subheader("🕵️‍♂️ Eldorado Spy — Steal a Brainrot")
-    
-    spy_col1, spy_col2 = st.columns([1, 1.2])
-    
-    with spy_col1:
-        with st.container(border=True):
-            st.markdown("### 🔍 Tìm Giá Rẻ Nhất trên Sàn")
-
-            spy_name = st.text_input("Tên Brainrot", placeholder="VD: Festive Lucky Block, Sigma Cat...")
-            
-            spy_mut_options = ["Không lọc", "Normal", "Gold", "Diamond", "Bloodrot", "Candy", "Divine", "Lava", "Galaxy", "Yin-Yang", "Radioactive", "Cursed", "Rainbow"]
-            spy_mut = st.selectbox("Mutation", spy_mut_options, key="spy_mut_filter")
-            
-            spy_ms_options = {
-                "Không lọc": "",
-                "0-24 M/s": "0-24-ms",
-                "25-49 M/s": "25-49-ms",
-                "50-99 M/s": "50-99-ms",
-                "100-249 M/s": "100-249-ms",
-                "250-499 M/s": "250-499-ms",
-                "500-999 M/s": "500-999-ms",
-                "1000+ M/s": "1000-ms",
-            }
-            spy_ms = st.selectbox("Tốc độ (M/s)", list(spy_ms_options.keys()), key="spy_ms_filter")
-            
-            # Build filter URL
-            base_url = "https://www.eldorado.gg/steal-a-brainrot-brainrots/i/259"
-            params = {}
-            if spy_name.strip():
-                params["te_v2"] = spy_name.strip()
-            if spy_mut != "Không lọc":
-                params["steal-a-brainrot-mutations"] = spy_mut.lower()
-            if spy_ms_options[spy_ms]:
-                params["steal-a-brainrot-ms"] = spy_ms_options[spy_ms]
-            params["gamePageOfferIndex"] = "1"
-            params["gamePageOfferSize"] = "24"
-            eldorado_url = base_url + "?" + urllib.parse.urlencode(params) if params else base_url
-            
-            filter_desc = []
-            if spy_name.strip():
-                filter_desc.append(f"Tên: **{spy_name.strip()}**")
-            if spy_mut != "Không lọc":
-                filter_desc.append(f"Mut: **{spy_mut}**")
-            if spy_ms != "Không lọc":
-                filter_desc.append(f"Speed: **{spy_ms}**")
-            
-            if filter_desc:
-                st.caption("🔎 Lọc: " + " | ".join(filter_desc))
-            
-            st.link_button("🚀 Xem Giá trên Eldorado (mở tab mới)", eldorado_url, use_container_width=True, type="primary")
-            
-            st.markdown("---")
-            st.markdown("#### 📋 Xem trực tiếp trong app")
-            st.caption("ℹ️ Eldorado dùng JavaScript để load giá — click **\"Hiện iframe\"** để xem giá ngay trong app mà không cần mở tab mới.")
-            
-            show_iframe = st.toggle("Hiện iframe Eldorado", value=False, key="show_iframe_toggle")
-            if show_iframe:
-                st.info("💡 Trang Eldorado sẽ hiển thị bên dưới với filter đã cài. Giá được load trực tiếp từ sàn.")
-                components.iframe(eldorado_url, height=600, scrolling=True)
-            
-            st.markdown("---")
-            st.markdown("#### 📝 Nhập Giá Thủ Công")
-            st.caption("Sau khi xem giá trên Eldorado, nhập tối đa 5 mức giá (thấp→cao) để ghi lại.")
-            
-            with st.form("manual_price_form", clear_on_submit=False):
-                manual_cols = st.columns(5)
-                manual_prices = []
-                for i, col in enumerate(manual_cols):
-                    val = col.text_input(f"#{i+1}", placeholder="0.00", key=f"mprice_{i}", label_visibility="collapsed")
-                    manual_prices.append(val)
-                save_manual = st.form_submit_button("💾 Ghi lại giá", use_container_width=True)
-            
-            if save_manual:
-                parsed = []
-                for v in manual_prices:
-                    p = parse_usd_input(v)
-                    if p > 0:
-                        parsed.append(p)
-                parsed.sort()
-                if parsed:
-                    st.success(f"✅ Ghi nhận {len(parsed)} mức giá!")
-                    price_cols = st.columns(len(parsed))
-                    for i, p in enumerate(parsed):
-                        price_cols[i].metric(f"#{i+1}", f"${p:.2f}", f"≈ {p * EXCHANGE_RATE:,.0f}đ")
-                    if parsed:
-                        st.success(f"💎 Giá thấp nhất: **${parsed[0]:.2f}** ≈ {parsed[0] * EXCHANGE_RATE:,.0f} VNĐ")
-                else:
-                    st.warning("⚠️ Chưa nhập giá nào hợp lệ.")
-
-    with spy_col2:
-        with st.container(border=True):
-            st.markdown("### 👥 Theo Dõi Đối Thủ (Auto Spy)")
-            st.caption("Lưu snapshot kho đối thủ thủ công → So sánh để báo hàng mới/đã bán.")
-            
-            spy_urls_db = load_data(SPY_URLS_FILE, SPY_URL_SCHEMA)
-            
-            with st.expander("➕ Quản lý Link Shop Đối Thủ", expanded=False):
-                with st.form("add_spy_form_auto", clear_on_submit=True):
-                    s_name = st.text_input("Tên Shop")
-                    s_url = st.text_input("Link Eldorado Shop")
-                    if st.form_submit_button("Thêm Shop"):
-                        if s_name and s_url:
-                            new_spy = append_row(spy_urls_db, {"Name": s_name, "URL": s_url, "LastState": ""}, SPY_URL_SCHEMA)
-                            save_data(new_spy, SPY_URLS_FILE)
-                            st.rerun()
-                
-                if not spy_urls_db.empty:
-                    del_shop = st.selectbox("Chọn shop cần xóa", spy_urls_db["Name"].tolist(), key="del_auto_shop")
-                    if st.button("🗑️ Xóa khỏi danh sách"):
-                        spy_urls_db = spy_urls_db[spy_urls_db["Name"] != del_shop]
-                        save_data(spy_urls_db.reset_index(drop=True), SPY_URLS_FILE)
-                        st.rerun()
-
-            if not spy_urls_db.empty:
-                st.dataframe(spy_urls_db[["Name", "URL"]], use_container_width=True, hide_index=True, height=120)
-                
-                selected_spy = st.selectbox("Chọn shop để spy", spy_urls_db["Name"].tolist(), key="auto_spy_select")
-                idx_spy = spy_urls_db[spy_urls_db["Name"] == selected_spy].index[0]
-                target_url = spy_urls_db.at[idx_spy, "URL"]
-                last_state_raw = str(spy_urls_db.at[idx_spy, "LastState"])
-                last_items = [it for it in last_state_raw.split("|||") if it and it != "nan"]
-                
-                st.link_button(f"🌐 Mở shop {selected_spy}", target_url, use_container_width=True)
-                st.caption(f"📦 Snapshot hiện tại: **{len(last_items)} món** đã lưu")
-                
-                st.markdown("---")
-                st.markdown("**📋 Nhập thủ công danh sách hàng đối thủ:**")
-                st.caption("Copy tên từng món (mỗi dòng 1 tên) từ shop Eldorado → Paste vào đây để lưu snapshot.")
-                
-                manual_items_text = st.text_area(
-                    "Danh sách hàng (mỗi dòng 1 tên)",
-                    placeholder="VD:\nRainbow Sigma Cat 500M/s\nGold Festive Lucky Block 250M/s\n...",
-                    height=150,
-                    key="spy_manual_items",
-                )
-                
-                col_snap1, col_snap2 = st.columns([1, 1])
-                with col_snap1:
-                    if st.button("📸 Lưu Snapshot", use_container_width=True, type="primary"):
-                        items_list = [line.strip() for line in manual_items_text.strip().split("\n") if line.strip()]
-                        if items_list:
-                            spy_urls_db.at[idx_spy, "LastState"] = "|||".join(items_list)
-                            save_data(spy_urls_db, SPY_URLS_FILE)
-                            st.success(f"✅ Đã lưu snapshot **{len(items_list)} món** cho shop {selected_spy}!")
-                            st.rerun()
-                        else:
-                            st.warning("⚠️ Chưa nhập danh sách hàng.")
-                
-                with col_snap2:
-                    if st.button("🔄 So sánh với Snapshot cũ", use_container_width=True):
-                        new_items = [line.strip() for line in manual_items_text.strip().split("\n") if line.strip()]
-                        if not new_items:
-                            st.warning("⚠️ Nhập danh sách hàng mới trước khi so sánh.")
-                        elif not last_items:
-                            st.info("ℹ️ Chưa có snapshot cũ. Hãy lưu snapshot lần đầu trước.")
-                        else:
-                            sold = [it for it in last_items if it not in new_items]
-                            added = [it for it in new_items if it not in last_items]
-                            
-                            log_db = load_data(SPY_LOG_FILE, SPY_LOG_SCHEMA)
-                            
-                            if sold:
-                                st.error(f"🔥 **{len(sold)} MÓN ĐÃ BÁN:**")
-                                for si in sold:
-                                    st.write(f"  ❌ {si}")
-                                    log_db = append_row(log_db, {
-                                        "Timestamp": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                                        "Shop": selected_spy,
-                                        "Item": si,
-                                        "Event": "Đã bán"
-                                    }, SPY_LOG_SCHEMA)
-                            if added:
-                                st.success(f"✨ **{len(added)} MÓN MỚI ĐƯỢC ĐĂNG:**")
-                                for ai in added:
-                                    st.write(f"  ✅ {ai}")
-                                    log_db = append_row(log_db, {
-                                        "Timestamp": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                                        "Shop": selected_spy,
-                                        "Item": ai,
-                                        "Event": "Mới đăng"
-                                    }, SPY_LOG_SCHEMA)
-                            if not sold and not added:
-                                st.success("✅ Kho hàng không thay đổi.")
-                            
-                            if sold or added:
-                                save_data(log_db, SPY_LOG_FILE)
-                                spy_urls_db.at[idx_spy, "LastState"] = "|||".join(new_items)
-                                save_data(spy_urls_db, SPY_URLS_FILE)
-                                st.toast("Đã cập nhật snapshot!")
-                
-                if last_items:
-                    with st.expander(f"👁️ Xem snapshot hiện tại ({len(last_items)} món)", expanded=False):
-                        for i, item in enumerate(last_items, 1):
-                            st.caption(f"{i}. {item}")
-                        if st.button("🗑️ Xóa Snapshot", key="clear_snapshot"):
-                            spy_urls_db.at[idx_spy, "LastState"] = ""
-                            save_data(spy_urls_db, SPY_URLS_FILE)
-                            st.rerun()
-            else:
-                st.info("Chưa có shop nào trong danh sách. Hãy thêm link shop phía trên.")
-
-    st.markdown("---")
-    st.markdown("### 📋 Nhật Ký Hoạt Động Đối Thủ")
-    log_db_view = load_data(SPY_LOG_FILE, SPY_LOG_SCHEMA)
-    if not log_db_view.empty:
-        shops_in_log = log_db_view["Shop"].unique().tolist()
-        filter_shop = st.selectbox("Lọc theo Shop", ["Tất cả"] + shops_in_log, key="log_filter_shop")
-        if filter_shop != "Tất cả":
-            log_db_view = log_db_view[log_db_view["Shop"] == filter_shop]
-        
-        event_filter = st.selectbox("Lọc theo Sự kiện", ["Tất cả", "Đã bán", "Mới đăng"], key="log_filter_event")
-        if event_filter != "Tất cả":
-            log_db_view = log_db_view[log_db_view["Event"] == event_filter]
-        
-        st.dataframe(log_db_view.sort_values("Timestamp", ascending=False), use_container_width=True, hide_index=True, height=300)
-        if st.button("🗑️ Xóa Nhật Ký"):
-            save_data(pd.DataFrame(columns=SPY_LOG_SCHEMA.keys()), SPY_LOG_FILE)
-            st.rerun()
-    else:
-        st.caption("Chưa có hoạt động nào được ghi lại. Hãy spy đối thủ lần đầu!")
-
-

@@ -476,7 +476,6 @@ def render_editable_inventory_table(
         view = view[cols]
 
     st.markdown(f"**{title}**")
-    st.caption("✍️ Có thể sửa trực tiếp từng ô. Mỗi thay đổi sẽ tự lưu. Bạn cũng có thể thêm/xóa dòng ngay trong bảng.")
 
     edited = st.data_editor(
         view,
@@ -547,7 +546,7 @@ main_cols = list(MAIN_SCHEMA.keys())
 bulk_cols = list(BULK_SCHEMA.keys())
 hist_cols = list(HISTORY_SCHEMA.keys())
 
-st.set_page_config(page_title="GhostlyStock Inventory", layout="wide")
+st.set_page_config(page_title="Dashboard", layout="wide")
 
 st.markdown(
     """
@@ -597,8 +596,8 @@ div[data-testid="stMetric"] {
 st.markdown(
     """
     <div class="hero">
-        <h2>📦 GhostlyStock Management</h2>
-        <p>Tối ưu quản lý kho pet lẻ/pack, giao diện gọn gàng hơn và dữ liệu an toàn hơn.</p>
+        <h2>📦Management</h2>
+        <p>© 2026 MinhThuan. All rights reserved.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -654,14 +653,14 @@ with st.sidebar:
     manage_sidebar("NameStock", ns_db, NS_LIST_FILE, "Name", icon="🏷️")
     manage_sidebar("Trait", trait_db, TRAIT_LIST_FILE, "Name", icon="🧬")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📦 Pet Lẻ", "📦 Pack", "📊 Thống kê", "⏳ Tồn lâu", "🕵️‍♂️ Eldorado Spy"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📦 Pet", "📦 Pack Pet", "📊 Thống kê", "⏳ Tồn kho", "🕵️‍♂️ Spy"])
 
 with tab1:
     col_input, col_sale = st.columns([1.2, 1])
 
     with col_input:
         with st.container(border=True):
-            st.subheader("📥 Nhập Pet Lẻ")
+            st.subheader("📥 Nhập Pet")
             pet_options = get_name_options(pet_db)
             trait_options = ["None"] + get_name_options(trait_db)
             ns_options = [""] + get_name_options(ns_db, fallback="")
@@ -690,7 +689,7 @@ with tab1:
 
             col_btn1, col_btn2 = st.columns([3, 1])
             with col_btn1:
-                if st.button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True, key="save_single"):
+                if st.button("💾 Lưu Pet", type="primary", use_container_width=True, key="save_single"):
                     ms = parse_usd_input(ms_raw)  # M/s là số thập phân
                     p_cost = parse_vnd_input(p_cost_raw)  # Giá nhập là VNĐ
                     errors = []
@@ -730,7 +729,7 @@ with tab1:
                             supabase_insert("inventory", map_to_supabase(row))
                         load_data_from_supabase.clear()
                         load_data.clear()
-                        st.success("Đã lưu pet lẻ.")
+                        st.success("Đã lưu Pet.")
                         st.rerun()
             with col_btn2:
                 if st.button("🗑️ Xóa", use_container_width=True, key="clear_single"):
@@ -738,7 +737,7 @@ with tab1:
 
     with col_sale:
         with st.container(border=True):
-            st.subheader("💰 Bán Pet Lẻ")
+            st.subheader("💰 Bán Pet")
             active = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
             q = st.text_input("🔍 Tìm kiếm theo ID hoặc title", placeholder="VD: 15 hoặc Rainbow")
 
@@ -797,13 +796,12 @@ with tab1:
                 else:
                     st.info("Không có kết quả phù hợp.")
             else:
-                st.info("Không có pet lẻ nào để bán.")
+                st.info("Không có Pet nào để bán.")
 
     st.markdown("---")
-    st.subheader("📋 Kho Pet Lẻ")
+    st.subheader("📋 Kho Pet")
     render_editable_inventory_table(
         df[main_cols],
-        "📋 Kho Pet Lẻ",
         "single_inventory",
         DB_FILE,
         MAIN_SCHEMA,
@@ -959,7 +957,6 @@ with tab2:
     st.subheader("📦 Kho Pack Pet")
     render_editable_inventory_table(
         bulk_df[bulk_cols],
-        "📦 Kho Pack Pet",
         "pack_inventory",
         BULK_FILE,
         BULK_SCHEMA,
@@ -1052,12 +1049,12 @@ with tab3:
     st.markdown("---")
     st.subheader("📈 Báo cáo quản lý dòng tiền & sản phẩm")
 
-    # 1) Doanh thu theo kênh bán (Pet lẻ vs Pack)
+    # 1) Doanh thu theo kênh bán (Pet vs Pack)
     sold_single_rev = float(df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False, regex=False)]["Doanh Thu"].sum())
     sold_pack_rev = float(bulk_history["Doanh Thu Giao Dịch"].sum()) if not bulk_history.empty else 0.0
     rev_mix = pd.DataFrame(
         {
-            "Kênh": ["Pet Lẻ", "Pack"],
+            "Kênh": ["Pet", "Pack"],
             "Doanh Thu": [sold_single_rev, sold_pack_rev],
         }
     )
@@ -1097,7 +1094,7 @@ with tab3:
         if not single_status.empty or not pack_status.empty:
             status_mix = pd.DataFrame(
                 {
-                    "Nhóm": ["Pet Lẻ"] * len(single_status) + ["Pack"] * len(pack_status),
+                    "Nhóm": ["Pet"] * len(single_status) + ["Pack"] * len(pack_status),
                     "Trạng Thái": single_status.get("Trạng Thái", pd.Series(dtype=str)).tolist()
                     + pack_status.get("Trạng Thái", pd.Series(dtype=str)).tolist(),
                     "Số lượng": single_status.get("Số lượng", pd.Series(dtype=float)).tolist()
@@ -1124,13 +1121,13 @@ with tab3:
                 single_profit_by_pet,
                 x="Tên Pet",
                 y="Lợi Nhuận",
-                title="Top 10 Pet Lẻ theo lợi nhuận",
+                title="Top 10 Pet theo lợi nhuận",
                 text_auto=".2s",
             )
             fig_top_single.update_layout(margin=dict(l=10, r=10, t=50, b=10), xaxis_title="Tên Pet", yaxis_title="Lợi nhuận (VNĐ)")
             st.plotly_chart(fig_top_single, use_container_width=True)
         else:
-            st.info("Chưa có dữ liệu pet lẻ đã bán để xếp hạng lợi nhuận.")
+            st.info("Chưa có dữ liệu Pet đã bán để xếp hạng lợi nhuận.")
 
     with c4:
         if not pack_profit_by_name.empty:
@@ -1150,13 +1147,13 @@ with tab4:
     st.subheader("⏳ Danh sách item tồn quá lâu")
     age_threshold = st.slider("Số ngày tồn tối thiểu", min_value=1, max_value=90, value=7, step=1)
 
-    # Pet lẻ còn hàng
+    # Pet còn hàng
     single_old = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)].copy()
     if not single_old.empty:
         single_old["Ngày Nhập DT"] = pd.to_datetime(single_old["Ngày Nhập"], dayfirst=True, errors="coerce")
         single_old["Ngày Tồn"] = (pd.Timestamp.now() - single_old["Ngày Nhập DT"]).dt.days
         single_old = single_old[single_old["Ngày Tồn"] >= age_threshold]
-        single_old["Loại"] = "Pet Lẻ"
+        single_old["Loại"] = "Pet"
         single_old["Item"] = single_old["Tên Pet"].astype(str)
         single_old["Số lượng còn"] = 1
         single_old["Giá trị vốn (VNĐ)"] = pd.to_numeric(single_old["Giá Nhập"], errors="coerce").fillna(0)

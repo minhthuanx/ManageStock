@@ -8,7 +8,6 @@ from io import StringIO
 
 import pandas as pd
 import plotly.express as px
-import urllib.parse
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -249,6 +248,7 @@ NS_LIST_FILE = "namestock_list.csv"
 TRAIT_LIST_FILE = "traits_list.csv"
 SQLITE_DB = "ghostlystock.db"
 BACKUP_DIR = "backups"
+EXCHANGE_RATE = 20400
 
 MAIN_SCHEMA = {
     "STT": 0,
@@ -647,7 +647,7 @@ with st.sidebar:
     manage_sidebar("NameStock", ns_db, NS_LIST_FILE, "Name", icon="🏷️")
     manage_sidebar("Trait", trait_db, TRAIT_LIST_FILE, "Name", icon="🧬")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📦 Pet Lẻ", "📦 Pack", "📊 Thống kê", "⏳ Tồn lâu", "🕵️‍♂️ Radar Đối Thủ Sàn"])
+tab1, tab2, tab3, tab4 = st.tabs(["📦 Pet Lẻ", "📦 Pack", "📊 Thống kê", "⏳ Tồn lâu"])
 
 with tab1:
     col_input, col_sale = st.columns([1.2, 1])
@@ -751,30 +751,10 @@ with tab1:
                         f"Pet: **{selected_row['Tên Pet']}** | Giá nhập: **{format_vnd(float(selected_row['Giá Nhập']))}**"
                     )
 
-                    st.caption("---")
-                    cost_vnd = float(selected_row['Giá Nhập'])
-                    break_even_usd = (cost_vnd / EXCHANGE_RATE) / (1 - FEE_RATE) if (1 - FEE_RATE) > 0 else 0
-                    target_20_usd = ((cost_vnd * 1.2) / EXCHANGE_RATE) / (1 - FEE_RATE) if (1 - FEE_RATE) > 0 else 0
-                    target_50_usd = ((cost_vnd * 1.5) / EXCHANGE_RATE) / (1 - FEE_RATE) if (1 - FEE_RATE) > 0 else 0
-                    
-                    st.info(f"""
-                    **💡 Đề xuất giá bán (Đã trừ phí {FEE_RATE*100:.1f}%)**:
-                    - Hoà vốn: **${break_even_usd:.2f}**
-                    - Lãi 20%: **${target_20_usd:.2f}**
-                    - Lãi 50%: **${target_50_usd:.2f}**
-                    """)
-                    
-                    st.markdown("**📋 Click để Copy Auto Title đăng sàn:**")
-                    st.code(selected_row['Auto Title'], language="text")
-
                     s_price_raw = st.text_input("Giá bán ($)", placeholder="VD: 5.5")
                     _sp_preview = parse_usd_input(s_price_raw)
                     if _sp_preview > 0:
-                        net_usd = _sp_preview * (1 - FEE_RATE)
-                        net_vnd_pred = net_usd * EXCHANGE_RATE
-                        profit_pred = net_vnd_pred - cost_vnd
-                        emo = "🟢 Lời" if profit_pred > 0 else ("🔴 Lỗ" if profit_pred < 0 else "⚪ Hoà")
-                        st.caption(f"➡️ Thực nhận (sau phí): **${net_usd:.2f} ≈ {net_vnd_pred:,.0f} VNĐ** | {emo} {abs(profit_pred):,.0f} VNĐ")
+                        st.caption(f"➡️ ${_sp_preview:.2f} ≈ {_sp_preview * EXCHANGE_RATE:,.0f} VNĐ")
                     if st.button("✅ Xác nhận bán", type="primary", use_container_width=True, key="sell_single"):
                         s_price = parse_usd_input(s_price_raw)  # Giá bán là USD
                         if s_price <= 0:
@@ -786,9 +766,7 @@ with tab1:
                                 st.error("❌ Không tìm thấy Pet với STT đã chọn.")
                             else:
                                 iloc_pos = df.index.get_loc(match_positions[0])
-                                # Doanh thu THỰC NHẬN lưu vào sổ sách
-                                net_price_usd = s_price * (1 - FEE_RATE)
-                                rev_vnd = net_price_usd * EXCHANGE_RATE
+                                rev_vnd = s_price * EXCHANGE_RATE
                                 records = df.to_dict('records')
                                 records[iloc_pos]["Giá Bán"] = float(s_price)
                                 records[iloc_pos]["Doanh Thu"] = float(rev_vnd)
@@ -912,16 +890,8 @@ with tab2:
                 sel_b = st.selectbox("Chọn pack cần bán", avail["ID"].astype(str) + " - " + avail["Tên Lô"])
                 target = avail[avail["ID"] == int(sel_b.split(" - ")[0])].iloc[0]
                 st.caption(
-                    f"Tên lô: **{target['Tên Lô']}** | Còn lại: **{int(target['Còn Lại'])}** | Tổng vốn: **{format_vnd(float(target['Giá Nhập Tổng']))}**"
+                    f"Tên lô: **{target['Tên Lô']}** | Còn lại: **{int(target['Còn Lại'])}** | Giá nhập: **{format_vnd(float(target['Giá Nhập Tổng']))}**"
                 )
-
-                cost_vnd_pack = float(target['Giá Nhập Tổng']) / max(float(target['Số Lượng Gốc']), 1.0)
-                break_even_usd = (cost_vnd_pack / EXCHANGE_RATE) / (1 - FEE_RATE) if (1 - FEE_RATE) > 0 else 0
-                target_20_usd = ((cost_vnd_pack * 1.2) / EXCHANGE_RATE) / (1 - FEE_RATE) if (1 - FEE_RATE) > 0 else 0
-                st.info(f"**💡 Gợi ý giá:** Hoà vốn: **${break_even_usd:.2f}/item** | Lãi 20%: **${target_20_usd:.2f}/item**")
-                
-                st.markdown("**📋 Click để Copy Auto Title đăng sàn:**")
-                st.code(target['Auto Title'], language="text")
 
                 sr1, sr2 = st.columns([1, 1])
                 with sr1:
@@ -930,12 +900,8 @@ with tab2:
                     s_prc_raw = st.text_input("Giá bán ($/pet)", placeholder="VD: 3.5")
                     _sprc_preview = parse_usd_input(s_prc_raw)
                     if _sprc_preview > 0 and s_qty > 0:
-                        total_gross = _sprc_preview * int(s_qty)
-                        total_net = total_gross * (1 - FEE_RATE)
-                        total_net_vnd = total_net * EXCHANGE_RATE
-                        profit_pred = total_net_vnd - (cost_vnd_pack * int(s_qty))
-                        emo = "🟢 Lời" if profit_pred > 0 else ("🔴 Lỗ" if profit_pred < 0 else "⚪ Hoà")
-                        st.caption(f"➡️ Thực nhận: **${total_net:.2f} ≈ {total_net_vnd:,.0f} VNĐ** | {emo} {abs(profit_pred):,.0f} VNĐ")
+                        total_rev = _sprc_preview * int(s_qty) * EXCHANGE_RATE
+                        st.caption(f"➡️ ${_sprc_preview:.2f}/pet | Tổng ≈ {total_rev:,.0f} VNĐ")
 
                 if st.button("✅ Bán Pack", type="primary", use_container_width=True, key="sell_pack"):
                     s_prc = parse_usd_input(s_prc_raw)  # Giá bán là USD
@@ -944,8 +910,7 @@ with tab2:
                     else:
                         idx = bulk_df[bulk_df["ID"] == target["ID"]].index[0]
                         iloc_pos = bulk_df.index.get_loc(idx)
-                        net_price_usd = s_prc * (1 - FEE_RATE)
-                        rev_vnd = s_qty * net_price_usd * EXCHANGE_RATE
+                        rev_vnd = s_qty * s_prc * EXCHANGE_RATE
 
                         new_con_lai = max(0.0, float(bulk_df.at[idx, "Còn Lại"]) - float(s_qty))
                         new_doanh_thu = float(bulk_df.at[idx, "Doanh Thu Tích Lũy"]) + rev_vnd
@@ -1212,43 +1177,3 @@ with tab4:
     else:
         old_items = old_items.sort_values(["Ngày Tồn", "Giá trị vốn (VNĐ)"], ascending=[False, False])
         st.dataframe(old_items, use_container_width=True, hide_index=True, height=380)
-
-with tab5:
-    st.subheader("🕵️‍♂️ Radar Sàn Eldorado (Chống Cloudflare)")
-    st.markdown("Giúp đi tuần tra giá của các shop bên kia chiến tuyến trên sàn. Do Eldorado chặn mọi Request Bot nên đây là phương thức truy vấn trực tiếp bằng Browser của chính bạn!")
-    
-    st.markdown("### 🛒 Hàng Kho Lẻ")
-    active_inv = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
-    if active_inv.empty:
-        st.info("Kho lẻ của bạn đang trống.")
-    else:
-        for idx, row in active_inv.iterrows():
-            with st.container(border=True):
-                col1, col2, col3, col4 = st.columns([3, 1.5, 1.5, 1.2])
-                col1.markdown(f"**{row['Auto Title']}**")
-                col2.write(f"Vốn: {row['Giá Nhập']:,.0f} VNĐ")
-                # Tạo truy vấn Eldorado
-                search_term = f"{row['Mutation']} {row['Tên Pet']}"
-                if str(row['Mutation']).lower() in ['normal', 'none', '']:
-                    search_term = f"{row['Tên Pet']}"
-                
-                query = urllib.parse.quote(search_term)
-                eldo_link = f"https://www.eldorado.gg/pet-simulator-99-items/ica/12e-12p?search={query}"
-                col4.markdown(f"[🔍 Nhòm Đối Thủ]({eldo_link})", unsafe_allow_html=True)
-                
-    st.markdown("---")
-    st.markdown("### 📦 Quét Pack")
-    avail_packs = bulk_df[bulk_df["Trạng Thái"].astype(str) == "Available"]
-    if avail_packs.empty:
-        st.info("Không có Pack nào.")
-    else:
-        for idx, target in avail_packs.iterrows():
-            with st.container(border=True):
-                col1, col2, col3, col4 = st.columns([3, 1.5, 1.5, 1.2])
-                col1.markdown(f"**{target['Tên Lô']}**")
-                col2.write(f"Còn: {int(target['Còn Lại'])}")
-                
-                search_term_pack = target['Auto Title'].split("🌸")[1].strip() if "🌸" in str(target['Auto Title']) else target['Tên Lô']
-                query_pack = urllib.parse.quote(search_term_pack)
-                eldo_pack_link = f"https://www.eldorado.gg/pet-simulator-99-items/ica/12e-12p?search={query_pack}"
-                col4.markdown(f"[🔍 Nhòm Đối Thủ]({eldo_pack_link})", unsafe_allow_html=True)

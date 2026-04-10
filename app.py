@@ -8,6 +8,8 @@ from io import StringIO
 
 import pandas as pd
 import plotly.express as px
+import urllib.parse
+import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -248,6 +250,11 @@ NS_LIST_FILE = "namestock_list.csv"
 TRAIT_LIST_FILE = "traits_list.csv"
 SQLITE_DB = "ghostlystock.db"
 BACKUP_DIR = "backups"
+SPY_URLS_FILE = "spy_urls.csv"
+SPY_LOG_FILE = "spy_history.csv"
+
+SPY_URL_SCHEMA = {"Name": "", "URL": "", "LastState": ""}
+SPY_LOG_SCHEMA = {"Timestamp": "", "Shop": "", "Item": "", "Event": "Sold"}
 EXCHANGE_RATE = 20400
 
 MAIN_SCHEMA = {
@@ -647,7 +654,7 @@ with st.sidebar:
     manage_sidebar("NameStock", ns_db, NS_LIST_FILE, "Name", icon="🏷️")
     manage_sidebar("Trait", trait_db, TRAIT_LIST_FILE, "Name", icon="🧬")
 
-tab1, tab2, tab3, tab4 = st.tabs(["📦 Pet Lẻ", "📦 Pack", "📊 Thống kê", "⏳ Tồn lâu"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📦 Pet Lẻ", "📦 Pack", "📊 Thống kê", "⏳ Tồn lâu", "🕵️‍♂️ Eldorado Spy"])
 
 with tab1:
     col_input, col_sale = st.columns([1.2, 1])
@@ -1177,3 +1184,122 @@ with tab4:
     else:
         old_items = old_items.sort_values(["Ngày Tồn", "Giá trị vốn (VNĐ)"], ascending=[False, False])
         st.dataframe(old_items, use_container_width=True, hide_index=True, height=380)
+
+with tab5:
+    st.subheader("🕵️‍♂️ Eldorado Intelligence Tool")
+    
+    spy_col1, spy_col2 = st.columns([1, 1.2])
+    
+    with spy_col1:
+        with st.container(border=True):
+            st.markdown("### 🔍 Tìm Giá Rẻ Nhất")
+            pet_to_search = st.selectbox("Chọn Pet để check giá", get_name_options(pet_db))
+            mut_to_search = st.selectbox("Mutation", ["None"] + mutation_options, key="spy_mut")
+            
+            if st.button("🚀 Quét Giá Sàn", use_container_width=True):
+                search_q = f"Pet Simulator 99 {pet_to_search}"
+                if mut_to_search != "None":
+                    search_q = f"Pet Simulator 99 {mut_to_search} {pet_to_search}"
+                
+                query = urllib.parse.quote(search_q)
+                url = f"https://www.eldorado.gg/pet-simulator-99-items/ica/12e-12p?search={query}&sort=price:asc"
+                
+                st.info(f"Đang kiểm tra: `{search_q}`...")
+                
+                try:
+                    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"}
+                    resp = requests.get(url, headers=headers, timeout=10)
+                    
+                    # Regex tìm giá dạng $X.XX
+                    prices = re.findall(r'\$(\d+\.\d+)', resp.text)
+                    if prices:
+                        min_p = min([float(p) for p in prices])
+                        st.success(f"💎 Giá thấp nhất hiện tại: **${min_p:.2f}**")
+                        st.caption(f"Khoảng {min_p * EXCHANGE_RATE:,.0f} VNĐ")
+                    else:
+                        st.warning("⚠️ Không tìm thấy giá tự động. Có thể do Eldorado chặn hoặc không có hàng.")
+                except Exception as e:
+                    st.error(f"Lỗi quét giá: {e}")
+                
+                st.link_button("🔗 Xem trực tiếp trên Eldorado", url)
+
+    with spy_col2:
+        with st.container(border=True):
+            st.markdown("### 👥 Theo Dõi Đối Thủ")
+            
+            # Quản lý danh sách shop
+            spy_urls_db = load_data(SPY_URLS_FILE, SPY_URL_SCHEMA)
+            
+            with st.expander("➕ Thêm Shop Đối Thủ", expanded=False):
+                with st.form("add_spy_form", clear_on_submit=True):
+                    s_name = st.text_input("Tên Shop")
+                    s_url = st.text_input("Link Eldorado Shop (VD: https://www.eldorado.gg/users/Example)")
+                    if st.form_submit_button("Thêm"):
+                        if s_name and s_url:
+                            new_spy = append_row(spy_urls_db, {"Name": s_name, "URL": s_url}, SPY_URL_SCHEMA)
+                            save_data(new_spy, SPY_URLS_FILE)
+                            st.rerun()
+            
+            if not spy_urls_db.empty:
+                st.dataframe(spy_urls_db[["Name", "URL"]], use_container_width=True, hide_index=True)
+                
+                selected_spy = st.selectbox("Chọn shop để Spy", spy_urls_db["Name"].tolist())
+                target_url = spy_urls_db[spy_urls_db["Name"] == selected_spy]["URL"].iloc[0]
+                
+                if st.button(f"🕵️‍♂️ Quét Shop {selected_spy}", use_container_width=True):
+                    try:
+                        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"}
+                        resp = requests.get(target_url, headers=headers, timeout=10)
+                        
+                        # Trích xuất tên các item (Regex nhắm vào title của offer)
+                        current_items = re.findall(r'offer-id="[^"]+".*?title="([^"]+)"', resp.text)
+                        if not current_items:
+                            current_items = re.findall(r'class="offer-title">([^<]+)</div>', resp.text)
+                        
+                        current_items = [html.unescape(it.strip()) for it in current_items if it.strip()]
+                        
+                        st.write(f"Đang hiển thị: **{len(current_items)} món**")
+                        
+                        # Lấy trạng thái cũ
+                        idx = spy_urls_db[spy_urls_db["Name"] == selected_spy].index[0]
+                        last_state_raw = str(spy_urls_db.at[idx, "LastState"])
+                        last_items = last_state_raw.split("|||") if last_state_raw and last_state_raw != "nan" else []
+                        
+                        # So sánh: Item nào có trong last_items mà KHÔNG có trong current_items -> Đã bán
+                        sold_items = [it for it in last_items if it not in current_items and it != ""]
+                        
+                        if sold_items:
+                            log_db = load_data(SPY_LOG_FILE, SPY_LOG_SCHEMA)
+                            for sold_item in sold_items:
+                                new_log = {
+                                    "Timestamp": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                                    "Shop": selected_spy,
+                                    "Item": sold_item,
+                                    "Event": "Đã bán (Sold)"
+                                }
+                                log_db = append_row(log_db, new_log, SPY_LOG_SCHEMA)
+                            save_data(log_db, SPY_LOG_FILE)
+                            st.success(f"🔥 Phát hiện đối thủ vừa bán: {', '.join(sold_items)}")
+                        else:
+                            st.info("Chưa thấy item nào mới được bán (so với lần quét trước).")
+                        
+                        # Cập nhật trạng thái mới
+                        spy_urls_db.at[idx, "LastState"] = "|||".join(current_items)
+                        save_data(spy_urls_db, SPY_URLS_FILE)
+                        st.toast("Đã cập nhật trạng thái kho đối thủ!")
+                        
+                    except Exception as e:
+                        st.error(f"Không thể truy cập shop: {e}")
+            else:
+                st.info("Chưa có shop nào trong danh sách theo dõi.")
+
+    st.markdown("---")
+    st.markdown("### 📝 Nhật Ký Spy (Spy Log)")
+    log_db_view = load_data(SPY_LOG_FILE, SPY_LOG_SCHEMA)
+    if not log_db_view.empty:
+        st.dataframe(log_db_view.sort_values("Timestamp", ascending=False), use_container_width=True, hide_index=True)
+        if st.button("🗑️ Xóa Nhật Ký"):
+            save_data(pd.DataFrame(columns=SPY_LOG_SCHEMA.keys()), SPY_LOG_FILE)
+            st.rerun()
+    else:
+        st.caption("Chưa có hoạt động nào được ghi lại.")

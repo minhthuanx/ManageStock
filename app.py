@@ -42,6 +42,39 @@ elif "supabase" in st.secrets and "url" in st.secrets["supabase"] and "key" in s
         USE_SUPABASE = False
 
 # --- SUPABASE CRUD FUNCTIONS ---
+def map_to_supabase(record: dict) -> dict:
+    column_mapping = {
+        'STT': 'stt',
+        'Tên Pet': 'ten_pet',
+        'M/s': 'ms',
+        'Mutation': 'mutation',
+        'Số Trait': 'so_trait',
+        'NameStock': 'namestock',
+        'Giá Nhập': 'gia_nhap',
+        'Giá Bán': 'gia_ban',
+        'Lợi Nhuận': 'loi_nhuan',
+        'Doanh Thu': 'doanh_thu',
+        'Ngày Nhập': 'ngay_nhap',
+        'Ngày Bán': 'ngay_ban',
+        'Auto Title': 'auto_title',
+        'Trạng Thái': 'trang_thai',
+        'ID': 'id',
+        'Tên Lô': 'ten_lo',
+        'Số Lượng Gốc': 'so_luong_goc',
+        'Còn Lại': 'con_lai',
+        'Giá Nhập Tổng': 'gia_nhap_tong',
+        'Doanh Thu Tích Lũy': 'doanh_thu_tich_luy',
+        'Số Lượng Bán': 'so_luong_ban',
+        'Lợi Nhuận Giao Dịch': 'loi_nhuan_giao_dich',
+        'Doanh Thu Giao Dịch': 'doanh_thu_giao_dich'
+    }
+    new_record = {}
+    for key, value in record.items():
+        if key == 'index': continue
+        mapped_key = column_mapping.get(key, key.lower().replace(' ', '_').replace('/', '_'))
+        new_record[mapped_key] = value
+    return new_record
+
 def supabase_insert(table_name: str, data: dict) -> bool:
     """Insert data into Supabase table"""
     if not USE_SUPABASE or not supabase_client:
@@ -111,6 +144,7 @@ def supabase_select_by_id(table_name: str, id_col: str, id_value) -> pd.DataFram
         st.error(f"❌ Lỗi khi đọc dữ liệu từ {table_name}: {e}")
         return pd.DataFrame()
 
+@st.cache_data(show_spinner=False)
 def load_data_from_supabase(table_name: str, schema: dict, order_by: str = None) -> pd.DataFrame:
     """Load data from Supabase with fallback to CSV"""
     if USE_SUPABASE:
@@ -156,9 +190,7 @@ def load_data_from_supabase(table_name: str, schema: dict, order_by: str = None)
     return load_data(f"{table_name}.csv", schema)
 
 def save_data_to_supabase(df_data: pd.DataFrame, table_name: str, file: str) -> None:
-    """Save data to Supabase with fallback to CSV"""
-    # Always create backup for CSV
-    create_backup(file)
+    """Save data to Supabase (CSV generation disabled)"""
     
     # Try to save to Supabase
     if USE_SUPABASE:
@@ -167,48 +199,7 @@ def save_data_to_supabase(df_data: pd.DataFrame, table_name: str, file: str) -> 
             records = df_data.to_dict('records')
             
             # Map column names to snake_case for Supabase compatibility
-            # Fix error "column 'Auto Title' does not exist"
-            column_mapping = {
-                'STT': 'stt',
-                'Tên Pet': 'ten_pet',
-                'M/s': 'ms',
-                'Mutation': 'mutation',
-                'Số Trait': 'so_trait',
-                'NameStock': 'namestock',
-                'Giá Nhập': 'gia_nhap',
-                'Giá Bán': 'gia_ban',
-                'Lợi Nhuận': 'loi_nhuan',
-                'Doanh Thu': 'doanh_thu',
-                'Ngày Nhập': 'ngay_nhap',
-                'Ngày Bán': 'ngay_ban',
-                'Auto Title': 'auto_title',
-                'Trạng Thái': 'trang_thai',
-                'ID': 'id',
-                'Tên Lô': 'ten_lo',
-                'Số Lượng Gốc': 'so_luong_goc',
-                'Còn Lại': 'con_lai',
-                'Giá Nhập Tổng': 'gia_nhap_tong',
-                'Doanh Thu Tích Lũy': 'doanh_thu_tich_luy',
-                'Số Lượng Bán': 'so_luong_ban',
-                'Lợi Nhuận Giao Dịch': 'loi_nhuan_giao_dich',
-                'Doanh Thu Giao Dịch': 'doanh_thu_giao_dich'
-            }
-            
-            # Clear table and insert new data (simple approach)
-            # Note: For production, you might want to use upsert or handle updates more carefully
-            processed_records = []
-            for record in records:
-                # Remove pandas index if present
-                if 'index' in record:
-                    del record['index']
-                
-                # Convert column names to snake_case for Supabase
-                new_record = {}
-                for key, value in record.items():
-                    mapped_key = column_mapping.get(key, key.lower().replace(' ', '_').replace('/', '_'))
-                    new_record[mapped_key] = value
-                
-                processed_records.append(new_record)
+            processed_records = [map_to_supabase(record) for record in records]
             
             # Clear existing data and insert new (for simplicity)
             # In production, you'd want more sophisticated sync logic
@@ -236,24 +227,17 @@ def save_data_to_supabase(df_data: pd.DataFrame, table_name: str, file: str) -> 
                 result = supabase_client.table(table_name).insert(processed_records).execute()
                 if result.data:
                     st.toast(f"✅ Đã lưu {len(result.data)} bản ghi lên Supabase ({table_name})", icon="💾")
-                    # Also save to CSV as backup
-                    df_data.to_csv(file, index=False, encoding='utf-8-sig')
+                    # Clear cache to ensure next fetch gets latest data
+                    load_data_from_supabase.clear()
+                    load_data.clear()
                     return
             
         except Exception as e:
             st.error(f"❌ Lỗi khi lưu lên Supabase: {e}")
     
-    # Fallback to CSV
-    temp_file = f"{file}.tmp"
-    try:
-        df_data.to_csv(temp_file, index=False, encoding='utf-8-sig')
-        os.replace(temp_file, file)
-        if not USE_SUPABASE:
-            st.info(f"💾 Đã lưu {len(df_data)} bản ghi vào CSV ({file})")
-    except Exception as e:
-        st.error(f"Lỗi khi lưu dữ liệu: {e}")
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+    # Fallback when no Supabase
+    if not USE_SUPABASE:
+        st.warning("⚠️ Không thể lưu vì kết nối Supabase hiện không khả dụng. Chế độ dùng CSV local cho file kho đã bị tắt.")
 
 # --- CONFIGURATION ---
 DB_FILE = "inventory.csv"
@@ -343,6 +327,7 @@ def normalize_dataframe(df_loaded: pd.DataFrame, schema: dict) -> pd.DataFrame:
     return df_loaded
 
 
+@st.cache_data(show_spinner=False)
 def load_data(file: str, schema: dict) -> pd.DataFrame:
     if not os.path.exists(file):
         return pd.DataFrame(columns=schema.keys())
@@ -534,10 +519,6 @@ def render_editable_inventory_table(
 # Always load fresh data from Supabase first on app reboot
 # Disable any caching to ensure latest data is loaded
 try:
-    if USE_SUPABASE:
-        st.cache_data.clear()
-        st.cache_resource.clear()
-    
     df = load_data_from_supabase("inventory", MAIN_SCHEMA)
     bulk_df = load_data_from_supabase("bulk_inventory", BULK_SCHEMA)
     bulk_history = load_data_from_supabase("bulk_history", HISTORY_SCHEMA)
@@ -726,7 +707,11 @@ with tab1:
                             "Auto Title": generate_auto_title(p_name, p_mut, p_trait, ms, p_ns),
                             "Trạng Thái": "Còn hàng",
                         }
-                        save_data_to_supabase(append_row(df, row, MAIN_SCHEMA), "inventory", DB_FILE)
+                        new_df = append_row(df, row, MAIN_SCHEMA)
+                        if USE_SUPABASE:
+                            supabase_insert("inventory", map_to_supabase(row))
+                        load_data_from_supabase.clear()
+                        load_data.clear()
                         st.success("Đã lưu pet lẻ.")
                         st.rerun()
             with col_btn2:
@@ -775,7 +760,10 @@ with tab1:
                         df = pd.DataFrame(records)
                         # ✅ Normalize để match schema đúng kiểu
                         df = normalize_dataframe(df, MAIN_SCHEMA)
-                        save_data_to_supabase(normalize_dataframe(df, MAIN_SCHEMA), "inventory", DB_FILE)
+                        if USE_SUPABASE:
+                            supabase_update("inventory", map_to_supabase(records[idx]), "stt", selected_stt)
+                        load_data_from_supabase.clear()
+                        load_data.clear()
                         st.success("Bán pet thành công.")
                         st.rerun()
                 else:
@@ -855,7 +843,11 @@ with tab2:
                             "Trạng Thái": "Available",
                             "Auto Title": generate_auto_title(b_pet, b_mut, "None", ms_value, b_ns),
                         }
-                        save_data_to_supabase(append_row(bulk_df, row, BULK_SCHEMA), "bulk_inventory", BULK_FILE)
+                        new_bulk_df = append_row(bulk_df, row, BULK_SCHEMA)
+                        if USE_SUPABASE:
+                            supabase_insert("bulk_inventory", map_to_supabase(row))
+                        load_data_from_supabase.clear()
+                        load_data.clear()
                         st.success("Đã lưu pack.")
                         st.rerun()
             with col_pack_btn2:
@@ -900,8 +892,14 @@ with tab2:
                         "Doanh Thu Giao Dịch": rev_vnd,
                     }
 
-                    save_data_to_supabase(append_row(bulk_history, history_row, HISTORY_SCHEMA), "bulk_history", BULK_HISTORY)
-                    save_data_to_supabase(normalize_dataframe(bulk_df, BULK_SCHEMA), "bulk_inventory", BULK_FILE)
+                    new_history_df = append_row(bulk_history, history_row, HISTORY_SCHEMA)
+                    normalized_bulk_df = normalize_dataframe(bulk_df, BULK_SCHEMA)
+                    if USE_SUPABASE:
+                        supabase_insert("bulk_history", map_to_supabase(history_row))
+                        updated_pack = normalized_bulk_df.iloc[idx].to_dict()
+                        supabase_update("bulk_inventory", map_to_supabase(updated_pack), "id", int(target["ID"]))
+                    load_data_from_supabase.clear()
+                    load_data.clear()
                     st.success("Bán pack thành công.")
                     st.rerun()
             else:

@@ -1551,29 +1551,58 @@ No markdown, no extra text, no explanation."""
     _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
     if not _copy_src.empty:
         with st.expander("📋 Copy Auto Title nhanh", expanded=False):
-            # Full-width search — không chia cột tránh squish trên mobile
             _cp_q = st.text_input("🔍 Tìm pet", placeholder="Tên, STT, mutation...", key="copy_title_search", label_visibility="collapsed")
-            _cp_filtered = _copy_src.copy()
+
+            _cp_base = _copy_src.copy()
+
             if _cp_q.strip():
+                # Khi search: tìm trong toàn bộ còn hàng
                 _cp_toks = re.split(r'[\s\-]+', _cp_q.strip().lower())
                 _cp_toks = [t for t in _cp_toks if t]
-                _cp_hay = _cp_filtered[["Tên Pet","Mutation","Auto Title"]].astype(str) \
+                _cp_hay = _cp_base[["Tên Pet","Mutation","Auto Title","NameStock","STT"]].astype(str) \
                     .apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
                 _cp_combined = _cp_hay.apply(lambda r: ' '.join(r), axis=1)
-                _cp_mask = pd.Series([True]*len(_cp_filtered), index=_cp_filtered.index)
+                _cp_mask = pd.Series([True] * len(_cp_base), index=_cp_base.index)
                 for _t in _cp_toks:
                     _cp_mask &= _cp_combined.str.contains(_t, regex=False, na=False)
-                _cp_filtered = _cp_filtered[_cp_mask]
-            # Card layout: thông tin pet + code block full-width (có nút copy gốc của Streamlit)
-            for _, _crow in _cp_filtered.head(10).iterrows():
-                st.markdown(
-                    f'<div style="font-size:0.78rem;color:#8b949e;margin-top:0.5rem;">'
-                    f'STT <b style="color:#38bdf8">{int(_crow["STT"])}</b> · '
-                    f'{_crow["Tên Pet"]} · <span style="color:#4ade80">{_crow["Mutation"]}</span>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-                st.code(_crow["Auto Title"], language=None)
+                _cp_filtered = _cp_base[_cp_mask]
+                _cp_mode_label = f"{len(_cp_filtered)} kết quả tìm kiếm"
+            else:
+                # Mặc định: chỉ pet nhập trong 1 giờ qua
+                _now_vn = now_vn()
+                _cutoff = _now_vn - timedelta(hours=1)
+
+                def _is_recent(ts_str):
+                    if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+                        return False
+                    try:
+                        dt = datetime.fromisoformat(str(ts_str))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=VN_TZ)
+                        return dt >= _cutoff
+                    except Exception:
+                        return False
+
+                _recent_mask = _cp_base["time_nhap"].apply(_is_recent)
+                _cp_filtered = _cp_base[_recent_mask].sort_values("STT", ascending=False)
+                _cp_mode_label = f"{len(_cp_filtered)} pet nhập trong 1 giờ qua"
+
+            if _cp_filtered.empty:
+                if _cp_q.strip():
+                    st.info("Không tìm thấy pet phù hợp.")
+                else:
+                    st.caption("Chưa có pet nào được nhập trong 1 giờ qua. Dùng ô tìm kiếm để tìm bất kỳ pet nào.")
+            else:
+                st.caption(f"📌 {_cp_mode_label}")
+                for _, _crow in _cp_filtered.iterrows():
+                    st.markdown(
+                        f'<div style="font-size:0.78rem;color:#8b949e;margin-top:0.5rem;">'
+                        f'STT <b style="color:#38bdf8">{int(_crow["STT"])}</b> · '
+                        f'{_crow["Tên Pet"]} · <span style="color:#4ade80">{_crow["Mutation"]}</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                    st.code(_crow["Auto Title"], language=None)
 
     # ── BULK SELL ──
     _bulk_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]

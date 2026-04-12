@@ -357,7 +357,7 @@ MUTATION_ICONS = {
 def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> str:
     icon = MUTATION_ICONS.get(str(mutation).lower(), "🌟")
     t_str = f" [{trait_str}]" if (trait_str and str(trait_str).lower() != "none") else ""
-    display_ms = f"{ms_value / 1000:.2f}B/s" if ms_value >= 1000 else f"{ms_value:.0f}M/s"
+    display_ms = f"{ms_value / 1000:g}B/s" if ms_value >= 1000 else f"{ms_value:g}M/s"
     ns_str = f" {namestock}" if namestock else ""
     if str(mutation).lower() == "normal" or not mutation:
         return f"🌸{pet_name} {display_ms}{t_str}🌸Cheapest🚛 Fast Delivery 🚛{ns_str}"

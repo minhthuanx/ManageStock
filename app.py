@@ -484,28 +484,56 @@ def load_bulk_history() -> pd.DataFrame:
 
 
 def save_inventory_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
-    """Sync inventory to Supabase using native 'id' as primary key."""
+    """Sync inventory to Supabase using native 'id' as primary key.
+    Tách riêng UPDATE (id>0) và INSERT (id=0) để tuyệt đối tránh duplicate.
+    """
     if not USE_SUPABASE: return
     try:
-        # Xoá các dòng đã bị xoá
+        # ── 1. Xoá các dòng đã bị xoá khỏi editor ──
         if not df_before.empty and not df_after.empty:
             before_ids = set(df_before[df_before["id"] > 0]["id"].dropna().astype(int))
             after_ids  = set(df_after[df_after["id"] > 0]["id"].dropna().astype(int))
             for d_id in (before_ids - after_ids):
                 sb_delete("inventory", "id", d_id)
-        
+
         records = [to_db(r) for r in df_after.to_dict("records")]
-        for r in records:
-            if r.get("id") == 0: del r["id"] # Để DB tự cấp ID mới
-                
-        if records:
-            sb_upsert("inventory", records, on_conflict="id")
+
+        # ── 2. Phân loại: có ID thì UPDATE, không ID thì INSERT mới ──
+        update_records = [r for r in records if int(float(r.get("id") or 0)) > 0]
+        insert_records = [r for r in records if int(float(r.get("id") or 0)) <= 0]
+        for r in insert_records:
+            r.pop("id", None)
+
+        # UPDATE existing rows (safe – chỉ cập nhật, không tạo bản ghi mới)
+        if update_records:
+            sb_upsert("inventory", update_records, on_conflict="id")
+
+        # INSERT new rows – kiểm tra trùng bằng auto_title + time_nhap trước khi insert
+        if insert_records:
+            try:
+                existing_resp = supabase_client.table("inventory") \
+                    .select("auto_title, time_nhap").execute()
+                existing_keys = {
+                    (r.get("auto_title", ""), str(r.get("time_nhap", "")))
+                    for r in (existing_resp.data or [])
+                }
+            except Exception:
+                existing_keys = set()
+
+            truly_new = [
+                r for r in insert_records
+                if (r.get("auto_title", ""), str(r.get("time_nhap", ""))) not in existing_keys
+            ]
+            for r in truly_new:
+                sb_insert("inventory", r)
     except Exception as e:
         st.toast(f"❌ Sync inventory: {e}", icon="❌")
 
 
 def save_bulk_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
-    """Sync bulk inventory to Supabase using 'id'."""
+    """Sync bulk inventory to Supabase using 'id'.
+    Tách riêng UPDATE (id>0) và INSERT (id=0) để tuyệt đối tránh duplicate.
+    """
     if not USE_SUPABASE: return
     try:
         if not df_before.empty and not df_after.empty:
@@ -513,13 +541,34 @@ def save_bulk_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
             after_ids  = set(df_after[df_after["id"] > 0]["id"].dropna().astype(int))
             for d_id in (before_ids - after_ids):
                 sb_delete("bulk_inventory", "id", d_id)
-        
-        records = [to_db(r) for r in df_after.to_dict("records")]
-        for r in records:
-            if r.get("id") == 0: del r["id"]
 
-        if records:
-            sb_upsert("bulk_inventory", records, on_conflict="id")
+        records = [to_db(r) for r in df_after.to_dict("records")]
+
+        update_records = [r for r in records if int(float(r.get("id") or 0)) > 0]
+        insert_records = [r for r in records if int(float(r.get("id") or 0)) <= 0]
+        for r in insert_records:
+            r.pop("id", None)
+
+        if update_records:
+            sb_upsert("bulk_inventory", update_records, on_conflict="id")
+
+        if insert_records:
+            try:
+                existing_resp = supabase_client.table("bulk_inventory") \
+                    .select("ten_lo, ngay_nhap").execute()
+                existing_keys = {
+                    (r.get("ten_lo", ""), str(r.get("ngay_nhap", "")))
+                    for r in (existing_resp.data or [])
+                }
+            except Exception:
+                existing_keys = set()
+
+            truly_new = [
+                r for r in insert_records
+                if (r.get("ten_lo", ""), str(r.get("ngay_nhap", ""))) not in existing_keys
+            ]
+            for r in truly_new:
+                sb_insert("bulk_inventory", r)
     except Exception as e:
         st.toast(f"❌ Sync bulk: {e}", icon="❌")
 
@@ -1134,6 +1183,12 @@ No markdown, no extra text, no explanation."""
                 if errs:
                     for e in errs: st.error(f"❌ {e}")
                 else:
+                    # Guard chống double-submit: kiểm tra xem dữ liệu y hệt đã lưu chưa
+                    submit_key = f"nhap_le_{p_name}_{ms}_{cost}_{p_ns}"
+                    if st.session_state.get("last_nhap_key") == submit_key:
+                        st.warning("⚠️ Dữ liệu này đã được lưu. Vui lòng tải lại nếu cần.")
+                        st.stop()
+                    st.session_state.last_nhap_key = submit_key
                     stt = next_id(df, "STT")
                     ts  = now_iso()
                     row = {
@@ -1161,8 +1216,8 @@ No markdown, no extra text, no explanation."""
                     st.session_state.df = df
                     if USE_SUPABASE:
                         p_payload = to_db(row)
-                        if p_payload.get("id") == 0: del p_payload["id"]
-                        sb_upsert("inventory", [p_payload], on_conflict="id")
+                        p_payload.pop("id", None)
+                        sb_insert("inventory", p_payload)
                         # Sync ID from DB
                         st.cache_data.clear()
                         st.session_state.df = apply_ngay_ton(load_inventory())
@@ -1258,7 +1313,7 @@ No markdown, no extra text, no explanation."""
         before_edit = view_df[view_cols].copy()
         edited = st.data_editor(
             before_edit,
-            key="editor_inventory",
+            key=f"editor_inventory_{st.session_state.get('editor_inv_ver', 0)}",
             use_container_width=True,
             hide_index=True,
             num_rows="dynamic",
@@ -1301,8 +1356,15 @@ No markdown, no extra text, no explanation."""
                 full_updated = apply_ngay_ton(normalize_df(merged, MAIN_SCHEMA))
 
             save_inventory_supabase(full_updated, st.session_state.df)
-            st.session_state.df = full_updated
-            df = full_updated
+            # ── Luôn reload từ Supabase để lấy ID thật, tránh id=0 gây duplicate ──
+            if USE_SUPABASE:
+                st.cache_data.clear()
+                st.session_state.df = apply_ngay_ton(load_inventory())
+            else:
+                st.session_state.df = full_updated
+            df = st.session_state.df
+            # Bump version key để reset widget state, tránh vòng lặp lưu vô hạn
+            st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
             st.toast("✅ Đã lưu thay đổi.", icon="💾")
             st.rerun()
     else:
@@ -1633,7 +1695,14 @@ with tab_pack:
                 if errs2:
                     for e in errs2: st.error(f"❌ {e}")
                 else:
+                    # Guard chống double-submit lô pack
+                    lo_submit_key = f"nhap_lo_{b_pet2}_{b_qty2}_{b_cost2}_{b_ns2}"
+                    if st.session_state.get("last_lo_key") == lo_submit_key:
+                        st.warning("⚠️ Lô này đã được lưu. Vui lòng tải lại nếu cần.")
+                        st.stop()
+                    st.session_state.last_lo_key = lo_submit_key
                     bid2 = next_id(bulk_df, "ID")
+                    auto_title2 = generate_auto_title(b_pet2, b_mut2, "None", b_ms2, b_ns2)
                     row2 = {
                         "ID": bid2,
                         "Tên Lô": f"Pack {b_pet2} (x{int(b_qty2)})",
@@ -1644,12 +1713,14 @@ with tab_pack:
                         "Doanh Thu Tích Lũy": 0.0,
                         "Lợi Nhuận": -b_cost2,
                         "Trạng Thái": "Available",
-                        "Auto Title": generate_auto_title(b_pet2, b_mut2, "None", b_ms2, b_ns2),
+                        "Auto Title": auto_title2,
                     }
                     bulk_df = append_row(bulk_df, row2, BULK_SCHEMA)
                     st.session_state.bulk_df = bulk_df
                     if USE_SUPABASE:
-                        sb_insert("bulk_inventory", to_db(row2))
+                        db_row2 = to_db(row2)
+                        db_row2.pop("id", None)
+                        sb_insert("bulk_inventory", db_row2)
                         # Tải lại để update ID từ database cho bản ghi mới thêm
                         st.cache_data.clear()
                         st.session_state.bulk_df = load_bulk()
@@ -1680,6 +1751,12 @@ with tab_pack:
                     if s_prc2 <= 0:
                         st.error("❌ Giá bán phải > 0")
                     else:
+                        # Guard chống double-submit bán lô
+                        ban_lo_key = f"ban_lo_{int(target2['ID'])}_{s_qty2}_{s_prc2}"
+                        if st.session_state.get("last_ban_lo_key") == ban_lo_key:
+                            st.warning("⚠️ Giao dịch này đã được ghi. Vui lòng tải lại nếu cần.")
+                            st.stop()
+                        st.session_state.last_ban_lo_key = ban_lo_key
                         idx2 = bulk_df[bulk_df["ID"]==target2["ID"]].index[0]
                         rev_vnd2 = s_qty2 * s_prc2 * EXCHANGE_RATE
                         new_con_lai2   = max(0.0, float(bulk_df.at[idx2,"Còn Lại"]) - float(s_qty2))
@@ -1725,7 +1802,7 @@ with tab_pack:
     if not view_bulk2.empty:
         before_bulk2x = view_bulk2.copy()
         edited_bulk2 = st.data_editor(
-            before_bulk2x, key="editor_bulk2",
+            before_bulk2x, key=f"editor_bulk2_{st.session_state.get('editor_bulk_ver', 0)}",
             use_container_width=True, hide_index=True, num_rows="dynamic",
             disabled=["ID"],
             column_config={
@@ -1742,7 +1819,14 @@ with tab_pack:
         
         if not ab2.astype(str).equals(bb2.astype(str)):
             save_bulk_supabase(ab2, st.session_state.bulk_df)
-            st.session_state.bulk_df = ab2
+            # ── Luôn reload từ Supabase để lấy ID thật, tránh id=0 gây duplicate ──
+            if USE_SUPABASE:
+                st.cache_data.clear()
+                st.session_state.bulk_df = load_bulk()
+            else:
+                st.session_state.bulk_df = ab2
+            # Bump version key để reset widget state
+            st.session_state.editor_bulk_ver = st.session_state.get("editor_bulk_ver", 0) + 1
             st.toast("✅ Đã lưu thay đổi lô pack.", icon="💾")
             st.rerun()
     else:

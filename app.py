@@ -779,40 +779,54 @@ with tab_kho:
 {"Tên Pet": "Name of the pet", "Mutation": "Normal/Gold/Diamond/Divine/Rainbow/etc", "Tốc độ": "number only before M/s or B/s e.g. 975"}
 No markdown, no extra text, no explanation."""
                                 
-                                # Fallback loop through available models
-                                model_options = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro-vision"]
-                                active_model = None
+                                # Tự động dò danh sách models mà API Key này được phép dùng
+                                available_models = []
+                                try:
+                                    for m in genai.list_models():
+                                        if 'generateContent' in m.supported_generation_methods:
+                                            available_models.append(m.name)
+                                except Exception as e:
+                                    st.error(f"Lỗi truy xuất danh sách Model (API Key có thể không hợp lệ): {e}")
                                 
-                                for m_name in model_options:
-                                    try:
-                                        test_model = genai.GenerativeModel(m_name)
-                                        # Just initializing doesn't throw, we need it to work in the loop
-                                        active_model = test_model
-                                        break
-                                    except Exception:
-                                        pass
-                                
-                                # Use the first one in the list, if it fails during generate, we catch it per image
-                                model = active_model or genai.GenerativeModel("gemini-1.5-flash")
+                                if not available_models:
+                                    st.error("❌ API Key này không có quyền truy cập vào bất kỳ AI Model nào hỗ trợ đọc ảnh. Vui lòng tạo Key mới chuẩn xác từ Google AI Studio.")
+                                    progress.empty()
+                                else:
+                                    # Lọc ưu tiên các model mạnh về vision
+                                    target_model = None
+                                    for priority_str in ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro-vision", "gemini"]:
+                                        match = [m for m in available_models if priority_str in m.lower()]
+                                        if match:
+                                            target_model = match[0]
+                                            break
+                                    if not target_model:
+                                        target_model = available_models[0] # Lấy đại cái đầu tiên nếu không có cái nào khớp
+                                        
+                                    st.toast(f"Đang dùng AI Model dò được: {target_model}", icon="🤖")
 
-                                for idx, img_f in enumerate(batch_imgs):
-                                    progress.progress(
-                                        int((idx / len(batch_imgs)) * 100),
-                                        text=f"Quét ảnh {idx+1}/{len(batch_imgs)}: {img_f.name[:20]}..."
-                                    )
-                                    # Retry fallback inside the generation logic
-                                    success = False
-                                    last_err = ""
-                                    img_f.seek(0)
-                                    image = Image.open(img_f)
-                                    
-                                    for m_name in model_options:
-                                        if success: break
+                                    for idx, img_f in enumerate(batch_imgs):
+                                        progress.progress(
+                                            int((idx / len(batch_imgs)) * 100),
+                                            text=f"Quét ảnh {idx+1}/{len(batch_imgs)}: {img_f.name[:20]}..."
+                                        )
+                                        success = False
+                                        last_err = ""
+                                        img_f.seek(0)
+                                        image = Image.open(img_f)
+                                        
                                         try:
-                                            temp_model = genai.GenerativeModel(m_name)
+                                            temp_model = genai.GenerativeModel(target_model)
                                             resp = temp_model.generate_content([prompt, image])
                                             txt   = resp.text.strip()
-                                            data  = json.loads(txt[txt.find("{"):txt.rfind("}")+1])
+                                            
+                                            # Trích xuất JSON từ model
+                                            json_str = txt
+                                            if "```json" in txt:
+                                                json_str = txt.split("```json")[-1].split("```")[0].strip()
+                                            elif txt.find("{") != -1:
+                                                json_str = txt[txt.find("{"):txt.rfind("}")+1]
+                                                
+                                            data  = json.loads(json_str)
                                             results.append({
                                                 "_filename": img_f.name,
                                                 "_ok": True,
@@ -826,20 +840,21 @@ No markdown, no extra text, no explanation."""
                                             success = True
                                         except Exception as e_img:
                                             last_err = str(e_img)
-                                    
-                                    if not success:
-                                        results.append({
-                                            "_filename": img_f.name,
-                                            "_ok": False,
-                                            "_error": last_err,
-                                            "Tên Pet": "", "Mutation": "Normal",
-                                            "M/s": "", "Số Trait": "None",
-                                            "NameStock": "", "Giá Nhập": "",
-                                        })
-                                progress.progress(100, text="Hoàn thành!")
-                                st.session_state.ai_batch_results = results
-                                st.session_state.ai_show_dialog = True
-                                st.rerun()
+                                        
+                                        if not success:
+                                            results.append({
+                                                "_filename": img_f.name,
+                                                "_ok": False,
+                                                "_error": f"{last_err} (Model used: {target_model})",
+                                                "Tên Pet": "", "Mutation": "Normal",
+                                                "M/s": "", "Số Trait": "None",
+                                                "NameStock": "", "Giá Nhập": "",
+                                            })
+                                            
+                                    progress.progress(100, text="Hoàn thành!")
+                                    st.session_state.ai_batch_results = results
+                                    st.session_state.ai_show_dialog = True
+                                    st.rerun()
                             except Exception as e:
                                 progress.empty()
                                 st.error(f"❌ Lỗi AI: {e}")

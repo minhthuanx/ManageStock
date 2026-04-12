@@ -960,7 +960,7 @@ No markdown, no extra text, no explanation."""
                             expanded=True,
                         ):
                             if not is_ok:
-                                st.warning(f"⚠️ AI không đọc được ảnh này: {res.get('_error','')} — Bạn có thể điền thủ công bên dưới.")
+                                st.warning(f"⚠️ AI không đọc được ảnh này: {res.get('_error','')} — Bạn có thể điền thủ công bên dưới.")
 
                             # Chia layout: 1 cột nhỏ hiển thị ảnh, 1 cột lớn nhập liệu
                             img_col, form_col = st.columns([1, 3.5])
@@ -1084,8 +1084,14 @@ No markdown, no extra text, no explanation."""
                                     sb_ok = False
                             
                             if sb_ok:
-                                current_df = apply_ngay_ton(current_df)
-                                st.session_state.df = current_df
+                                if USE_SUPABASE:
+                                    # Refresh Cache để lấy ID thật từ DB về tránh dup khi reindex
+                                    st.cache_data.clear()
+                                    st.session_state.df = apply_ngay_ton(load_inventory())
+                                else:
+                                    current_df = apply_ngay_ton(current_df)
+                                    st.session_state.df = current_df
+                                    
                                 save_csv(st.session_state.df, DB_FILE)
                                 st.session_state.ai_show_dialog = False
                                 st.session_state.ai_batch_results = []
@@ -1157,6 +1163,10 @@ No markdown, no extra text, no explanation."""
                         p_payload = to_db(row)
                         if p_payload.get("id") == 0: del p_payload["id"]
                         sb_upsert("inventory", [p_payload], on_conflict="id")
+                        # Sync ID from DB
+                        st.cache_data.clear()
+                        st.session_state.df = apply_ngay_ton(load_inventory())
+                        
                     st.toast("✅ Đã lưu pet lẻ!", icon="💾")
                     st.info("📋 Copy title nhanh:")
                     st.code(row["Auto Title"], language="text")
@@ -1263,8 +1273,9 @@ No markdown, no extra text, no explanation."""
             },
         )
 
-        after_reindexed  = reindex(normalize_df(edited.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "id")
-        before_reindexed = reindex(normalize_df(before_edit.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "id")
+        # CẬP NHẬT: Đánh lại index theo "STT" thay vì "id" để bảo toàn ID của Supabase
+        after_reindexed  = reindex(normalize_df(edited.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT")
+        before_reindexed = reindex(normalize_df(before_edit.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT")
 
         # Regenerate auto titles
         has_title_col = "Auto Title" in after_reindexed.columns
@@ -1592,7 +1603,7 @@ with tab_ton:
         )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TAB 2: LÔ PACK
+# TAB 4: LÔ PACK
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_pack:
     st.markdown('<div class="sec-heading">📦 Quản lý Lô (Pack)</div>', unsafe_allow_html=True)
@@ -1639,6 +1650,9 @@ with tab_pack:
                     st.session_state.bulk_df = bulk_df
                     if USE_SUPABASE:
                         sb_insert("bulk_inventory", to_db(row2))
+                        # Tải lại để update ID từ database cho bản ghi mới thêm
+                        st.cache_data.clear()
+                        st.session_state.bulk_df = load_bulk()
                     st.toast("✅ Đã lưu lô pack!", icon="💾")
                     st.rerun()
 
@@ -1721,8 +1735,11 @@ with tab_pack:
                 "Lợi Nhuận": st.column_config.NumberColumn("Lợi nhuận (VNĐ)", format="%d"),
             },
         )
-        ab2  = reindex(normalize_df(edited_bulk2, {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display2 if c in bulk_df.columns}), "ID")
-        bb2  = reindex(normalize_df(before_bulk2x, {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display2 if c in bulk_df.columns}), "ID")
+        
+        # CẬP NHẬT: Không được reindex vào cột ID để không phá hỏng Primary Key của Supabase
+        ab2  = normalize_df(edited_bulk2, {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display2 if c in bulk_df.columns})
+        bb2  = normalize_df(before_bulk2x, {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display2 if c in bulk_df.columns})
+        
         if not ab2.astype(str).equals(bb2.astype(str)):
             save_bulk_supabase(ab2, st.session_state.bulk_df)
             st.session_state.bulk_df = ab2
@@ -1788,5 +1805,3 @@ with tab_settings:
             deduplicate_table("bulk_inventory", "auto_title")
             st.cache_data.clear()
             st.rerun()
-
-

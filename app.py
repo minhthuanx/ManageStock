@@ -1299,9 +1299,23 @@ No markdown, no extra text, no explanation."""
     # ── BẢNG TỒN KHO ──
     st.markdown('<div class="sec-heading">📋 Tồn Kho Lẻ</div>', unsafe_allow_html=True)
 
-    # Toggle hiển thị: tất cả hoặc chỉ còn hàng
-    show_all = st.toggle("Hiển thị cả hàng đã bán", value=False)
-    view_df = df if show_all else df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
+    # Bộ lọc trạng thái
+    _r1, _r2 = st.columns([2, 3])
+    view_mode = _r1.radio(
+        "Lọc trạng thái",
+        ["📦 Còn hàng", "✅ Đã bán", "🗂 Tất cả"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    if view_mode == "📦 Còn hàng":
+        view_df = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
+        show_all = False
+    elif view_mode == "✅ Đã bán":
+        view_df = df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)]
+        show_all = True
+    else:
+        view_df = df.copy()
+        show_all = True
 
     display_cols = ["id","STT","Tên Pet","M/s","Mutation","Số Trait","NameStock",
                     "Giá Nhập","Giá Bán","Lợi Nhuận","Ngày Nhập","Ngày Bán",
@@ -1347,10 +1361,15 @@ No markdown, no extra text, no explanation."""
         if not after_reindexed.astype(str).equals(before_reindexed.astype(str)):
             # Merge changes back into full df
             full_df = st.session_state.df.copy()
-            if show_all:
+            if view_mode == "🗂 Tất cả":
                 full_updated = apply_ngay_ton(normalize_df(after_reindexed, MAIN_SCHEMA))
+            elif view_mode == "✅ Đã bán":
+                # Chỉ cập nhật hàng đã bán, giữ nguyên hàng còn hàng
+                con_hang_df = full_df[full_df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
+                merged = pd.concat([con_hang_df, after_reindexed], ignore_index=True)
+                full_updated = apply_ngay_ton(normalize_df(merged, MAIN_SCHEMA))
             else:
-                # Only update visible subset, keep sold rows intact
+                # Chỉ cập nhật hàng còn hàng, giữ nguyên hàng đã bán
                 sold_df = full_df[full_df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)]
                 merged = pd.concat([after_reindexed, sold_df], ignore_index=True)
                 full_updated = apply_ngay_ton(normalize_df(merged, MAIN_SCHEMA))

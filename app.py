@@ -1315,13 +1315,22 @@ No markdown, no extra text, no explanation."""
             st.markdown('<div class="sec-heading">💰 Bán Pet Lẻ</div>', unsafe_allow_html=True)
 
             active = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
-            q = st.text_input("🔍 Tìm theo STT hoặc title", placeholder="VD: 15 hoặc Rainbow")
+            q = st.text_input("🔍 Tìm pet", placeholder="STT, tên, mutation, namestock...")
 
             if not active.empty:
-                filt = active[
-                    active["STT"].astype(str).str.contains(q, regex=False) |
-                    active["Auto Title"].astype(str).str.contains(q, case=False, na=False, regex=False)
-                ]
+                if q.strip():
+                    _q_toks = re.split(r'[\s\-]+', q.strip().lower())
+                    _q_toks = [t for t in _q_toks if t]
+                    _q_cols = ["STT", "Tên Pet", "Mutation", "NameStock", "Số Trait", "Auto Title", "Place"]
+                    _q_hay = active[[c for c in _q_cols if c in active.columns]].astype(str) \
+                        .apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
+                    _q_combined = _q_hay.apply(lambda row: ' '.join(row), axis=1)
+                    _q_mask = pd.Series([True] * len(active), index=active.index)
+                    for _qt in _q_toks:
+                        _q_mask &= _q_combined.str.contains(_qt, regex=False, na=False)
+                    filt = active[_q_mask]
+                else:
+                    filt = active
                 if not filt.empty:
                     sel = st.selectbox(
                         "Chọn Pet",

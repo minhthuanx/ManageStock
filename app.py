@@ -704,8 +704,8 @@ with st.sidebar:
 # =============================================================================
 # MAIN TABS
 # =============================================================================
-tab_kho, tab_chart, tab_ton, tab_settings = st.tabs([
-    "📦 Kho", "📊 Chart & Thống kê", "⏳ Tồn lâu", "⚙️ Cài đặt",
+tab_kho, tab_pack, tab_chart, tab_ton, tab_settings = st.tabs([
+    "📦 Kho Lẻ", "📦 Lô (Pack)", "📊 Chart & Thống kê", "⏳ Tồn lâu", "⚙️ Cài đặt",
 ])
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -988,7 +988,8 @@ with tab_chart:
     total_rev   = rev_single + rev_bulk
 
     profit_single = float(sold_df["Lợi Nhuận"].sum()) if not sold_df.empty else 0.0
-    profit_bulk   = float(bulk_df["Lợi Nhuận"].sum()) if not bulk_df.empty else 0.0
+    # Chỉ tính lợi nhuận đã THỰC sự thu về từ giao dịch pack (không cộng giá trị âm của pack chưa bán)
+    profit_bulk   = float(bulk_history["Lợi Nhuận Giao Dịch"].sum()) if not bulk_history.empty else 0.0
     net_profit    = profit_single + profit_bulk
 
     stock_count_single = int(df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)].shape[0])
@@ -1266,7 +1267,147 @@ with tab_ton:
         )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TAB 4: CÀI ĐẶT (Danh mục + Lô Pack)
+# TAB 2: LÔ PACK
+# ─────────────────────────────────────────────────────────────────────────────
+with tab_pack:
+    st.markdown('<div class="sec-heading">📦 Quản lý Lô (Pack)</div>', unsafe_allow_html=True)
+
+    pack_in, pack_sell = st.columns([1.15, 1], gap="medium")
+
+    with pack_in:
+        with st.container(border=True):
+            st.markdown("**📥 Nhập Lô mới**")
+            with st.form("form_nhap_lo2", clear_on_submit=True):
+                b_pet2 = st.selectbox("Tên Pet", get_name_options(pet_db), key="bp1t2")
+                b1t, b2t, b3t = st.columns(3)
+                b_qty2    = b1t.number_input("Số lượng", min_value=1, max_value=999, value=10, key="bqt2")
+                b_ms_raw2 = b2t.text_input("M/s", placeholder="975", key="bp2t2")
+                b_mut2    = b3t.selectbox("Mutation", MUTATION_OPTIONS, key="bp3t2")
+                b_ns2     = st.selectbox("NameStock", [""]+get_name_options(ns_db,""), key="bp5t2")
+                b_cost_raw2 = st.text_input("Tổng giá nhập (VNĐ)", placeholder="2.000.000", key="bp4t2")
+                pack_ok2  = st.form_submit_button("💾 Lưu Lô", type="primary", use_container_width=True)
+            if pack_ok2:
+                b_cost2 = parse_vnd(b_cost_raw2)
+                b_ms2   = parse_usd(b_ms_raw2)
+                errs2 = []
+                if b_pet2 == "None":  errs2.append("Chọn tên Pet")
+                if b_ms2 <= 0:        errs2.append("M/s phải > 0")
+                if b_cost2 <= 0:      errs2.append("Giá nhập phải > 0")
+                if not b_ns2.strip(): errs2.append("Chọn NameStock")
+                if errs2:
+                    for e in errs2: st.error(f"❌ {e}")
+                else:
+                    bid2 = next_id(bulk_df, "ID")
+                    row2 = {
+                        "ID": bid2,
+                        "Tên Lô": f"Pack {b_pet2} (x{int(b_qty2)})",
+                        "Số Lượng Gốc": int(b_qty2),
+                        "Còn Lại": int(b_qty2),
+                        "Ngày Nhập": now_str(),
+                        "Giá Nhập Tổng": b_cost2,
+                        "Doanh Thu Tích Lũy": 0.0,
+                        "Lợi Nhuận": -b_cost2,
+                        "Trạng Thái": "Available",
+                        "Auto Title": generate_auto_title(b_pet2, b_mut2, "None", b_ms2, b_ns2),
+                    }
+                    bulk_df = append_row(bulk_df, row2, BULK_SCHEMA)
+                    st.session_state.bulk_df = bulk_df
+                    if USE_SUPABASE:
+                        sb_insert("bulk_inventory", to_db(row2))
+                    st.toast("✅ Đã lưu lô pack!", icon="💾")
+                    st.rerun()
+
+    with pack_sell:
+        with st.container(border=True):
+            st.markdown("**💰 Bán từ Lô**")
+            avail2 = bulk_df[bulk_df["Trạng Thái"].astype(str)=="Available"]
+            if not avail2.empty:
+                sel_b2 = st.selectbox(
+                    "Chọn lô", avail2["ID"].astype(str)+" — "+avail2["Tên Lô"],
+                    label_visibility="collapsed", key="sel_b2",
+                )
+                target_id2 = int(sel_b2.split(" — ")[0])
+                target2 = avail2[avail2["ID"]==target_id2].iloc[0]
+                st.caption(f"🏷 **{target2['Tên Lô']}** | Còn lại: **{int(target2['Còn Lại'])}** | Vốn: **{fmt_vnd(float(target2['Giá Nhập Tổng']))}**")
+
+                with st.form("form_ban_lo2", clear_on_submit=True):
+                    s1t, s2t = st.columns(2)
+                    s_qty2     = s1t.number_input("Số lượng bán", min_value=1, max_value=int(target2["Còn Lại"]), key="sqty2")
+                    s_prc_raw2 = s2t.text_input("Giá bán ($/pet)", placeholder="3.5", key="sprc2")
+                    sell_ok2   = st.form_submit_button("✅ Bán Lô", type="primary", use_container_width=True)
+
+                if sell_ok2:
+                    s_prc2 = parse_usd(s_prc_raw2)
+                    if s_prc2 <= 0:
+                        st.error("❌ Giá bán phải > 0")
+                    else:
+                        idx2 = bulk_df[bulk_df["ID"]==target2["ID"]].index[0]
+                        rev_vnd2 = s_qty2 * s_prc2 * EXCHANGE_RATE
+                        new_con_lai2   = max(0.0, float(bulk_df.at[idx2,"Còn Lại"]) - float(s_qty2))
+                        new_dt2        = float(bulk_df.at[idx2,"Doanh Thu Tích Lũy"]) + rev_vnd2
+                        new_loi_nhuan2 = new_dt2 - float(bulk_df.at[idx2,"Giá Nhập Tổng"])
+                        new_status2    = "Sold Out" if new_con_lai2 <= 0 else "Available"
+
+                        bulk_df.at[idx2,"Còn Lại"]            = new_con_lai2
+                        bulk_df.at[idx2,"Doanh Thu Tích Lũy"] = new_dt2
+                        bulk_df.at[idx2,"Lợi Nhuận"]          = new_loi_nhuan2
+                        bulk_df.at[idx2,"Trạng Thái"]         = new_status2
+
+                        base_unit2 = float(target2["Giá Nhập Tổng"]) / max(float(target2["Số Lượng Gốc"]),1)
+                        hist_row2 = {
+                            "Ngày Bán":            now_str(),
+                            "Tên Lô":              target2["Tên Lô"],
+                            "Số Lượng Bán":        s_qty2,
+                            "Lợi Nhuận Giao Dịch": rev_vnd2 - (base_unit2 * s_qty2),
+                            "Doanh Thu Giao Dịch": rev_vnd2,
+                        }
+                        bulk_history = append_row(bulk_history, hist_row2, HISTORY_SCHEMA)
+                        st.session_state.bulk_df      = bulk_df
+                        st.session_state.bulk_history = bulk_history
+
+                        if USE_SUPABASE:
+                            sb_insert("bulk_history", to_db(hist_row2))
+                            sb_update("bulk_inventory", {
+                                "con_lai":            new_con_lai2,
+                                "doanh_thu_tich_luy": new_dt2,
+                                "loi_nhuan":          new_loi_nhuan2,
+                                "trang_thai":         new_status2,
+                            }, "id", int(target2["ID"]))
+                        st.toast("💸 Đã bán lô pack!", icon="✅")
+                        st.rerun()
+            else:
+                st.info("Không có lô nào đang Available.")
+
+    st.markdown("---")
+    st.markdown("**📋 Danh sách lô pack**")
+    bulk_cols_display2 = ["ID","Tên Lô","Số Lượng Gốc","Còn Lại","Ngày Nhập",
+                          "Giá Nhập Tổng","Doanh Thu Tích Lũy","Lợi Nhuận","Trạng Thái","Auto Title"]
+    view_bulk2 = bulk_df[[c for c in bulk_cols_display2 if c in bulk_df.columns]]
+    if not view_bulk2.empty:
+        before_bulk2x = view_bulk2.copy()
+        edited_bulk2 = st.data_editor(
+            before_bulk2x, key="editor_bulk2",
+            use_container_width=True, hide_index=True, num_rows="dynamic",
+            disabled=["ID"],
+            column_config={
+                "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
+                "Giá Nhập Tổng": st.column_config.NumberColumn("Vốn nhập (VNĐ)", format="%d"),
+                "Doanh Thu Tích Lũy": st.column_config.NumberColumn("Doanh thu (VNĐ)", format="%d"),
+                "Lợi Nhuận": st.column_config.NumberColumn("Lợi nhuận (VNĐ)", format="%d"),
+            },
+        )
+        ab2  = reindex(normalize_df(edited_bulk2, {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display2 if c in bulk_df.columns}), "ID")
+        bb2  = reindex(normalize_df(before_bulk2x, {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display2 if c in bulk_df.columns}), "ID")
+        if not ab2.astype(str).equals(bb2.astype(str)):
+            save_bulk_supabase(ab2, st.session_state.bulk_df)
+            st.session_state.bulk_df = ab2
+            st.toast("✅ Đã lưu thay đổi lô pack.", icon="💾")
+            st.rerun()
+    else:
+        st.info("Chưa có lô pack nào.")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 5: CÀI ĐẶT (Chỉ danh mục)
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_settings:
     st.markdown('<div class="sec-heading">⚙️ Quản lý danh mục</div>', unsafe_allow_html=True)
@@ -1309,141 +1450,4 @@ with tab_settings:
     manage_category(cat_cols[1], "NameStock", ns_db,    NS_LIST_FILE,  "🏷️")
     manage_category(cat_cols[2], "Trait",     trait_db, TRAIT_LIST,    "🧬")
 
-    st.markdown("---")
-    # ── Lô Pack section ──
-    st.markdown('<div class="sec-heading">📦 Quản lý Lô (Pack)</div>', unsafe_allow_html=True)
 
-    pack_in, pack_sell = st.columns([1.15, 1], gap="medium")
-
-    with pack_in:
-        with st.container(border=True):
-            st.markdown("**📥 Nhập Lô mới**")
-            with st.form("form_nhap_lo", clear_on_submit=True):
-                b_pet = st.selectbox("Tên Pet", get_name_options(pet_db), key="bp1")
-                b1, b2, b3 = st.columns(3)
-                b_qty    = b1.number_input("Số lượng", min_value=1, max_value=999, value=10)
-                b_ms_raw = b2.text_input("M/s", placeholder="975", key="bp2")
-                b_mut    = b3.selectbox("Mutation", MUTATION_OPTIONS, key="bp3")
-                b_ns     = st.selectbox("NameStock", [""]+get_name_options(ns_db,""), key="bp5")
-                b_cost_raw = st.text_input("Tổng giá nhập (VNĐ)", placeholder="2.000.000", key="bp4")
-                pack_ok  = st.form_submit_button("💾 Lưu Lô", type="primary", use_container_width=True)
-            if pack_ok:
-                b_cost = parse_vnd(b_cost_raw)
-                b_ms   = parse_usd(b_ms_raw)
-                errs = []
-                if b_pet == "None": errs.append("Chọn tên Pet")
-                if b_ms <= 0:       errs.append("M/s phải > 0")
-                if b_cost <= 0:     errs.append("Giá nhập phải > 0")
-                if not b_ns.strip():errs.append("Chọn NameStock")
-                if errs:
-                    for e in errs: st.error(f"❌ {e}")
-                else:
-                    bid = next_id(bulk_df, "ID")
-                    row = {
-                        "ID": bid,
-                        "Tên Lô": f"Pack {b_pet} (x{int(b_qty)})",
-                        "Số Lượng Gốc": int(b_qty),
-                        "Còn Lại": int(b_qty),
-                        "Ngày Nhập": now_str(),
-                        "Giá Nhập Tổng": b_cost,
-                        "Doanh Thu Tích Lũy": 0.0,
-                        "Lợi Nhuận": -b_cost,
-                        "Trạng Thái": "Available",
-                        "Auto Title": generate_auto_title(b_pet, b_mut, "None", b_ms, b_ns),
-                    }
-                    bulk_df = append_row(bulk_df, row, BULK_SCHEMA)
-                    st.session_state.bulk_df = bulk_df
-                    if USE_SUPABASE:
-                        sb_insert("bulk_inventory", to_db(row))
-                    st.toast("✅ Đã lưu lô pack!", icon="💾")
-                    st.rerun()
-
-    with pack_sell:
-        with st.container(border=True):
-            st.markdown("**💰 Bán từ Lô**")
-            avail = bulk_df[bulk_df["Trạng Thái"].astype(str)=="Available"]
-            if not avail.empty:
-                sel_b = st.selectbox(
-                    "Chọn lô", avail["ID"].astype(str)+" — "+avail["Tên Lô"],
-                    label_visibility="collapsed",
-                )
-                target_id = int(sel_b.split(" — ")[0])
-                target = avail[avail["ID"]==target_id].iloc[0]
-                st.caption(f"🏷 **{target['Tên Lô']}** | Còn lại: **{int(target['Còn Lại'])}** | Vốn: **{fmt_vnd(float(target['Giá Nhập Tổng']))}**")
-
-                with st.form("form_ban_lo", clear_on_submit=True):
-                    s1, s2 = st.columns(2)
-                    s_qty     = s1.number_input("Số lượng bán", min_value=1, max_value=int(target["Còn Lại"]))
-                    s_prc_raw = s2.text_input("Giá bán ($/pet)", placeholder="3.5")
-                    sell_ok   = st.form_submit_button("✅ Bán Lô", type="primary", use_container_width=True)
-
-                if sell_ok:
-                    s_prc = parse_usd(s_prc_raw)
-                    if s_prc <= 0:
-                        st.error("❌ Giá bán phải > 0")
-                    else:
-                        idx = bulk_df[bulk_df["ID"]==target["ID"]].index[0]
-                        rev_vnd = s_qty * s_prc * EXCHANGE_RATE
-                        new_con_lai    = max(0.0, float(bulk_df.at[idx,"Còn Lại"]) - float(s_qty))
-                        new_dt         = float(bulk_df.at[idx,"Doanh Thu Tích Lũy"]) + rev_vnd
-                        new_loi_nhuan  = new_dt - float(bulk_df.at[idx,"Giá Nhập Tổng"])
-                        new_status     = "Sold Out" if new_con_lai <= 0 else "Available"
-
-                        bulk_df.at[idx,"Còn Lại"]            = new_con_lai
-                        bulk_df.at[idx,"Doanh Thu Tích Lũy"] = new_dt
-                        bulk_df.at[idx,"Lợi Nhuận"]          = new_loi_nhuan
-                        bulk_df.at[idx,"Trạng Thái"]         = new_status
-
-                        base_unit = float(target["Giá Nhập Tổng"]) / max(float(target["Số Lượng Gốc"]),1)
-                        hist_row = {
-                            "Ngày Bán":            now_str(),
-                            "Tên Lô":              target["Tên Lô"],
-                            "Số Lượng Bán":        s_qty,
-                            "Lợi Nhuận Giao Dịch": rev_vnd - (base_unit * s_qty),
-                            "Doanh Thu Giao Dịch": rev_vnd,
-                        }
-                        bulk_history = append_row(bulk_history, hist_row, HISTORY_SCHEMA)
-                        st.session_state.bulk_df      = bulk_df
-                        st.session_state.bulk_history = bulk_history
-
-                        if USE_SUPABASE:
-                            sb_insert("bulk_history", to_db(hist_row))
-                            sb_update("bulk_inventory", {
-                                "con_lai":           new_con_lai,
-                                "doanh_thu_tich_luy": new_dt,
-                                "loi_nhuan":         new_loi_nhuan,
-                                "trang_thai":        new_status,
-                            }, "id", int(target["ID"]))
-                        st.toast("💸 Đã bán lô pack!", icon="✅")
-                        st.rerun()
-            else:
-                st.info("Không có lô nào đang Available.")
-
-    st.markdown("---")
-    # ── Bulk inventory table ──
-    st.markdown("**📋 Danh sách lô pack**")
-    bulk_cols_display = ["ID","Tên Lô","Số Lượng Gốc","Còn Lại","Ngày Nhập",
-                         "Giá Nhập Tổng","Doanh Thu Tích Lũy","Lợi Nhuận","Trạng Thái","Auto Title"]
-    view_bulk = bulk_df[[c for c in bulk_cols_display if c in bulk_df.columns]]
-    if not view_bulk.empty:
-        before_bulk = view_bulk.copy()
-        edited_bulk = st.data_editor(
-            before_bulk, key="editor_bulk",
-            use_container_width=True, hide_index=True, num_rows="dynamic",
-            disabled=["ID"],
-            column_config={
-                "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
-                "Giá Nhập Tổng": st.column_config.NumberColumn("Vốn nhập (VNĐ)", format="%d"),
-                "Doanh Thu Tích Lũy": st.column_config.NumberColumn("Doanh thu (VNĐ)", format="%d"),
-                "Lợi Nhuận": st.column_config.NumberColumn("Lợi nhuận (VNĐ)", format="%d"),
-            },
-        )
-        after_bulk  = reindex(normalize_df(edited_bulk, {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display if c in bulk_df.columns}), "ID")
-        before_bulk2 = reindex(normalize_df(before_bulk, {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display if c in bulk_df.columns}), "ID")
-        if not after_bulk.astype(str).equals(before_bulk2.astype(str)):
-            save_bulk_supabase(after_bulk, st.session_state.bulk_df)
-            st.session_state.bulk_df = after_bulk
-            st.toast("✅ Đã lưu thay đổi lô pack.", icon="💾")
-            st.rerun()
-    else:
-        st.info("Chưa có lô pack nào.")

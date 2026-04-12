@@ -1661,7 +1661,7 @@ No markdown, no extra text, no explanation."""
                         "Tên Pet":     st.column_config.TextColumn("Pet", width="medium"),
                         "Mutation":    st.column_config.TextColumn("Mut.", width="small"),
                         "Giá Nhập":    st.column_config.NumberColumn("Vốn (₫)", format="%d", width="small"),
-                        "Giá bán ($)": st.column_config.NumberColumn("Giá ($)", min_value=0.0, step=0.5, width="small"),
+                        "Giá bán ($)": st.column_config.NumberColumn("Giá ($)", min_value=0.0, step=0.01, format="%.2f", width="small"),
                         "Place":       st.column_config.TextColumn("Place", width="small"),
                     },
                 )

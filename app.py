@@ -904,7 +904,7 @@ No markdown, no extra text, no explanation."""
                                 c1d, c2d, c3d = st.columns(3)
 
                                 # Tên Pet
-                                ai_name = res.get("Tên Pet", "")
+                                ai_name = str(res.get("Tên Pet") or "")
                                 if ai_name and ai_name.lower() not in [x.lower() for x in pet_opts_dlg]:
                                     # Tự thêm vào list nếu chưa có
                                     pet_opts_dlg = [ai_name] + pet_opts_dlg
@@ -912,12 +912,12 @@ No markdown, no extra text, no explanation."""
                                 r_name = c1d.selectbox(f"Tên Pet", pet_opts_dlg, index=pi, key=f"dlg_name_{i}")
 
                                 # Mutation
-                                ai_mut_v = res.get("Mutation", "Normal")
+                                ai_mut_v = str(res.get("Mutation") or "Normal")
                                 mi = next((j for j, m in enumerate(MUTATION_OPTIONS) if m.lower() == ai_mut_v.lower()), 0)
                                 r_mut = c2d.selectbox(f"Mutation", MUTATION_OPTIONS, index=mi, key=f"dlg_mut_{i}")
 
                                 # M/s
-                                r_ms_raw = c3d.text_input(f"M/s", value=str(res.get("M/s","")), key=f"dlg_ms_{i}")
+                                r_ms_raw = c3d.text_input(f"M/s", value=str(res.get("M/s") or ""), key=f"dlg_ms_{i}")
 
                                 c4d, c5d, c6d = st.columns(3)
                                 r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, key=f"dlg_trait_{i}")

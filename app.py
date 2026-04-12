@@ -453,10 +453,21 @@ def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
 # =============================================================================
 @st.cache_data(show_spinner=False, ttl=300)
 def load_inventory() -> pd.DataFrame:
+    """Load inventory. Bypass sb_select/from_db để tránh REVERSE_MAP["id"]="ID"
+    đổi cột 'id' thành 'ID' → normalize_df tạo id=0 → mọi lần save đều INSERT mới.
+    """
     if USE_SUPABASE:
-        df = sb_select("inventory", "stt")
-        if not df.empty:
-            return normalize_df(df, MAIN_SCHEMA)
+        try:
+            r = supabase_client.table("inventory").select("*").order("stt").execute()
+            if r.data:
+                df = pd.DataFrame(r.data)
+                # Rename snake_case → display name, nhưng KHÔNG đổi "id" → "ID"
+                rename_map = {c: REVERSE_MAP.get(c, c) for c in df.columns}
+                rename_map["id"] = "id"   # FORCE giữ "id" lowercase cho inventory PK
+                df = df.rename(columns=rename_map)
+                return normalize_df(df, MAIN_SCHEMA)
+        except Exception as e:
+            st.toast(f"❌ Load inventory: {e}", icon="❌")
     return load_csv(DB_FILE, MAIN_SCHEMA)
 
 @st.cache_data(show_spinner=False, ttl=300)
@@ -481,10 +492,18 @@ def load_bulk() -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def load_bulk_history() -> pd.DataFrame:
+    """Load bulk_history. Bypass sb_select/from_db để tránh id→ID rename."""
     if USE_SUPABASE:
-        df = sb_select("bulk_history", "id")
-        if not df.empty:
-            return normalize_df(df, HISTORY_SCHEMA)
+        try:
+            r = supabase_client.table("bulk_history").select("*").order("id").execute()
+            if r.data:
+                df = pd.DataFrame(r.data)
+                rename_map = {c: REVERSE_MAP.get(c, c) for c in df.columns}
+                rename_map["id"] = "id"   # giữ lowercase
+                df = df.rename(columns=rename_map)
+                return normalize_df(df, HISTORY_SCHEMA)
+        except Exception as e:
+            st.toast(f"❌ Load bulk_history: {e}", icon="❌")
     return load_csv(BULK_HISTORY, HISTORY_SCHEMA)
 
 

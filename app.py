@@ -819,28 +819,19 @@ div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: var(--m
 </style>
 """, unsafe_allow_html=True)
 
-# Hero banner – tính badge tồn lâu (>7 ngày)
-_badge_count = int(df[
-    df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False) &
-    (pd.to_numeric(df["Ngày Tồn"], errors="coerce").fillna(0) >= 7)
-].shape[0])
-_badge_html = (
-    f'<span style="background:#f87171;color:#0d1117;border-radius:999px;'
-    f'padding:2px 9px;font-size:0.75rem;font-weight:700;margin-left:8px;">⚠️ {_badge_count} tồn lâu</span>'
-    if _badge_count > 0 else ""
-)
-st.markdown(f"""
+# Hero banner
+st.markdown("""
 <div class="hero-banner">
   <div class="logo">👻</div>
   <div>
-    <h1>GhostlyStock{_badge_html}</h1>
+    <h1>GhostlyStock</h1>
     <p>Quản lý kho Pet · Tự động hóa · Phân tích thông minh</p>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
 # =============================================================================
-# SIDEBAR
+# SIDEBAR – Gemini Key only (categories moved to Tab 4)
 # =============================================================================
 with st.sidebar:
     st.markdown("---")
@@ -849,19 +840,6 @@ with st.sidebar:
         st.success("☁️ Supabase: Online", icon="✅")
     else:
         st.warning("💾 Local CSV mode")
-
-    # ── Tồn kho real-time ──
-    _con_hang = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
-    _von_le   = float(pd.to_numeric(_con_hang["Giá Nhập"], errors="coerce").fillna(0).sum())
-    _von_lo   = float(pd.to_numeric(
-        bulk_df[bulk_df["Trạng Thái"].astype(str)=="Available"]["Giá Nhập Tổng"], errors="coerce"
-    ).fillna(0).sum())
-    st.markdown("**📦 Tồn kho hiện tại**")
-    st.metric("Pet lẻ còn hàng", f"{len(_con_hang):,} con", delta=None)
-    st.metric("Vốn lẻ đang tồn", fmt_vnd(_von_le))
-    st.metric("Vốn lô đang tồn", fmt_vnd(_von_lo))
-    st.caption(f"Tổng vốn kẹt: **{fmt_vnd(_von_le+_von_lo)}**")
-    st.markdown("---")
 
     if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
         st.cache_data.clear()
@@ -1398,19 +1376,6 @@ No markdown, no extra text, no explanation."""
         label_visibility="collapsed",
         key="inv_table_search",
     )
-
-    # ── Quick filter Mutation chips ──
-    _all_mutations = sorted(df["Mutation"].astype(str).str.strip().unique().tolist())
-    _all_mutations = [m for m in _all_mutations if m not in ("", "nan")]
-    _mut_options = ["Tất cả"] + _all_mutations
-    _mut_sel = st.radio(
-        "Lọc Mutation",
-        _mut_options,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="inv_mut_filter",
-    )
-
     if view_mode == "📦 Còn hàng":
         view_df = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
         show_all = False
@@ -1420,10 +1385,6 @@ No markdown, no extra text, no explanation."""
     else:
         view_df = df.copy()
         show_all = True
-
-    # Áp dụng quick filter mutation
-    if _mut_sel != "Tất cả":
-        view_df = view_df[view_df["Mutation"].astype(str).str.strip() == _mut_sel]
 
     # Áp dụng tìm kiếm text – token-based: mỗi từ phải xuất hiện ở ít nhất 1 cột
     if inv_search.strip():
@@ -1535,126 +1496,6 @@ No markdown, no extra text, no explanation."""
             st.rerun()
     else:
         st.info("Không có dữ liệu để hiển thị.")
-
-    # ── COPY AUTO TITLE NHANH ──
-    _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
-    if not _copy_src.empty:
-        with st.expander("📋 Copy Auto Title nhanh", expanded=False):
-            _cp1, _cp2 = st.columns([3, 1])
-            _cp_q = _cp1.text_input("Tìm pet để copy title", placeholder="Tên hoặc STT...", key="copy_title_search", label_visibility="collapsed")
-            _cp_filtered = _copy_src.copy()
-            if _cp_q.strip():
-                _cp_toks = re.split(r'[\s\-]+', _cp_q.strip().lower())
-                _cp_toks = [t for t in _cp_toks if t]
-                _cp_hay = _cp_filtered[["Tên Pet","Mutation","Auto Title"]].astype(str) \
-                    .apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
-                _cp_combined = _cp_hay.apply(lambda r: ' '.join(r), axis=1)
-                _cp_mask = pd.Series([True]*len(_cp_filtered), index=_cp_filtered.index)
-                for _t in _cp_toks:
-                    _cp_mask &= _cp_combined.str.contains(_t, regex=False, na=False)
-                _cp_filtered = _cp_filtered[_cp_mask]
-            for _, _crow in _cp_filtered.head(10).iterrows():
-                _cc1, _cc2 = st.columns([5, 1])
-                _cc1.markdown(f"`STT {int(_crow['STT'])}` — {_crow['Auto Title'][:80]}{'...' if len(str(_crow['Auto Title']))>80 else ''}")
-                _cc2.code(_crow["Auto Title"], language=None)
-
-    # ── BULK SELL ──
-    _bulk_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
-    if not _bulk_src.empty:
-        with st.expander("💸 Bán nhiều pet cùng lúc", expanded=False):
-            st.caption("Chọn các pet muốn bán, nhập giá cho từng con rồi xác nhận.")
-            _bs_search = st.text_input("Lọc pet cần bán", placeholder="Tên, mutation...", key="bulk_sell_search", label_visibility="collapsed")
-            _bs_df = _bulk_src.copy()
-            if _bs_search.strip():
-                _bs_toks = re.split(r'[\s\-]+', _bs_search.strip().lower())
-                _bs_toks = [t for t in _bs_toks if t]
-                _bs_hay = _bs_df[["Tên Pet","Mutation","Auto Title","NameStock"]].astype(str) \
-                    .apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
-                _bs_combined = _bs_hay.apply(lambda r: ' '.join(r), axis=1)
-                _bs_mask = pd.Series([True]*len(_bs_df), index=_bs_df.index)
-                for _t in _bs_toks:
-                    _bs_mask &= _bs_combined.str.contains(_t, regex=False, na=False)
-                _bs_df = _bs_df[_bs_mask]
-
-            if _bs_df.empty:
-                st.info("Không tìm thấy pet phù hợp.")
-            else:
-                # Tạo bảng nhập giá từng con
-                _bs_display = _bs_df[["STT","id","Tên Pet","Mutation","M/s","Số Trait","NameStock","Giá Nhập"]].copy()
-                _bs_display["Giá bán ($)"] = 0.0
-                _bs_display["Place"] = ""
-                _bs_display["✓ Bán"] = False
-                _bs_edited = st.data_editor(
-                    _bs_display,
-                    key=f"bulk_sell_editor_{st.session_state.get('editor_inv_ver',0)}",
-                    use_container_width=True,
-                    hide_index=True,
-                    num_rows="fixed",
-                    disabled=["STT","id","Tên Pet","Mutation","M/s","Số Trait","NameStock","Giá Nhập"],
-                    column_config={
-                        "id": st.column_config.NumberColumn("DB ID", format="%d"),
-                        "Giá Nhập": st.column_config.NumberColumn("Vốn (VNĐ)", format="%d"),
-                        "Giá bán ($)": st.column_config.NumberColumn("Giá bán ($)", min_value=0.0, step=0.5),
-                        "✓ Bán": st.column_config.CheckboxColumn("Bán?"),
-                    },
-                )
-                _to_sell = _bs_edited[_bs_edited["✓ Bán"] == True]
-                _invalid = _to_sell[_to_sell["Giá bán ($)"] <= 0]
-                if not _to_sell.empty:
-                    if not _invalid.empty:
-                        st.warning(f"⚠️ {len(_invalid)} pet chưa có giá bán > 0: {', '.join(_invalid['Tên Pet'].astype(str).tolist())}")
-                    _valid_sell = _to_sell[_to_sell["Giá bán ($)"] > 0]
-                    st.info(f"✅ Sẵn sàng bán **{len(_valid_sell)}** pet | Tổng doanh thu ước tính: **{fmt_vnd(float((_valid_sell['Giá bán ($)'] * EXCHANGE_RATE).sum()))}**")
-                    if st.button(f"✅ Xác nhận bán {len(_valid_sell)} pet", type="primary", key="confirm_bulk_sell", use_container_width=True):
-                        if _valid_sell.empty:
-                            st.error("Không có pet hợp lệ để bán.")
-                        else:
-                            ts_ban_bulk = now_iso()
-                            _full_df = st.session_state.df.copy()
-                            _updated = 0
-                            for _, _sell_row in _valid_sell.iterrows():
-                                _s_price  = float(_sell_row["Giá bán ($)"])
-                                _s_place  = str(_sell_row.get("Place",""))
-                                _s_id     = int(float(_sell_row.get("id", 0) or 0))
-                                _s_stt    = int(float(_sell_row.get("STT", 0) or 0))
-                                _rev_vnd  = _s_price * EXCHANGE_RATE
-                                _cost_vnd = float(pd.to_numeric(_sell_row.get("Giá Nhập",0), errors="coerce") or 0)
-                                _profit   = _rev_vnd - _cost_vnd
-                                # Update session state df
-                                if _s_id > 0:
-                                    _idx = _full_df.index[_full_df["id"] == _s_id].tolist()
-                                else:
-                                    _idx = _full_df.index[_full_df["STT"] == _s_stt].tolist()
-                                if _idx:
-                                    _p = _full_df.index.get_loc(_idx[0])
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Giá Bán")]    = _s_price
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Doanh Thu")]  = _rev_vnd
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Lợi Nhuận")] = _profit
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Ngày Bán")]   = now_str()
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Trạng Thái")] = "Đã bán"
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("time_ban")]   = ts_ban_bulk
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Place")]      = _s_place
-                                if USE_SUPABASE:
-                                    _uc = "id" if _s_id > 0 else "stt"
-                                    _uv = _s_id if _s_id > 0 else _s_stt
-                                    sb_update("inventory", {
-                                        "gia_ban":    _s_price,
-                                        "doanh_thu":  _rev_vnd,
-                                        "loi_nhuan":  _profit,
-                                        "ngay_ban":   now_str(),
-                                        "trang_thai": "Đã bán",
-                                        "time_ban":   ts_ban_bulk,
-                                        "place":      _s_place,
-                                    }, _uc, _uv)
-                                _updated += 1
-                            _full_df = apply_ngay_ton(normalize_df(_full_df, MAIN_SCHEMA))
-                            st.session_state.df = _full_df
-                            if USE_SUPABASE:
-                                st.cache_data.clear()
-                                st.session_state.df = apply_ngay_ton(load_inventory())
-                            st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
-                            st.toast(f"💸 Đã bán {_updated} pet thành công!", icon="✅")
-                            st.rerun()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 2: CHART & THỐNG KÊ
@@ -1885,92 +1726,6 @@ with tab_chart:
         monthly_display["Lợi Nhuận VNĐ"] = monthly_display["Lợi Nhuận"].apply(fmt_vnd)
         monthly_display = monthly_display.drop(columns=["Lợi Nhuận"])
         st.dataframe(monthly_display, use_container_width=True, hide_index=True)
-
-    # ── Avg days to sell + Top mutation ──
-    st.markdown("---")
-    st.markdown('<div class="sec-heading">⚡ Hiệu suất bán hàng</div>', unsafe_allow_html=True)
-    _perf_c1, _perf_c2 = st.columns(2)
-
-    with _perf_c1:
-        st.markdown("**⏱ Tốc độ vòng quay (Ngày tồn trung bình trước khi bán)**")
-        if not sold_df.empty:
-            _sold_speed = sold_df.copy()
-            _sold_speed["Ngày Tồn"] = pd.to_numeric(_sold_speed["Ngày Tồn"], errors="coerce").fillna(0)
-            _avg_days = _sold_speed["Ngày Tồn"].mean()
-            _med_days = _sold_speed["Ngày Tồn"].median()
-            _sp1, _sp2 = st.columns(2)
-            _sp1.metric("Trung bình", f"{_avg_days:.1f} ngày")
-            _sp2.metric("Trung vị", f"{_med_days:.1f} ngày")
-
-            # Biểu đồ theo tên pet (top 10 bán chậm nhất)
-            _spd_by_pet = (
-                _sold_speed.groupby("Tên Pet", as_index=False)["Ngày Tồn"]
-                .mean()
-                .sort_values("Ngày Tồn", ascending=False)
-                .head(10)
-            )
-            fig_spd = go.Figure(go.Bar(
-                x=_spd_by_pet["Ngày Tồn"],
-                y=_spd_by_pet["Tên Pet"],
-                orientation="h",
-                marker=dict(color="#f87171"),
-                text=_spd_by_pet["Ngày Tồn"].apply(lambda v: f"{v:.1f}d"),
-                textposition="outside",
-                textfont=dict(color="#e2e8f0", size=10),
-            ))
-            fig_spd.update_layout(
-                paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
-                font=dict(family="Inter", color="#8b949e"),
-                title=dict(text="Top 10 Pet bán chậm nhất (ngày TB)", font=dict(size=12, color="#e2e8f0")),
-                xaxis=dict(gridcolor="#1f2937", tickfont=dict(color="#8b949e")),
-                yaxis=dict(gridcolor="#1f2937", tickfont=dict(color="#e2e8f0")),
-                margin=dict(l=10, r=20, t=45, b=10),
-                height=300, showlegend=False,
-            )
-            st.plotly_chart(fig_spd, use_container_width=True)
-        else:
-            st.info("Chưa có dữ liệu bán.")
-
-    with _perf_c2:
-        st.markdown("**🏆 Top Mutation hiệu quả nhất (Lợi nhuận TB / con)**")
-        if not sold_df.empty:
-            _mut_perf = (
-                sold_df.copy()
-                .assign(LN=lambda d: pd.to_numeric(d["Lợi Nhuận"], errors="coerce").fillna(0))
-                .groupby("Mutation", as_index=False)
-                .agg(LN_mean=("LN","mean"), LN_total=("LN","sum"), Count=("LN","count"))
-                .sort_values("LN_mean", ascending=True)
-            )
-            fig_mut = go.Figure(go.Bar(
-                x=_mut_perf["LN_mean"],
-                y=_mut_perf["Mutation"],
-                orientation="h",
-                marker=dict(color="#4ade80"),
-                text=_mut_perf["LN_mean"].apply(fmt_short),
-                textposition="outside",
-                textfont=dict(color="#e2e8f0", size=10),
-                customdata=_mut_perf[["LN_total","Count"]].values,
-                hovertemplate="<b>%{y}</b><br>TB/con: %{x:,.0f}₫<br>Tổng: %{customdata[0]:,.0f}₫<br>Số con: %{customdata[1]}<extra></extra>",
-            ))
-            fig_mut.update_layout(
-                paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
-                font=dict(family="Inter", color="#8b949e"),
-                title=dict(text="Lợi nhuận TB theo Mutation", font=dict(size=12, color="#e2e8f0")),
-                xaxis=dict(gridcolor="#1f2937", tickformat=",.0f", tickfont=dict(color="#8b949e")),
-                yaxis=dict(gridcolor="#1f2937", tickfont=dict(color="#e2e8f0")),
-                margin=dict(l=10, r=20, t=45, b=10),
-                height=300, showlegend=False,
-            )
-            st.plotly_chart(fig_mut, use_container_width=True)
-
-            # Bảng tóm tắt
-            _mut_disp = _mut_perf.sort_values("LN_mean", ascending=False).copy()
-            _mut_disp["LN TB/con"] = _mut_disp["LN_mean"].apply(fmt_vnd)
-            _mut_disp["Tổng LN"]   = _mut_disp["LN_total"].apply(fmt_vnd)
-            _mut_disp = _mut_disp.rename(columns={"Count":"Số con"})
-            st.dataframe(_mut_disp[["Mutation","Số con","LN TB/con","Tổng LN"]], use_container_width=True, hide_index=True)
-        else:
-            st.info("Chưa có dữ liệu bán.")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 3: TỒN LÂU

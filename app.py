@@ -1992,30 +1992,35 @@ with tab_chart:
     c_left, c_right = st.columns(2)
 
     with c_left:
-        rev_breakdown = pd.DataFrame({
-            "Kênh": ["Pet Lẻ", "Lô (Pack)"],
-            "Doanh Thu": [rev_single, rev_bulk],
+        # So sánh Doanh thu đã thu vs Tổng vốn tồn kho
+        _dt_sold_total = float(pd.to_numeric(sold_df["Doanh Thu"], errors="coerce").fillna(0).sum()) if not sold_df.empty else 0.0
+        _von_ton_total = _von_le + _von_lo
+        _compare_df = pd.DataFrame({
+            "Hạng mục": ["Doanh thu đã thu", "Vốn tồn kho"],
+            "Giá trị":   [_dt_sold_total, _von_ton_total],
         })
-        if rev_breakdown["Doanh Thu"].sum() > 0:
-            fig_pie = go.Figure(go.Pie(
-                labels=rev_breakdown["Kênh"],
-                values=rev_breakdown["Doanh Thu"],
-                hole=0.48,
-                marker=dict(colors=["#38bdf8","#4ade80"]),
-                textfont=dict(family="Inter", color="#e2e8f0"),
-            ))
-            fig_pie.update_layout(
-                paper_bgcolor="#0d1117",
-                plot_bgcolor="#0d1117",
-                font=dict(family="Inter", color="#8b949e"),
-                title=dict(text="Tỷ trọng doanh thu", font=dict(size=13, color="#e2e8f0")),
-                margin=dict(l=10, r=10, t=50, b=10),
-                height=300,
-                legend=dict(font=dict(color="#e2e8f0")),
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
+        fig_cmp = go.Figure(go.Bar(
+            x=_compare_df["Hạng mục"],
+            y=_compare_df["Giá trị"],
+            marker_color=["#4ade80", "#f97316"],
+            text=_compare_df["Giá trị"].apply(fmt_short),
+            textposition="outside",
+            textfont=dict(color="#e2e8f0"),
+        ))
+        fig_cmp.update_layout(
+            paper_bgcolor="#0d1117",
+            plot_bgcolor="#0d1117",
+            font=dict(family="Inter", color="#8b949e"),
+            title=dict(text="Doanh thu vs Vốn tồn", font=dict(size=13, color="#e2e8f0")),
+            margin=dict(l=10, r=10, t=50, b=10),
+            height=300,
+            yaxis_title="VNĐ",
+            xaxis=dict(tickfont=dict(color="#e2e8f0")),
+        )
+        if _dt_sold_total > 0 or _von_ton_total > 0:
+            st.plotly_chart(fig_cmp, use_container_width=True)
         else:
-            st.info("Chưa có dữ liệu doanh thu.")
+            st.info("Chưa có dữ liệu.")
 
     with c_right:
         # Top 10 pets by profit
@@ -2155,49 +2160,26 @@ with tab_chart:
         else:
             st.info("Chưa có dữ liệu bán.")
 
-    # ── #14 Phân tích theo NameStock & Place ──
+    # ── Phân tích theo NameStock ──
     st.markdown("---")
-    st.markdown('<div class="sec-heading">🏷️ Phân tích theo NameStock & Place</div>', unsafe_allow_html=True)
-    _ch_ns_col, _ch_pl_col = st.columns(2)
+    st.markdown('<div class="sec-heading">🏷️ Phân tích theo NameStock</div>', unsafe_allow_html=True)
 
-    with _ch_ns_col:
-        st.markdown("**🏷️ Top NameStock theo lợi nhuận**")
-        if not sold_df.empty and "NameStock" in sold_df.columns:
-            _ns_grp = sold_df.copy()
-            _ns_grp["LN"] = pd.to_numeric(_ns_grp["Lợi Nhuận"], errors="coerce").fillna(0)
-            _ns_grp["DT"] = pd.to_numeric(_ns_grp["Doanh Thu"], errors="coerce").fillna(0)
-            _ns_grp["NS"] = _ns_grp["NameStock"].astype(str).str.strip().replace("", "(trống)")
-            _ns_perf = (
-                _ns_grp.groupby("NS", as_index=False)
-                .agg(LN_total=("LN","sum"), DT_total=("DT","sum"), Count=("LN","count"))
-                .sort_values("LN_total", ascending=False)
-            )
-            _ns_disp = _ns_perf.rename(columns={"NS":"NameStock","Count":"Số con"}).copy()
-            _ns_disp["Lợi nhuận"] = _ns_disp["LN_total"].apply(fmt_vnd)
-            _ns_disp["Doanh thu"] = _ns_disp["DT_total"].apply(fmt_vnd)
-            st.dataframe(_ns_disp[["NameStock","Số con","Lợi nhuận","Doanh thu"]], use_container_width=True, hide_index=True)
-        else:
-            st.info("Chưa có dữ liệu bán.")
-
-    with _ch_pl_col:
-        st.markdown("**📍 Top Place theo lợi nhuận**")
-        if not sold_df.empty and "Place" in sold_df.columns:
-            _pl_df = sold_df[sold_df["Place"].astype(str).str.strip().replace("", pd.NA).notna()].copy()
-            _pl_df = _pl_df[_pl_df["Place"].astype(str).str.strip() != ""]
-            if not _pl_df.empty:
-                _pl_df["LN"] = pd.to_numeric(_pl_df["Lợi Nhuận"], errors="coerce").fillna(0)
-                _pl_perf = (
-                    _pl_df.groupby("Place", as_index=False)
-                    .agg(LN_total=("LN","sum"), Count=("LN","count"))
-                    .sort_values("LN_total", ascending=False)
-                )
-                _pl_disp = _pl_perf.rename(columns={"Count":"Số con"}).copy()
-                _pl_disp["Lợi nhuận"] = _pl_disp["LN_total"].apply(fmt_vnd)
-                st.dataframe(_pl_disp[["Place","Số con","Lợi nhuận"]], use_container_width=True, hide_index=True)
-            else:
-                st.info("Chưa có dữ liệu Place (cột Place trống hết).")
-        else:
-            st.info("Chưa có dữ liệu bán.")
+    if not sold_df.empty and "NameStock" in sold_df.columns:
+        _ns_grp = sold_df.copy()
+        _ns_grp["LN"] = pd.to_numeric(_ns_grp["Lợi Nhuận"], errors="coerce").fillna(0)
+        _ns_grp["DT"] = pd.to_numeric(_ns_grp["Doanh Thu"], errors="coerce").fillna(0)
+        _ns_grp["NS"] = _ns_grp["NameStock"].astype(str).str.strip().replace("", "(trống)")
+        _ns_perf = (
+            _ns_grp.groupby("NS", as_index=False)
+            .agg(LN_total=("LN","sum"), DT_total=("DT","sum"), Count=("LN","count"))
+            .sort_values("LN_total", ascending=False)
+        )
+        _ns_disp = _ns_perf.rename(columns={"NS":"NameStock","Count":"Số con"}).copy()
+        _ns_disp["Lợi nhuận"] = _ns_disp["LN_total"].apply(fmt_vnd)
+        _ns_disp["Doanh thu"] = _ns_disp["DT_total"].apply(fmt_vnd)
+        st.dataframe(_ns_disp[["NameStock","Số con","Lợi nhuận","Doanh thu"]], use_container_width=True, hide_index=True)
+    else:
+        st.info("Chưa có dữ liệu bán.")
 
     # ── Phân tích khung giờ bán hàng ──
     st.markdown("---")
@@ -2316,120 +2298,6 @@ with tab_chart:
             st.info("Chưa có dữ liệu thời gian bán hàng.")
     else:
         st.info("Chưa có dữ liệu bán.")
-
-    # ── #29 Trend giá nhập & bán theo tháng ──
-    st.markdown("---")
-    st.markdown('<div class="sec-heading">📈 Trend giá nhập & bán theo tháng</div>', unsafe_allow_html=True)
-
-    _trend_pet_opts = ["(Tất cả)"] + sorted(df["Tên Pet"].astype(str).dropna().unique().tolist())
-    _trend_sel = st.selectbox("Chọn pet", _trend_pet_opts, key="trend_price_pet")
-
-    def _ts_to_ym(ts_str):
-        if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
-            return None
-        try:
-            dt = datetime.fromisoformat(str(ts_str))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=VN_TZ)
-            dt = dt.astimezone(VN_TZ)
-            return f"{dt.year}-{dt.month:02d}"
-        except Exception:
-            return None
-
-    _trend_df = df.copy()
-    if _trend_sel != "(Tất cả)":
-        _trend_df = _trend_df[_trend_df["Tên Pet"].astype(str) == _trend_sel]
-
-    # Monthly avg buy price
-    _buy_trend = _trend_df.copy()
-    _buy_trend["YM"] = _buy_trend["time_nhap"].apply(_ts_to_ym)
-    _buy_trend["GN"] = pd.to_numeric(_buy_trend["Giá Nhập"], errors="coerce")
-    _buy_trend = _buy_trend.dropna(subset=["YM", "GN"])
-    _buy_grp = _buy_trend.groupby("YM")["GN"].mean().reset_index().rename(columns={"GN": "Giá nhập TB"})
-
-    # Monthly avg sell price
-    _sell_trend = _trend_df[_trend_df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)].copy()
-    _sell_trend["YM"] = _sell_trend["time_ban"].apply(_ts_to_ym)
-    _sell_trend["GB"] = pd.to_numeric(_sell_trend["Giá Bán"], errors="coerce")
-    _sell_trend = _sell_trend.dropna(subset=["YM", "GB"])
-    _sell_grp = _sell_trend.groupby("YM")["GB"].mean().reset_index().rename(columns={"GB": "Giá bán TB"})
-
-    _trend_merged = _buy_grp.merge(_sell_grp, on="YM", how="outer").sort_values("YM")
-
-    if not _trend_merged.empty:
-        fig_trend = go.Figure()
-        fig_trend.add_trace(go.Scatter(
-            x=_trend_merged["YM"], y=_trend_merged["Giá nhập TB"],
-            name="Giá nhập TB", mode="lines+markers", line=dict(color="#f97316"),
-        ))
-        fig_trend.add_trace(go.Scatter(
-            x=_trend_merged["YM"], y=_trend_merged["Giá bán TB"],
-            name="Giá bán TB", mode="lines+markers", line=dict(color="#22c55e"),
-        ))
-        fig_trend.update_layout(
-            xaxis_title="Tháng",
-            yaxis_title="Giá (VNĐ)",
-            legend=dict(orientation="h", y=1.1),
-            margin=dict(t=40, b=40),
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            font_color="#e2e8f0",
-            height=340,
-        )
-        st.plotly_chart(fig_trend, use_container_width=True)
-    else:
-        st.info("Chưa đủ dữ liệu để vẽ trend giá.")
-
-    # ── #35 So sánh giá thị trường ──
-    st.markdown("---")
-    st.markdown('<div class="sec-heading">📋 So sánh giá thị trường</div>', unsafe_allow_html=True)
-    st.caption("Nhập giá tham khảo từ market thủ công để so sánh với lịch sử bán của bạn.")
-
-    _mkt_pets = sorted(df["Tên Pet"].astype(str).dropna().unique().tolist())
-    _mkc1, _mkc2 = st.columns([1.5, 1])
-    _mkt_pet_sel = _mkc1.selectbox("Chọn pet", _mkt_pets, key="mkt_price_pet")
-    _mkt_price = _mkc2.number_input("Giá thị trường ($)", min_value=0.0, step=0.5, format="%.2f", key="mkt_price_input")
-
-    _mkt_sold = df[
-        (df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)) &
-        (df["Tên Pet"].astype(str) == _mkt_pet_sel)
-    ].copy()
-    _mkt_sold["GB"] = pd.to_numeric(_mkt_sold["Giá Bán"], errors="coerce")
-    _mkt_sold = _mkt_sold[_mkt_sold["GB"] > 0]
-
-    _mkt_inv = df[
-        (df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)) &
-        (df["Tên Pet"].astype(str) == _mkt_pet_sel)
-    ].copy()
-    _mkt_inv["GN"] = pd.to_numeric(_mkt_inv["Giá Nhập"], errors="coerce")
-    _mkt_inv = _mkt_inv[_mkt_inv["GN"] > 0]
-
-    _mra, _mrb, _mrc, _mrd = st.columns(4)
-    if not _mkt_sold.empty:
-        _mra.metric("Giá bán lịch sử TB", f"{_mkt_sold['GB'].mean():.2f}$")
-        _mrb.metric("Thấp nhất đã bán", f"{_mkt_sold['GB'].min():.2f}$")
-        _mrc.metric("Cao nhất đã bán", f"{_mkt_sold['GB'].max():.2f}$")
-    else:
-        _mra.metric("Giá bán lịch sử TB", "—")
-        _mrb.metric("Thấp nhất đã bán", "—")
-        _mrc.metric("Cao nhất đã bán", "—")
-    if not _mkt_inv.empty:
-        _avg_buy = _mkt_inv["GN"] / EXCHANGE_RATE
-        _mrd.metric("Giá nhập TB ($)", f"{_avg_buy.mean():.2f}$")
-    else:
-        _mrd.metric("Giá nhập TB ($)", "—")
-
-    if _mkt_price > 0 and not _mkt_sold.empty:
-        _hist_avg = _mkt_sold['GB'].mean()
-        _diff = _mkt_price - _hist_avg
-        _sign = "+" if _diff >= 0 else ""
-        st.info(f"📊 Giá market **{_mkt_price:.2f}$** so với lịch sử TB **{_hist_avg:.2f}$** → {'📈' if _diff >= 0 else '📉'} **{_sign}{_diff:.2f}$** ({_sign}{_diff/_hist_avg*100:.1f}%)")
-        if not _mkt_inv.empty:
-            _avg_cost_usd = (_mkt_inv["GN"] / EXCHANGE_RATE).mean()
-            _margin = _mkt_price - _avg_cost_usd
-            _margin_pct = (_margin / _mkt_price * 100) if _mkt_price > 0 else 0
-            _color = "✅" if _margin > 0 else "⚠️"
-            st.info(f"{_color} Nếu bán ở **{_mkt_price:.2f}$** với giá nhập TB **{_avg_cost_usd:.2f}$** → lãi ước tính **{_margin:.2f}$** ({_margin_pct:.1f}%)")
 
     # ── AJ: Streak & Thành tích ──
     st.markdown("---")

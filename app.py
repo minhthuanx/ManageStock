@@ -99,6 +99,7 @@ COL_MAP = {
     "Số Lượng Bán":         "so_luong_ban",
     "Lợi Nhuận Giao Dịch":  "loi_nhuan_giao_dich",
     "Doanh Thu Giao Dịch":  "doanh_thu_giao_dich",
+    "id":                   "id",
 }
 REVERSE_MAP = {v: k for k, v in COL_MAP.items()}
 
@@ -167,15 +168,46 @@ def sb_select(table: str, order: str = "stt") -> pd.DataFrame:
         st.toast(f"❌ Select {table}: {e}", icon="❌")
         return pd.DataFrame()
 
-def sb_upsert(table: str, records: list[dict]) -> bool:
+def sb_upsert(table: str, records: list[dict], on_conflict: str = None) -> bool:
     if not USE_SUPABASE or not records:
         return False
     try:
-        supabase_client.table(table).upsert(records).execute()
+        if on_conflict:
+            supabase_client.table(table).upsert(records, on_conflict=on_conflict).execute()
+        else:
+            supabase_client.table(table).upsert(records).execute()
         return True
     except Exception as e:
         st.toast(f"❌ Upsert {table}: {e}", icon="❌")
         return False
+
+def deduplicate_table(table: str, unique_col: str):
+    """Xoá các bản ghi trùng lặp trong Database, giữ lại bản ghi có ID nhỏ nhất."""
+    if not USE_SUPABASE: return
+    try:
+        r = supabase_client.table(table).select("*").execute()
+        if not r.data: return
+        df = pd.DataFrame(r.data)
+        # Tìm các dòng trùng lặp dựa trên unique_col (vd: auto_title)
+        dupes = df[df.duplicated(subset=[unique_col], keep=False)]
+        if dupes.empty:
+            st.info(f"✨ Bảng {table} không có dòng trùng lặp theo {unique_col}.")
+            return
+        
+        # Nhóm theo unique_col, giữ lại ID nhỏ nhất
+        to_keep = df.groupby(unique_col)['id'].min().values
+        to_delete = df[~df['id'].isin(to_keep)]['id'].tolist()
+        
+        if to_delete:
+            # Supabase delete with in_ filter
+            for i in range(0, len(to_delete), 100):
+                batch = to_delete[i:i+100]
+                supabase_client.table(table).delete().in_("id", batch).execute()
+            st.success(f"✅ Đã dọn dẹp {len(to_delete)} dòng trùng lặp trong {table}!")
+        else:
+            st.info(f"✨ Không có dòng nào cần xoá.")
+    except Exception as e:
+        st.error(f"❌ Lỗi dọn dẹp {table}: {e}")
 
 # =============================================================================
 # CONFIGURATION
@@ -191,6 +223,7 @@ EXCHANGE_RATE = 20400
 
 MAIN_SCHEMA = {
     "STT":         0,
+    "id":          0,
     "Tên Pet":     "",
     "M/s":         0.0,
     "Mutation":    "Normal",
@@ -312,9 +345,13 @@ def parse_vnd(s: str) -> float:
 
 
 def parse_usd(s: str) -> float:
-    cleaned = re.sub(r"[^0-9.]", "", str(s))
+    s_str = str(s).upper()
+    cleaned = re.sub(r"[^0-9.]", "", s_str)
     try:
-        return float(cleaned) if cleaned else 0.0
+        val = float(cleaned) if cleaned else 0.0
+        if "B" in s_str: # Nếu là Billion thì nhân 1000 để đưa về đơn vị Millions
+            val *= 1000
+        return val
     except ValueError:
         return 0.0
 
@@ -447,38 +484,42 @@ def load_bulk_history() -> pd.DataFrame:
 
 
 def save_inventory_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
-    """Sync inventory to Supabase: delete removed rows, upsert rest."""
-    if not USE_SUPABASE:
-        return
+    """Sync inventory to Supabase using native 'id' as primary key."""
+    if not USE_SUPABASE: return
     try:
+        # Xoá các dòng đã bị xoá
         if not df_before.empty and not df_after.empty:
-            before_ids = set(df_before["STT"].dropna().astype(str))
-            after_ids  = set(df_after["STT"].dropna().astype(str))
-            for d_id in before_ids - after_ids:
-                try:
-                    sb_delete("inventory", "stt", int(float(d_id)))
-                except Exception:
-                    pass
+            before_ids = set(df_before[df_before["id"] > 0]["id"].dropna().astype(int))
+            after_ids  = set(df_after[df_after["id"] > 0]["id"].dropna().astype(int))
+            for d_id in (before_ids - after_ids):
+                sb_delete("inventory", "id", d_id)
+        
         records = [to_db(r) for r in df_after.to_dict("records")]
-        sb_upsert("inventory", records)
+        for r in records:
+            if r.get("id") == 0: del r["id"] # Để DB tự cấp ID mới
+                
+        if records:
+            sb_upsert("inventory", records, on_conflict="id")
     except Exception as e:
         st.toast(f"❌ Sync inventory: {e}", icon="❌")
 
 
 def save_bulk_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
-    if not USE_SUPABASE:
-        return
+    """Sync bulk inventory to Supabase using 'id'."""
+    if not USE_SUPABASE: return
     try:
         if not df_before.empty and not df_after.empty:
-            before_ids = set(df_before["ID"].dropna().astype(str))
-            after_ids  = set(df_after["ID"].dropna().astype(str))
-            for d_id in before_ids - after_ids:
-                try:
-                    sb_delete("bulk_inventory", "id", int(float(d_id)))
-                except Exception:
-                    pass
+            before_ids = set(df_before[df_before["id"] > 0]["id"].dropna().astype(int))
+            after_ids  = set(df_after[df_after["id"] > 0]["id"].dropna().astype(int))
+            for d_id in (before_ids - after_ids):
+                sb_delete("bulk_inventory", "id", d_id)
+        
         records = [to_db(r) for r in df_after.to_dict("records")]
-        sb_upsert("bulk_inventory", records)
+        for r in records:
+            if r.get("id") == 0: del r["id"]
+
+        if records:
+            sb_upsert("bulk_inventory", records, on_conflict="id")
     except Exception as e:
         st.toast(f"❌ Sync bulk: {e}", icon="❌")
 
@@ -785,7 +826,7 @@ with tab_kho:
                             progress = st.progress(0, text="Đang khởi tạo Groq AI...")
                             
                             prompt = """Extract the following from the image and return VALID JSON only:
-{"Tên Pet": "Name of the pet", "Mutation": "Normal/Gold/Diamond/Divine/Rainbow/etc", "Tốc độ": "number only before M/s or B/s e.g. 975", "Số Trait": "Count the number of trait icons or medals above the pet's head. Return 'None' if 0, else return the number as string like '1', '2'"}
+{"Tên Pet": "Name of the pet", "Mutation": "Normal/Gold/Diamond/Divine/Rainbow/etc", "Tốc độ": "Normalize to Millions (M/s). If image says '1.2B/s', return '1200'. If '975M/s', return '975'. Always return a number.", "Số Trait": "Count the number of trait icons or medals above the pet's head. Return 'None' if 0, else return the number as string like '1', '2'"}
 No markdown, no extra text, no explanation."""
 
                             headers = {
@@ -1036,10 +1077,10 @@ No markdown, no extra text, no explanation."""
                             # Đẩy 1 cục lên Supabase nếu có dữ liệu
                             sb_ok = True
                             if USE_SUPABASE and sb_records_to_insert:
-                                try:
-                                    supabase_client.table("inventory").insert(sb_records_to_insert).execute()
-                                except Exception as e:
-                                    st.error(f"❌ Lỗi ghi Supabase (Database Error): {e}")
+                                # Loại bỏ id=0 để Supabase tự cấp ID mới
+                                for r in sb_records_to_insert:
+                                    if r.get("id") == 0: del r["id"]
+                                if not sb_upsert("inventory", sb_records_to_insert, on_conflict="id"):
                                     sb_ok = False
                             
                             if sb_ok:
@@ -1113,7 +1154,9 @@ No markdown, no extra text, no explanation."""
                     df = apply_ngay_ton(df)
                     st.session_state.df = df
                     if USE_SUPABASE:
-                        sb_insert("inventory", to_db(row))
+                        p_payload = to_db(row)
+                        if p_payload.get("id") == 0: del p_payload["id"]
+                        sb_upsert("inventory", [p_payload], on_conflict="id")
                     st.toast("✅ Đã lưu pet lẻ!", icon="💾")
                     st.info("📋 Copy title nhanh:")
                     st.code(row["Auto Title"], language="text")
@@ -1195,7 +1238,7 @@ No markdown, no extra text, no explanation."""
     show_all = st.toggle("Hiển thị cả hàng đã bán", value=False)
     view_df = df if show_all else df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
 
-    display_cols = ["STT","Tên Pet","M/s","Mutation","Số Trait","NameStock",
+    display_cols = ["id","STT","Tên Pet","M/s","Mutation","Số Trait","NameStock",
                     "Giá Nhập","Giá Bán","Lợi Nhuận","Ngày Nhập","Ngày Bán",
                     "Ngày Tồn","Trạng Thái","Auto Title","Place"]
     view_cols = [c for c in display_cols if c in view_df.columns]
@@ -1209,8 +1252,9 @@ No markdown, no extra text, no explanation."""
             use_container_width=True,
             hide_index=True,
             num_rows="dynamic",
-            disabled=["STT"],
+            disabled=["id"],
             column_config={
+                "id": st.column_config.NumberColumn("Database ID", help="Mã định danh gốc từ Supabase (Read-only)", format="%d"),
                 "Ngày Tồn": st.column_config.NumberColumn("Ngày Tồn", disabled=True),
                 "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
                 "Giá Nhập": st.column_config.NumberColumn("Giá Nhập (VNĐ)", format="%d"),
@@ -1219,8 +1263,8 @@ No markdown, no extra text, no explanation."""
             },
         )
 
-        after_reindexed  = reindex(normalize_df(edited, {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT")
-        before_reindexed = reindex(normalize_df(before_edit, {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT")
+        after_reindexed  = reindex(normalize_df(edited.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "id")
+        before_reindexed = reindex(normalize_df(before_edit.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "id")
 
         # Regenerate auto titles
         has_title_col = "Auto Title" in after_reindexed.columns
@@ -1730,3 +1774,19 @@ with tab_settings:
     manage_category(cat_cols[0], "Pet",       pet_db,   PET_LIST_FILE, "🐾")
     manage_category(cat_cols[1], "NameStock", ns_db,    NS_LIST_FILE,  "🏷️")
     manage_category(cat_cols[2], "Trait",     trait_db, TRAIT_LIST,    "🧬")
+
+    # ── Maintenance ──
+    if USE_SUPABASE:
+        st.markdown("---")
+        st.markdown("### 🛠 Bảo trì Database")
+        c_m1, c_m2 = st.columns(2)
+        if c_m1.button("🧹 Xoá trùng lặp theo Title (Kho Lẻ)", use_container_width=True):
+            deduplicate_table("inventory", "auto_title")
+            st.cache_data.clear()
+            st.rerun()
+        if c_m2.button("🧹 Xoá trùng lặp theo Title (Lô/Pack)", use_container_width=True):
+            deduplicate_table("bulk_inventory", "auto_title")
+            st.cache_data.clear()
+            st.rerun()
+
+

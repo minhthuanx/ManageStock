@@ -917,7 +917,8 @@ with tab_kho:
                     st.info("🔐 Nhập Groq API Key ở trên để bắt đầu dùng AI Llama 3.2 90B Vision miễn phí.")
                     ai_key = ""
 
-                    # ── STEP 2: MULTI-IMAGE UPLOAD ──
+                # ── STEP 2: MULTI-IMAGE UPLOAD ── (hiện khi đã có Groq key)
+                if ai_key:
                     st.markdown("**📷 Upload nhiều ảnh Pet (hỗ trợ phân tích hàng loạt)**")
                     if "ai_uploader_key" not in st.session_state:
                         st.session_state.ai_uploader_key = 0

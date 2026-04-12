@@ -1299,13 +1299,19 @@ No markdown, no extra text, no explanation."""
     # ── BẢNG TỒN KHO ──
     st.markdown('<div class="sec-heading">📋 Tồn Kho Lẻ</div>', unsafe_allow_html=True)
 
-    # Bộ lọc trạng thái
-    _r1, _r2 = st.columns([2, 3])
-    view_mode = _r1.radio(
+    # ── THANH CÔNG CỤ ──
+    _tb1, _tb2, _tb3 = st.columns([2, 2.5, 1])
+    view_mode = _tb1.radio(
         "Lọc trạng thái",
         ["📦 Còn hàng", "✅ Đã bán", "🗂 Tất cả"],
         horizontal=True,
         label_visibility="collapsed",
+    )
+    inv_search = _tb2.text_input(
+        "🔍 Tìm kiếm",
+        placeholder="STT, tên pet, mutation, title...",
+        label_visibility="collapsed",
+        key="inv_table_search",
     )
     if view_mode == "📦 Còn hàng":
         view_df = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
@@ -1317,12 +1323,39 @@ No markdown, no extra text, no explanation."""
         view_df = df.copy()
         show_all = True
 
+    # Áp dụng tìm kiếm text
+    if inv_search.strip():
+        q_inv = inv_search.strip()
+        mask = (
+            view_df["STT"].astype(str).str.contains(q_inv, case=False, na=False, regex=False) |
+            view_df["Tên Pet"].astype(str).str.contains(q_inv, case=False, na=False, regex=False) |
+            view_df["Mutation"].astype(str).str.contains(q_inv, case=False, na=False, regex=False) |
+            view_df["NameStock"].astype(str).str.contains(q_inv, case=False, na=False, regex=False) |
+            view_df["Auto Title"].astype(str).str.contains(q_inv, case=False, na=False, regex=False)
+        )
+        view_df = view_df[mask]
+
     display_cols = ["id","STT","Tên Pet","M/s","Mutation","Số Trait","NameStock",
                     "Giá Nhập","Giá Bán","Lợi Nhuận","Ngày Nhập","Ngày Bán",
                     "Ngày Tồn","Trạng Thái","Auto Title","Place"]
     view_cols = [c for c in display_cols if c in view_df.columns]
 
+    # Nút xuất CSV + đếm kết quả
+    _tb3.metric("Kết quả", len(view_df))
     if not view_df.empty:
+        csv_inv = view_df[view_cols].to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        st.download_button(
+            "⬇️ Xuất CSV",
+            data=csv_inv,
+            file_name=f"kho_le_{now_vn().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="dl_inv_csv",
+        )
+
+    if not view_df.empty:
+        # Khi đang search: chỉ xem, không cho thêm/xoá dòng (tránh mất dữ liệu hàng ẩn)
+        _is_searching = bool(inv_search.strip())
         # Show editable table
         before_edit = view_df[view_cols].copy()
         edited = st.data_editor(
@@ -1330,7 +1363,7 @@ No markdown, no extra text, no explanation."""
             key=f"editor_inventory_{st.session_state.get('editor_inv_ver', 0)}",
             use_container_width=True,
             hide_index=True,
-            num_rows="dynamic",
+            num_rows="fixed" if _is_searching else "dynamic",
             disabled=["id"],
             column_config={
                 "id": st.column_config.NumberColumn("Database ID", help="Mã định danh gốc từ Supabase (Read-only)", format="%d"),
@@ -1361,7 +1394,14 @@ No markdown, no extra text, no explanation."""
         if not after_reindexed.astype(str).equals(before_reindexed.astype(str)):
             # Merge changes back into full df
             full_df = st.session_state.df.copy()
-            if view_mode == "🗂 Tất cả":
+
+            if _is_searching:
+                # Khi search: chỉ cập nhật các dòng hiển thị, giữ nguyên dòng ẩn
+                visible_ids = set(after_reindexed["id"].astype(str).tolist()) if "id" in after_reindexed.columns else set()
+                hidden_rows = full_df[~full_df["id"].astype(str).isin(visible_ids)]
+                merged = pd.concat([after_reindexed, hidden_rows], ignore_index=True)
+                full_updated = apply_ngay_ton(normalize_df(merged, MAIN_SCHEMA))
+            elif view_mode == "🗂 Tất cả":
                 full_updated = apply_ngay_ton(normalize_df(after_reindexed, MAIN_SCHEMA))
             elif view_mode == "✅ Đã bán":
                 # Chỉ cập nhật hàng đã bán, giữ nguyên hàng còn hàng
@@ -1817,7 +1857,49 @@ with tab_pack:
     st.markdown("**📋 Danh sách lô pack**")
     bulk_cols_display2 = ["ID","Tên Lô","Số Lượng Gốc","Còn Lại","Ngày Nhập",
                           "Giá Nhập Tổng","Doanh Thu Tích Lũy","Lợi Nhuận","Trạng Thái","Auto Title"]
-    view_bulk2 = bulk_df[[c for c in bulk_cols_display2 if c in bulk_df.columns]]
+
+    # ── THANH CÔNG CỤ LÔ PACK ──
+    _bk1, _bk2, _bk3 = st.columns([2, 2, 1])
+    bulk_status_filter = _bk1.radio(
+        "Lọc lô",
+        ["🟢 Available", "⛔ Sold Out", "🗂 Tất cả"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="bulk_status_radio",
+    )
+    bulk_search = _bk2.text_input(
+        "🔍 Tìm lô",
+        placeholder="Tên lô, auto title...",
+        label_visibility="collapsed",
+        key="bulk_table_search",
+    )
+
+    view_bulk_base = bulk_df[[c for c in bulk_cols_display2 if c in bulk_df.columns]].copy()
+    if bulk_status_filter == "🟢 Available":
+        view_bulk_base = view_bulk_base[view_bulk_base["Trạng Thái"].astype(str) == "Available"]
+    elif bulk_status_filter == "⛔ Sold Out":
+        view_bulk_base = view_bulk_base[view_bulk_base["Trạng Thái"].astype(str) == "Sold Out"]
+    if bulk_search.strip():
+        q_bk = bulk_search.strip()
+        bk_mask = (
+            view_bulk_base["Tên Lô"].astype(str).str.contains(q_bk, case=False, na=False, regex=False) |
+            view_bulk_base["Auto Title"].astype(str).str.contains(q_bk, case=False, na=False, regex=False)
+        )
+        view_bulk_base = view_bulk_base[bk_mask]
+
+    _bk3.metric("Kết quả", len(view_bulk_base))
+    if not view_bulk_base.empty:
+        csv_bulk = view_bulk_base.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        st.download_button(
+            "⬇️ Xuất CSV",
+            data=csv_bulk,
+            file_name=f"lo_pack_{now_vn().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="dl_bulk_csv",
+        )
+
+    view_bulk2 = view_bulk_base
     if not view_bulk2.empty:
         before_bulk2x = view_bulk2.copy()
         edited_bulk2 = st.data_editor(
@@ -1833,17 +1915,24 @@ with tab_pack:
         )
         
         # CẬP NHẬT: Không được reindex vào cột ID để không phá hỏng Primary Key của Supabase
-        ab2  = normalize_df(edited_bulk2, {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display2 if c in bulk_df.columns})
-        bb2  = normalize_df(before_bulk2x, {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display2 if c in bulk_df.columns})
+        schema_bulk_view = {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display2 if c in bulk_df.columns}
+        ab2  = normalize_df(edited_bulk2, schema_bulk_view)
+        bb2  = normalize_df(before_bulk2x, schema_bulk_view)
         
         if not ab2.astype(str).equals(bb2.astype(str)):
-            save_bulk_supabase(ab2, st.session_state.bulk_df)
+            # Merge phần đã chỉnh sửa với phần bị ẩn (do filter/search) để không mất dữ liệu
+            hidden_rows = bulk_df[[c for c in bulk_cols_display2 if c in bulk_df.columns]].copy()
+            visible_ids = set(ab2["ID"].astype(str).tolist()) if "ID" in ab2.columns else set()
+            hidden_rows = hidden_rows[~hidden_rows["ID"].astype(str).isin(visible_ids)]
+            full_ab2 = normalize_df(pd.concat([ab2, hidden_rows], ignore_index=True), schema_bulk_view)
+
+            save_bulk_supabase(full_ab2, st.session_state.bulk_df)
             # ── Luôn reload từ Supabase để lấy ID thật, tránh id=0 gây duplicate ──
             if USE_SUPABASE:
                 st.cache_data.clear()
                 st.session_state.bulk_df = load_bulk()
             else:
-                st.session_state.bulk_df = ab2
+                st.session_state.bulk_df = normalize_df(full_ab2, BULK_SCHEMA)
             # Bump version key để reset widget state
             st.session_state.editor_bulk_ver = st.session_state.get("editor_bulk_ver", 0) + 1
             st.toast("✅ Đã lưu thay đổi lô pack.", icon="💾")

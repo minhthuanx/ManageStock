@@ -1693,14 +1693,19 @@ No markdown, no extra text, no explanation."""
                             else:
                                 _idx = _full_df.index[_full_df["STT"] == _s_stt].tolist()
                             if _idx:
-                                _p = _full_df.index.get_loc(_idx[0])
-                                _full_df.iloc[_p, _full_df.columns.get_loc("Giá Bán")]    = _s_price
-                                _full_df.iloc[_p, _full_df.columns.get_loc("Doanh Thu")]  = _rev_vnd
-                                _full_df.iloc[_p, _full_df.columns.get_loc("Lợi Nhuận")] = _profit
-                                _full_df.iloc[_p, _full_df.columns.get_loc("Ngày Bán")]   = now_str()
-                                _full_df.iloc[_p, _full_df.columns.get_loc("Trạng Thái")] = "Đã bán"
-                                _full_df.iloc[_p, _full_df.columns.get_loc("time_ban")]   = ts_ban_bulk
-                                _full_df.iloc[_p, _full_df.columns.get_loc("Place")]      = _s_place
+                                _row_idx = _idx[0]
+                                # Ép cột numeric sang float trước khi gán tránh pandas TypeError
+                                # khi cột bị cast sang int64 (vì tất cả giá trị đang là 0)
+                                for _fc in ["Giá Bán", "Doanh Thu", "Lợi Nhuận"]:
+                                    if _full_df[_fc].dtype != float:
+                                        _full_df[_fc] = _full_df[_fc].astype(float)
+                                _full_df.at[_row_idx, "Giá Bán"]    = float(_s_price)
+                                _full_df.at[_row_idx, "Doanh Thu"]  = float(_rev_vnd)
+                                _full_df.at[_row_idx, "Lợi Nhuận"]  = float(_profit)
+                                _full_df.at[_row_idx, "Ngày Bán"]   = now_str()
+                                _full_df.at[_row_idx, "Trạng Thái"] = "Đã bán"
+                                _full_df.at[_row_idx, "time_ban"]   = ts_ban_bulk
+                                _full_df.at[_row_idx, "Place"]      = _s_place
                             if USE_SUPABASE:
                                 _uc = "id" if _s_id > 0 else "stt"
                                 _uv = _s_id if _s_id > 0 else _s_stt

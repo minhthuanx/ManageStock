@@ -804,54 +804,78 @@ No markdown, no extra text, no explanation."""
                                         
                                     st.toast(f"Đang dùng AI Model dò được: {target_model}", icon="🤖")
 
-                                    for idx, img_f in enumerate(batch_imgs):
+                                    chunk_size = 15
+                                    for i in range(0, len(batch_imgs), chunk_size):
+                                        chunk_files = batch_imgs[i:i+chunk_size]
+                                        
                                         progress.progress(
-                                            int((idx / len(batch_imgs)) * 100),
-                                            text=f"Quét ảnh {idx+1}/{len(batch_imgs)}: {img_f.name[:20]}..."
+                                            int((i / len(batch_imgs)) * 100),
+                                            text=f"Đang phân tích gộp (Batch {i//chunk_size + 1}) {len(chunk_files)} ảnh cùng lúc..."
                                         )
+                                        
+                                        # Chuẩn bị payload gộp
+                                        payload = [f"Phân tích lần lượt {len(chunk_files)} bức ảnh này. KHÔNG BỎ SÓT ẢNH NÀO. Trả về ĐÚNG {len(chunk_files)} đối tượng nằm trong 1 mảng JSON Array (dấu ngoặc vuông). JSON Format mỗi object: {{\"Tên Pet\": \"Tên\", \"Mutation\": \"Vàng/Kim Cương/Cầu Vồng...\", \"Tốc độ\": \"Số\"}}"]
+                                        for img_f in chunk_files:
+                                            img_f.seek(0)
+                                            payload.append(Image.open(img_f))
+                                            
                                         success = False
                                         last_err = ""
-                                        img_f.seek(0)
-                                        image = Image.open(img_f)
-                                        
                                         try:
+                                            import time
                                             temp_model = genai.GenerativeModel(target_model)
-                                            resp = temp_model.generate_content([prompt, image])
-                                            txt   = resp.text.strip()
+                                            resp = temp_model.generate_content(payload)
+                                            txt = resp.text.strip()
                                             
-                                            # Trích xuất JSON từ model
                                             json_str = txt
                                             if "```json" in txt:
                                                 json_str = txt.split("```json")[-1].split("```")[0].strip()
-                                            elif txt.find("{") != -1:
-                                                json_str = txt[txt.find("{"):txt.rfind("}")+1]
+                                            elif txt.find("[") != -1 and txt.rfind("]") != -1:
+                                                json_str = txt[txt.find("["):txt.rfind("]")+1]
                                                 
-                                            data  = json.loads(json_str)
-                                            results.append({
-                                                "_filename": img_f.name,
-                                                "_ok": True,
-                                                "Tên Pet":  data.get("Tên Pet", ""),
-                                                "Mutation": data.get("Mutation", "Normal"),
-                                                "M/s":      data.get("Tốc độ", ""),
-                                                "Số Trait": "None",
-                                                "NameStock": "",
-                                                "Giá Nhập": "",
-                                            })
+                                            data_arr = json.loads(json_str)
+                                            if not isinstance(data_arr, list):
+                                                data_arr = [data_arr]
+                                                
+                                            for j, img_f in enumerate(chunk_files):
+                                                if j < len(data_arr):
+                                                    d = data_arr[j]
+                                                    results.append({
+                                                        "_filename": img_f.name,
+                                                        "_ok": True,
+                                                        "Tên Pet":  d.get("Tên Pet", ""),
+                                                        "Mutation": d.get("Mutation", "Normal"),
+                                                        "M/s":      d.get("Tốc độ", ""),
+                                                        "Số Trait": "None",
+                                                        "NameStock": "",
+                                                        "Giá Nhập": "",
+                                                    })
+                                                else:
+                                                    results.append({
+                                                        "_filename": img_f.name,
+                                                        "_ok": False,
+                                                        "_error": "AI trả về thiếu dữ liệu cho ảnh này trong batch.",
+                                                        "Tên Pet": "", "Mutation": "Normal", "M/s": "", "Số Trait": "None", "NameStock": "", "Giá Nhập": ""
+                                                    })
                                             success = True
-                                        except Exception as e_img:
-                                            last_err = str(e_img)
+                                        except Exception as e_batch:
+                                            last_err = str(e_batch)
                                         
                                         if not success:
-                                            results.append({
-                                                "_filename": img_f.name,
-                                                "_ok": False,
-                                                "_error": f"{last_err} (Model used: {target_model})",
-                                                "Tên Pet": "", "Mutation": "Normal",
-                                                "M/s": "", "Số Trait": "None",
-                                                "NameStock": "", "Giá Nhập": "",
-                                            })
+                                            if "429" in last_err or "quota" in last_err.lower():
+                                                last_err = "❌ API Hết Quota/Ngày! Hãy thêm phương thức thanh toán vào GG AI Studio hoặc tải ít ảnh hơn."
+                                            for img_f in chunk_files:
+                                                results.append({
+                                                    "_filename": img_f.name,
+                                                    "_ok": False,
+                                                    "_error": f"{last_err} (Model: {target_model})",
+                                                    "Tên Pet": "", "Mutation": "Normal", "M/s": "", "Số Trait": "None", "NameStock": "", "Giá Nhập": ""
+                                                })
+                                        
+                                        if i + chunk_size < len(batch_imgs):
+                                            time.sleep(4.1)
                                             
-                                    progress.progress(100, text="Hoàn thành!")
+                                    progress.progress(100, text="Hoàn thành phân tích gộp!")
                                     st.session_state.ai_batch_results = results
                                     st.session_state.ai_show_dialog = True
                                     st.rerun()

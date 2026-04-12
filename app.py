@@ -1043,7 +1043,7 @@ No markdown, no extra text, no explanation."""
                             if sb_ok:
                                 current_df = apply_ngay_ton(current_df)
                                 st.session_state.df = current_df
-                                save_csv(st.session_state.df, MAIN_DB_FILE)
+                                save_csv(st.session_state.df, DB_FILE)
                                 st.session_state.ai_show_dialog = False
                                 st.session_state.ai_batch_results = []
                                 st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1

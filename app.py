@@ -882,6 +882,16 @@ with st.sidebar:
     _td1, _td2 = st.columns(2)
     _td1.metric("Đã bán", f"{_today_count} con")
     _td2.metric("Lãi", fmt_vnd(_today_profit))
+
+    # ── #22 Mục tiêu lãi ngày ──
+    if "daily_profit_target" not in st.session_state:
+        st.session_state["daily_profit_target"] = 5_000_000
+    st.number_input("🎯 Mục tiêu lãi hôm nay (VNĐ)", min_value=0, step=500_000,
+                    key="daily_profit_target", format="%d")
+    _daily_target_val = st.session_state["daily_profit_target"]
+    if _daily_target_val > 0:
+        _goal_pct = min(_today_profit / _daily_target_val, 1.0)
+        st.progress(_goal_pct, text=f"{fmt_vnd(_today_profit)} / {fmt_vnd(_daily_target_val)} ({_goal_pct*100:.0f}%)")
     st.markdown("---")
 
     if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
@@ -2234,6 +2244,180 @@ with tab_chart:
             st.info("Chưa có dữ liệu thời gian bán hàng.")
     else:
         st.info("Chưa có dữ liệu bán.")
+
+    # ── #27 Heatmap ngày × giờ ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">🗓️ Heatmap: Thứ × Giờ</div>', unsafe_allow_html=True)
+
+    if not sold_df.empty:
+        def _extract_dt_parts(ts_str):
+            """Returns (hour, weekday) or (None, None)."""
+            if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+                return None, None
+            try:
+                dt = datetime.fromisoformat(str(ts_str))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=VN_TZ)
+                dt = dt.astimezone(VN_TZ)
+                return dt.hour, dt.weekday()  # weekday: 0=Mon … 6=Sun
+            except Exception:
+                return None, None
+
+        _hmap_rows = sold_df["time_ban"].apply(_extract_dt_parts)
+        _hmap_df2 = pd.DataFrame(_hmap_rows.tolist(), columns=["Giờ_h", "Thứ_w"])
+        _hmap_df2 = _hmap_df2.dropna()
+        _hmap_df2["Giờ_h"] = _hmap_df2["Giờ_h"].astype(int)
+        _hmap_df2["Thứ_w"] = _hmap_df2["Thứ_w"].astype(int)
+
+        if not _hmap_df2.empty:
+            _pivot_hm = _hmap_df2.groupby(["Thứ_w", "Giờ_h"]).size().unstack(fill_value=0)
+            for _hc in range(24):
+                if _hc not in _pivot_hm.columns:
+                    _pivot_hm[_hc] = 0
+            _pivot_hm = _pivot_hm[[c for c in range(24)]]
+            for _rd in range(7):
+                if _rd not in _pivot_hm.index:
+                    _pivot_hm.loc[_rd] = 0
+            _pivot_hm = _pivot_hm.sort_index()
+            _days_vn = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"]
+            fig_hmap = go.Figure(go.Heatmap(
+                z=_pivot_hm.values,
+                x=[f"{h:02d}:00" for h in range(24)],
+                y=[_days_vn[i] for i in _pivot_hm.index],
+                colorscale="YlOrRd",
+                text=_pivot_hm.values,
+                texttemplate="%{text}",
+                showscale=True,
+            ))
+            fig_hmap.update_layout(
+                xaxis_title="Giờ (giờ VN)",
+                yaxis_title="Thứ",
+                margin=dict(t=30, b=50),
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                font_color="#e2e8f0",
+                height=310,
+                xaxis=dict(tickangle=-45),
+            )
+            st.plotly_chart(fig_hmap, use_container_width=True)
+        else:
+            st.info("Chưa có dữ liệu thời gian bán hàng.")
+    else:
+        st.info("Chưa có dữ liệu bán.")
+
+    # ── #29 Trend giá nhập & bán theo tháng ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">📈 Trend giá nhập & bán theo tháng</div>', unsafe_allow_html=True)
+
+    _trend_pet_opts = ["(Tất cả)"] + sorted(df["Tên Pet"].astype(str).dropna().unique().tolist())
+    _trend_sel = st.selectbox("Chọn pet", _trend_pet_opts, key="trend_price_pet")
+
+    def _ts_to_ym(ts_str):
+        if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+            return None
+        try:
+            dt = datetime.fromisoformat(str(ts_str))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=VN_TZ)
+            dt = dt.astimezone(VN_TZ)
+            return f"{dt.year}-{dt.month:02d}"
+        except Exception:
+            return None
+
+    _trend_df = df.copy()
+    if _trend_sel != "(Tất cả)":
+        _trend_df = _trend_df[_trend_df["Tên Pet"].astype(str) == _trend_sel]
+
+    # Monthly avg buy price
+    _buy_trend = _trend_df.copy()
+    _buy_trend["YM"] = _buy_trend["time_nhap"].apply(_ts_to_ym)
+    _buy_trend["GN"] = pd.to_numeric(_buy_trend["Giá Nhập"], errors="coerce")
+    _buy_trend = _buy_trend.dropna(subset=["YM", "GN"])
+    _buy_grp = _buy_trend.groupby("YM")["GN"].mean().reset_index().rename(columns={"GN": "Giá nhập TB"})
+
+    # Monthly avg sell price
+    _sell_trend = _trend_df[_trend_df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)].copy()
+    _sell_trend["YM"] = _sell_trend["time_ban"].apply(_ts_to_ym)
+    _sell_trend["GB"] = pd.to_numeric(_sell_trend["Giá Bán"], errors="coerce")
+    _sell_trend = _sell_trend.dropna(subset=["YM", "GB"])
+    _sell_grp = _sell_trend.groupby("YM")["GB"].mean().reset_index().rename(columns={"GB": "Giá bán TB"})
+
+    _trend_merged = _buy_grp.merge(_sell_grp, on="YM", how="outer").sort_values("YM")
+
+    if not _trend_merged.empty:
+        fig_trend = go.Figure()
+        fig_trend.add_trace(go.Scatter(
+            x=_trend_merged["YM"], y=_trend_merged["Giá nhập TB"],
+            name="Giá nhập TB", mode="lines+markers", line=dict(color="#f97316"),
+        ))
+        fig_trend.add_trace(go.Scatter(
+            x=_trend_merged["YM"], y=_trend_merged["Giá bán TB"],
+            name="Giá bán TB", mode="lines+markers", line=dict(color="#22c55e"),
+        ))
+        fig_trend.update_layout(
+            xaxis_title="Tháng",
+            yaxis_title="Giá (VNĐ)",
+            legend=dict(orientation="h", y=1.1),
+            margin=dict(t=40, b=40),
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font_color="#e2e8f0",
+            height=340,
+        )
+        st.plotly_chart(fig_trend, use_container_width=True)
+    else:
+        st.info("Chưa đủ dữ liệu để vẽ trend giá.")
+
+    # ── #35 So sánh giá thị trường ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">📋 So sánh giá thị trường</div>', unsafe_allow_html=True)
+    st.caption("Nhập giá tham khảo từ market thủ công để so sánh với lịch sử bán của bạn.")
+
+    _mkt_pets = sorted(df["Tên Pet"].astype(str).dropna().unique().tolist())
+    _mkc1, _mkc2 = st.columns([1.5, 1])
+    _mkt_pet_sel = _mkc1.selectbox("Chọn pet", _mkt_pets, key="mkt_price_pet")
+    _mkt_price = _mkc2.number_input("Giá thị trường ($)", min_value=0.0, step=0.5, format="%.2f", key="mkt_price_input")
+
+    _mkt_sold = df[
+        (df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)) &
+        (df["Tên Pet"].astype(str) == _mkt_pet_sel)
+    ].copy()
+    _mkt_sold["GB"] = pd.to_numeric(_mkt_sold["Giá Bán"], errors="coerce")
+    _mkt_sold = _mkt_sold[_mkt_sold["GB"] > 0]
+
+    _mkt_inv = df[
+        (df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)) &
+        (df["Tên Pet"].astype(str) == _mkt_pet_sel)
+    ].copy()
+    _mkt_inv["GN"] = pd.to_numeric(_mkt_inv["Giá Nhập"], errors="coerce")
+    _mkt_inv = _mkt_inv[_mkt_inv["GN"] > 0]
+
+    _mra, _mrb, _mrc, _mrd = st.columns(4)
+    if not _mkt_sold.empty:
+        _mra.metric("Giá bán lịch sử TB", f"{_mkt_sold['GB'].mean():.2f}$")
+        _mrb.metric("Thấp nhất đã bán", f"{_mkt_sold['GB'].min():.2f}$")
+        _mrc.metric("Cao nhất đã bán", f"{_mkt_sold['GB'].max():.2f}$")
+    else:
+        _mra.metric("Giá bán lịch sử TB", "—")
+        _mrb.metric("Thấp nhất đã bán", "—")
+        _mrc.metric("Cao nhất đã bán", "—")
+    if not _mkt_inv.empty:
+        _avg_buy = _mkt_inv["GN"] / EXCHANGE_RATE
+        _mrd.metric("Giá nhập TB ($)", f"{_avg_buy.mean():.2f}$")
+    else:
+        _mrd.metric("Giá nhập TB ($)", "—")
+
+    if _mkt_price > 0 and not _mkt_sold.empty:
+        _hist_avg = _mkt_sold['GB'].mean()
+        _diff = _mkt_price - _hist_avg
+        _sign = "+" if _diff >= 0 else ""
+        st.info(f"📊 Giá market **{_mkt_price:.2f}$** so với lịch sử TB **{_hist_avg:.2f}$** → {'📈' if _diff >= 0 else '📉'} **{_sign}{_diff:.2f}$** ({_sign}{_diff/_hist_avg*100:.1f}%)")
+        if not _mkt_inv.empty:
+            _avg_cost_usd = (_mkt_inv["GN"] / EXCHANGE_RATE).mean()
+            _margin = _mkt_price - _avg_cost_usd
+            _margin_pct = (_margin / _mkt_price * 100) if _mkt_price > 0 else 0
+            _color = "✅" if _margin > 0 else "⚠️"
+            st.info(f"{_color} Nếu bán ở **{_mkt_price:.2f}$** với giá nhập TB **{_avg_cost_usd:.2f}$** → lãi ước tính **{_margin:.2f}$** ({_margin_pct:.1f}%)")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 3: TỒN LÂU

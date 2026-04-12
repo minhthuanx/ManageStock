@@ -612,12 +612,40 @@ def save_bulk_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
 # =============================================================================
 # SESSION STATE INIT
 # =============================================================================
+def _load_groq_key_from_supabase() -> str:
+    """Đọc Groq API key từ bảng app_settings trên Supabase."""
+    if not USE_SUPABASE:
+        return ""
+    try:
+        r = supabase_client.table("app_settings").select("value").eq("key", "groq_key").execute()
+        if r.data:
+            return r.data[0].get("value", "")
+    except Exception:
+        pass
+    return ""
+
+def _save_groq_key_to_supabase(api_key: str):
+    """Lưu Groq API key vào bảng app_settings (upsert theo primary key 'groq_key')."""
+    if not USE_SUPABASE:
+        return
+    try:
+        supabase_client.table("app_settings").upsert(
+            {"key": "groq_key", "value": api_key}, on_conflict="key"
+        ).execute()
+    except Exception as e:
+        st.toast(f"⚠️ Không thể lưu Groq key: {e}", icon="⚠️")
+
 def init_session():
     if "initialized" not in st.session_state:
         with st.spinner("Đang tải dữ liệu từ Supabase..."):
             st.session_state.df           = apply_ngay_ton(load_inventory())
             st.session_state.bulk_df      = load_bulk()
             st.session_state.bulk_history = load_bulk_history()
+            # Tải Groq key đã lưu (nếu có)
+            if not st.session_state.get("groq_key"):
+                _stored_key = _load_groq_key_from_supabase()
+                if _stored_key:
+                    st.session_state.groq_key = _stored_key
         st.session_state.initialized = True
 
 init_session()
@@ -842,23 +870,30 @@ with tab_kho:
             with st.expander("✨ Nhập hàng loạt bằng AI Vision", expanded=st.session_state.get("ai_expander", False)):
 
                 # ── STEP 1: API KEY ──
-                ai_key_input = st.text_input(
-                    "🔑 Groq API Key (Mới)",
-                    type="password",
-                    value=st.session_state.get("groq_key", ""),
-                    placeholder="gsk_...",
-                    help="Lấy miễn phí tại console.groq.com/keys",
-                )
-                if ai_key_input:
-                    st.session_state.groq_key = ai_key_input
-
                 ai_key = st.session_state.get("groq_key", "")
-
-                if not ai_key:
-                    st.info("🔐 Nhập Groq API Key ở trên để bắt đầu dùng AI Llama 3.2 90B Vision miễn phí.")
+                if ai_key:
+                    # Key đã được cấu hình — hiển thị masked + nút cập nhật
+                    _masked = ai_key[:6] + "*" * (len(ai_key) - 10) + ai_key[-4:] if len(ai_key) > 10 else "****"
+                    _kc1, _kc2 = st.columns([3, 1])
+                    _kc1.success(f"✅ Groq Key: `{_masked}` — Kết nối sẵn sàng")
+                    if _kc2.button("🔄 Đổi key", use_container_width=True, key="btn_change_groq"):
+                        st.session_state.groq_key = ""
+                        st.rerun()
                 else:
-                    # Test connection badge
-                    st.success("✅ Kết nối sẵn sàng — Bắt đầu upload ảnh bên dưới")
+                    ai_key_input = st.text_input(
+                        "🔑 Groq API Key",
+                        type="password",
+                        value="",
+                        placeholder="gsk_...",
+                        help="Lấy miễn phí tại console.groq.com/keys",
+                    )
+                    if ai_key_input and ai_key_input.strip():
+                        st.session_state.groq_key = ai_key_input.strip()
+                        _save_groq_key_to_supabase(ai_key_input.strip())
+                        st.toast("✅ Đã lưu Groq Key vĩnh viễn!", icon="🔑")
+                        st.rerun()
+                    st.info("🔐 Nhập Groq API Key ở trên để bắt đầu dùng AI Llama 3.2 90B Vision miễn phí.")
+                    ai_key = ""
 
                     # ── STEP 2: MULTI-IMAGE UPLOAD ──
                     st.markdown("**📷 Upload nhiều ảnh Pet (hỗ trợ phân tích hàng loạt)**")

@@ -342,6 +342,14 @@ def fmt_vnd(v: float) -> str:
     return f"₫{v:,.0f}"
 
 
+_SEARCH_KEYS = ["sell_search_q", "inv_table_search", "copy_title_search", "bulk_sell_search", "bulk_table_search"]
+
+def _clear_searches():
+    """Clear all search text inputs before st.rerun() so they reset to empty."""
+    for _k in _SEARCH_KEYS:
+        if _k in st.session_state:
+            st.session_state[_k] = ""
+
 def fmt_short(v: float) -> str:
     """Format ₫1.5M style for chart labels."""
     v = float(v)
@@ -1361,6 +1369,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     st.toast("✅ Đã lưu pet lẻ!", icon="💾")
                     st.info("📋 Copy title nhanh:")
                     st.code(row["Auto Title"], language="text")
+                    _clear_searches()
                     st.rerun()
 
     # ── BÁN LẺ ──
@@ -1369,7 +1378,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
             st.markdown('<div class="sec-heading">💰 Bán Pet Lẻ</div>', unsafe_allow_html=True)
 
             active = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
-            q = st.text_input("🔍 Tìm pet", placeholder="STT, tên, mutation, namestock...")
+            q = st.text_input("🔍 Tìm pet", placeholder="STT, tên, mutation, namestock...", key="sell_search_q")
 
             if not active.empty:
                 if q.strip():
@@ -1454,6 +1463,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                         "ngay_ton":   int(recs[iloc_pos]["Ngày Tồn"]),
                                     }, _update_col, _update_val)
                                 st.toast("💸 Bán thành công!", icon="✅")
+                                _clear_searches()
                                 st.rerun()
                 else:
                     st.info("Không có kết quả phù hợp.")
@@ -1612,6 +1622,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
             # Bump version key để reset widget state, tránh vòng lặp lưu vô hạn
             st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
             st.toast("✅ Đã lưu thay đổi.", icon="💾")
+            _clear_searches()
             st.rerun()
     else:
         st.info("Không có dữ liệu để hiển thị.")
@@ -1825,6 +1836,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                         st.session_state.bulk_cart = {}
                         st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
                         st.toast(f"💸 Đã bán {_updated} pet thành công!", icon="✅")
+                        _clear_searches()
                         st.rerun()
 
 # ─────────────────────────────────────────────────────────────────────────────

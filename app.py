@@ -726,19 +726,19 @@ with tab_kho:
 
                 # ── STEP 1: API KEY ──
                 ai_key_input = st.text_input(
-                    "🔑 Gemini API Key",
+                    "🔑 Groq API Key (Mới)",
                     type="password",
-                    value=st.session_state.get("gemini_key", ""),
-                    placeholder="AIza...",
-                    help="Lấy miễn phí tại aistudio.google.com",
+                    value=st.session_state.get("groq_key", ""),
+                    placeholder="gsk_...",
+                    help="Lấy miễn phí tại console.groq.com/keys",
                 )
                 if ai_key_input:
-                    st.session_state.gemini_key = ai_key_input
+                    st.session_state.groq_key = ai_key_input
 
-                ai_key = st.session_state.get("gemini_key", "")
+                ai_key = st.session_state.get("groq_key", "")
 
                 if not ai_key:
-                    st.info("🔐 Nhập Gemini API Key ở trên để bắt đầu.")
+                    st.info("🔐 Nhập Groq API Key ở trên để bắt đầu dùng AI Llama 3.2 90B Vision miễn phí.")
                 else:
                     # Test connection badge
                     st.success("✅ Kết nối sẵn sàng — Bắt đầu upload ảnh bên dưới")
@@ -771,117 +771,102 @@ with tab_kho:
                         )
 
                         if scan_btn:
+                            import requests
+                            import base64
+                            import time
+                            
                             results = []
-                            progress = st.progress(0, text="Đang khởi tạo AI...")
-                            try:
-                                genai.configure(api_key=ai_key)
-                                prompt = """Extract the following from the image and return VALID JSON only:
+                            progress = st.progress(0, text="Đang khởi tạo Groq AI...")
+                            
+                            prompt = """Extract the following from the image and return VALID JSON only:
 {"Tên Pet": "Name of the pet", "Mutation": "Normal/Gold/Diamond/Divine/Rainbow/etc", "Tốc độ": "number only before M/s or B/s e.g. 975"}
 No markdown, no extra text, no explanation."""
-                                
-                                # Tự động dò danh sách models mà API Key này được phép dùng
-                                available_models = []
-                                try:
-                                    for m in genai.list_models():
-                                        if 'generateContent' in m.supported_generation_methods:
-                                            available_models.append(m.name)
-                                except Exception as e:
-                                    st.error(f"Lỗi truy xuất danh sách Model (API Key có thể không hợp lệ): {e}")
-                                
-                                if not available_models:
-                                    st.error("❌ API Key này không có quyền truy cập vào bất kỳ AI Model nào hỗ trợ đọc ảnh. Vui lòng tạo Key mới chuẩn xác từ Google AI Studio.")
-                                    progress.empty()
-                                else:
-                                    # Lọc ưu tiên các model mạnh về vision
-                                    target_model = None
-                                    for priority_str in ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro-vision", "gemini"]:
-                                        match = [m for m in available_models if priority_str in m.lower()]
-                                        if match:
-                                            target_model = match[0]
-                                            break
-                                    if not target_model:
-                                        target_model = available_models[0] # Lấy đại cái đầu tiên nếu không có cái nào khớp
-                                        
-                                    st.toast(f"Đang dùng AI Model dò được: {target_model}", icon="🤖")
 
-                                    chunk_size = 15
-                                    for i in range(0, len(batch_imgs), chunk_size):
-                                        chunk_files = batch_imgs[i:i+chunk_size]
+                            headers = {
+                                "Authorization": f"Bearer {ai_key}",
+                                "Content-Type": "application/json"
+                            }
+                            
+                            st.toast("Đang dùng AI Model: Llama-3.2-90B-Vision (Groq)", icon="🦙")
+
+                            for idx, img_f in enumerate(batch_imgs):
+                                progress.progress(
+                                    int((idx / len(batch_imgs)) * 100),
+                                    text=f"Quét ảnh {idx+1}/{len(batch_imgs)}: {img_f.name[:20]}..."
+                                )
+                                success = False
+                                last_err = ""
+                                
+                                try:
+                                    img_f.seek(0)
+                                    b64_img = base64.b64encode(img_f.read()).decode("utf-8")
+                                    mime_type = img_f.type if img_f.type else "image/jpeg"
+                                    
+                                    payload = {
+                                        "model": "llama-3.2-90b-vision-preview",
+                                        "messages": [
+                                            {
+                                                "role": "user",
+                                                "content": [
+                                                    {"type": "text", "text": prompt},
+                                                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_img}"}}
+                                                ]
+                                            }
+                                        ],
+                                        "temperature": 0.1
+                                    }
+                                    
+                                    resp = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
+                                    if resp.status_code == 200:
+                                        data = resp.json()
+                                        txt = data["choices"][0]["message"]["content"].strip()
                                         
-                                        progress.progress(
-                                            int((i / len(batch_imgs)) * 100),
-                                            text=f"Đang phân tích gộp (Batch {i//chunk_size + 1}) {len(chunk_files)} ảnh cùng lúc..."
-                                        )
-                                        
-                                        # Chuẩn bị payload gộp
-                                        payload = [f"Phân tích lần lượt {len(chunk_files)} bức ảnh này. KHÔNG BỎ SÓT ẢNH NÀO. Trả về ĐÚNG {len(chunk_files)} đối tượng nằm trong 1 mảng JSON Array (dấu ngoặc vuông). JSON Format mỗi object: {{\"Tên Pet\": \"Tên\", \"Mutation\": \"Vàng/Kim Cương/Cầu Vồng...\", \"Tốc độ\": \"Số\"}}"]
-                                        for img_f in chunk_files:
-                                            img_f.seek(0)
-                                            payload.append(Image.open(img_f))
+                                        json_str = txt
+                                        if "```json" in txt:
+                                            json_str = txt.split("```json")[-1].split("```")[0].strip()
+                                        elif txt.find("{") != -1:
+                                            json_str = txt[txt.find("{"):txt.rfind("}")+1]
                                             
-                                        success = False
-                                        last_err = ""
-                                        try:
-                                            import time
-                                            temp_model = genai.GenerativeModel(target_model)
-                                            resp = temp_model.generate_content(payload)
-                                            txt = resp.text.strip()
-                                            
-                                            json_str = txt
-                                            if "```json" in txt:
-                                                json_str = txt.split("```json")[-1].split("```")[0].strip()
-                                            elif txt.find("[") != -1 and txt.rfind("]") != -1:
-                                                json_str = txt[txt.find("["):txt.rfind("]")+1]
-                                                
-                                            data_arr = json.loads(json_str)
-                                            if not isinstance(data_arr, list):
-                                                data_arr = [data_arr]
-                                                
-                                            for j, img_f in enumerate(chunk_files):
-                                                if j < len(data_arr):
-                                                    d = data_arr[j]
-                                                    results.append({
-                                                        "_filename": img_f.name,
-                                                        "_ok": True,
-                                                        "Tên Pet":  d.get("Tên Pet", ""),
-                                                        "Mutation": d.get("Mutation", "Normal"),
-                                                        "M/s":      d.get("Tốc độ", ""),
-                                                        "Số Trait": "None",
-                                                        "NameStock": "",
-                                                        "Giá Nhập": "",
-                                                    })
-                                                else:
-                                                    results.append({
-                                                        "_filename": img_f.name,
-                                                        "_ok": False,
-                                                        "_error": "AI trả về thiếu dữ liệu cho ảnh này trong batch.",
-                                                        "Tên Pet": "", "Mutation": "Normal", "M/s": "", "Số Trait": "None", "NameStock": "", "Giá Nhập": ""
-                                                    })
-                                            success = True
-                                        except Exception as e_batch:
-                                            last_err = str(e_batch)
-                                        
-                                        if not success:
-                                            if "429" in last_err or "quota" in last_err.lower():
-                                                last_err = "❌ API Hết Quota/Ngày! Hãy thêm phương thức thanh toán vào GG AI Studio hoặc tải ít ảnh hơn."
-                                            for img_f in chunk_files:
-                                                results.append({
-                                                    "_filename": img_f.name,
-                                                    "_ok": False,
-                                                    "_error": f"{last_err} (Model: {target_model})",
-                                                    "Tên Pet": "", "Mutation": "Normal", "M/s": "", "Số Trait": "None", "NameStock": "", "Giá Nhập": ""
-                                                })
-                                        
-                                        if i + chunk_size < len(batch_imgs):
-                                            time.sleep(4.1)
-                                            
-                                    progress.progress(100, text="Hoàn thành phân tích gộp!")
-                                    st.session_state.ai_batch_results = results
-                                    st.session_state.ai_show_dialog = True
-                                    st.rerun()
-                            except Exception as e:
-                                progress.empty()
-                                st.error(f"❌ Lỗi AI: {e}")
+                                        parsed_data  = json.loads(json_str)
+                                        results.append({
+                                            "_filename": img_f.name,
+                                            "_ok": True,
+                                            "Tên Pet":  parsed_data.get("Tên Pet", ""),
+                                            "Mutation": parsed_data.get("Mutation", "Normal"),
+                                            "M/s":      parsed_data.get("Tốc độ", ""),
+                                            "Số Trait": "None",
+                                            "NameStock": "",
+                                            "Giá Nhập": "",
+                                        })
+                                        success = True
+                                    else:
+                                        last_err = f"API Error {resp.status_code}: {resp.text}"
+                                except Exception as e_img:
+                                    last_err = str(e_img)
+                                
+                                if not success:
+                                    if "429" in last_err or "rate" in last_err.lower():
+                                        last_err = "❌ Rate Limit! (Groq giới hạn 15 ảnh/phút). Vui lòng đợi xíu."
+                                    results.append({
+                                        "_filename": img_f.name,
+                                        "_ok": False,
+                                        "_error": last_err,
+                                        "Tên Pet": "", "Mutation": "Normal",
+                                        "M/s": "", "Số Trait": "None",
+                                        "NameStock": "", "Giá Nhập": "",
+                                    })
+                                
+                                if idx < len(batch_imgs) - 1:
+                                    progress.progress(
+                                        int(((idx + 1) / len(batch_imgs)) * 100),
+                                        text=f"Xử lý xong ảnh {idx+1}. (Nghỉ 4s để tránh limit 15 RPM của Groq...)"
+                                    )
+                                    time.sleep(4.1)
+                            
+                            progress.progress(100, text="Hoàn thành phân tích!")
+                            st.session_state.ai_batch_results = results
+                            st.session_state.ai_show_dialog = True
+                            st.rerun()
 
             # =========================================================
             # DIALOG PREVIEW + EDIT (hiện khi có kết quả AI)

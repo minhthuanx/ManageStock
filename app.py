@@ -863,6 +863,27 @@ with st.sidebar:
     st.caption(f"Tổng vốn kẹt: **{fmt_vnd(_von_le+_von_lo)}**")
     st.markdown("---")
 
+    # ── Dashboard hôm nay ──
+    _today_date = now_vn().date()
+    def _is_today_ban(ts_str):
+        if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+            return False
+        try:
+            dt = datetime.fromisoformat(str(ts_str))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=VN_TZ)
+            return dt.astimezone(VN_TZ).date() == _today_date
+        except Exception:
+            return False
+    _sold_today = df[df["time_ban"].apply(_is_today_ban)]
+    _today_count  = len(_sold_today)
+    _today_profit = float(pd.to_numeric(_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
+    st.markdown("**📅 Hôm nay**")
+    _td1, _td2 = st.columns(2)
+    _td1.metric("Đã bán", f"{_today_count} con")
+    _td2.metric("Lãi", fmt_vnd(_today_profit))
+    st.markdown("---")
+
     if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
         st.cache_data.clear()
         del st.session_state["initialized"]
@@ -1249,14 +1270,26 @@ Extract and return VALID JSON only (no markdown, no extra text):
             trait_opts = ["None"] + get_name_options(trait_db)
             ns_opts    = [""] + get_name_options(ns_db, fallback="")
 
+            # ── #12 Clone button ──
+            _last_pet = st.session_state.get("last_saved_pet")
+            if _last_pet:
+                if st.button(f"📋 Nhập con tương tự: {_last_pet.get('p_name','')}", use_container_width=True, key="btn_clone_pet"):
+                    st.session_state.nhap_prefill = _last_pet.copy()
+                    st.rerun()
+            _prefill = st.session_state.get("nhap_prefill", {})
+
             with st.form("form_nhap_le", clear_on_submit=True):
-                p_name = st.selectbox("Tên Pet", pet_opts)
+                _pi_pet = next((i for i, x in enumerate(pet_opts) if x == _prefill.get("p_name", "")), 0)
+                p_name = st.selectbox("Tên Pet", pet_opts, index=_pi_pet)
                 c1, c2, c3 = st.columns(3)
-                ms_raw   = c1.text_input("M/s", placeholder="VD: 975")
-                p_mut    = c2.selectbox("Mutation", MUTATION_OPTIONS)
-                p_trait  = c3.selectbox("Số Trait", trait_opts)
+                ms_raw   = c1.text_input("M/s", placeholder="VD: 975", value=_prefill.get("ms_raw", ""))
+                _pi_mut = next((i for i, m in enumerate(MUTATION_OPTIONS) if m == _prefill.get("p_mut", "")), 0)
+                p_mut    = c2.selectbox("Mutation", MUTATION_OPTIONS, index=_pi_mut)
+                _pi_trait = next((i for i, t in enumerate(trait_opts) if t == _prefill.get("p_trait", "")), 0)
+                p_trait  = c3.selectbox("Số Trait", trait_opts, index=_pi_trait)
                 c4, c5 = st.columns([1.5, 1])
-                p_ns       = c4.selectbox("NameStock", ns_opts)
+                _pi_ns = next((i for i, n in enumerate(ns_opts) if n == _prefill.get("p_ns", "")), 0)
+                p_ns       = c4.selectbox("NameStock", ns_opts, index=_pi_ns)
                 p_cost_raw = c5.text_input("Giá nhập (VNĐ)", placeholder="150000")
                 submitted = st.form_submit_button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True)
 
@@ -1277,6 +1310,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                         st.warning("⚠️ Dữ liệu này đã được lưu. Vui lòng tải lại nếu cần.")
                         st.stop()
                     st.session_state.last_nhap_key = submit_key
+                    st.session_state.pop("nhap_prefill", None)  # Xóa prefill sau khi submit hợp lệ
                     stt = next_id(df, "STT")
                     ts  = now_iso()
                     row = {
@@ -1310,6 +1344,10 @@ Extract and return VALID JSON only (no markdown, no extra text):
                         st.cache_data.clear()
                         st.session_state.df = apply_ngay_ton(load_inventory())
                         
+                    st.session_state.last_saved_pet = {
+                        "p_name": p_name, "ms_raw": ms_raw,
+                        "p_mut": p_mut, "p_trait": p_trait, "p_ns": p_ns,
+                    }
                     st.toast("✅ Đã lưu pet lẻ!", icon="💾")
                     st.info("📋 Copy title nhanh:")
                     st.code(row["Auto Title"], language="text")
@@ -1346,8 +1384,23 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     sel_stt = int(sel.split(" — ")[0])
                     sel_row = filt[filt["STT"] == sel_stt].iloc[0]
 
+                    # ── #15 Price history for this pet ──
+                    _hist_prices = pd.to_numeric(
+                        df[
+                            (df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)) &
+                            (df["Tên Pet"].astype(str) == str(sel_row["Tên Pet"]))
+                        ]["Giá Bán"],
+                        errors="coerce"
+                    ).dropna()
+                    _hist_prices = _hist_prices[_hist_prices > 0]
+
                     with st.container(border=True):
                         st.caption(f"🐾 **{sel_row['Tên Pet']}** | Nhập: **{fmt_vnd(float(sel_row['Giá Nhập']))}** | Tồn: **{int(sel_row['Ngày Tồn'])} ngày**")
+                        if len(_hist_prices) >= 1:
+                            _p_min = _hist_prices.min()
+                            _p_avg = _hist_prices.mean()
+                            _p_max = _hist_prices.max()
+                            st.caption(f"📊 Lịch sử **{len(_hist_prices)}** lần bán | thấp: **{_p_min:.2f}$** — TB: **{_p_avg:.2f}$** — cao: **{_p_max:.2f}$**")
 
                     with st.form("form_ban_le", clear_on_submit=True):
                         c1, c2 = st.columns([1.2, 1])
@@ -2079,6 +2132,108 @@ with tab_chart:
             st.dataframe(_mut_disp[["Mutation","Số con","LN TB/con","Tổng LN"]], use_container_width=True, hide_index=True)
         else:
             st.info("Chưa có dữ liệu bán.")
+
+    # ── #14 Phân tích theo NameStock & Place ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">🏷️ Phân tích theo NameStock & Place</div>', unsafe_allow_html=True)
+    _ch_ns_col, _ch_pl_col = st.columns(2)
+
+    with _ch_ns_col:
+        st.markdown("**🏷️ Top NameStock theo lợi nhuận**")
+        if not sold_df.empty and "NameStock" in sold_df.columns:
+            _ns_grp = sold_df.copy()
+            _ns_grp["LN"] = pd.to_numeric(_ns_grp["Lợi Nhuận"], errors="coerce").fillna(0)
+            _ns_grp["DT"] = pd.to_numeric(_ns_grp["Doanh Thu"], errors="coerce").fillna(0)
+            _ns_grp["NS"] = _ns_grp["NameStock"].astype(str).str.strip().replace("", "(trống)")
+            _ns_perf = (
+                _ns_grp.groupby("NS", as_index=False)
+                .agg(LN_total=("LN","sum"), DT_total=("DT","sum"), Count=("LN","count"))
+                .sort_values("LN_total", ascending=False)
+            )
+            _ns_disp = _ns_perf.rename(columns={"NS":"NameStock","Count":"Số con"}).copy()
+            _ns_disp["Lợi nhuận"] = _ns_disp["LN_total"].apply(fmt_vnd)
+            _ns_disp["Doanh thu"] = _ns_disp["DT_total"].apply(fmt_vnd)
+            st.dataframe(_ns_disp[["NameStock","Số con","Lợi nhuận","Doanh thu"]], use_container_width=True, hide_index=True)
+        else:
+            st.info("Chưa có dữ liệu bán.")
+
+    with _ch_pl_col:
+        st.markdown("**📍 Top Place theo lợi nhuận**")
+        if not sold_df.empty and "Place" in sold_df.columns:
+            _pl_df = sold_df[sold_df["Place"].astype(str).str.strip().replace("", pd.NA).notna()].copy()
+            _pl_df = _pl_df[_pl_df["Place"].astype(str).str.strip() != ""]
+            if not _pl_df.empty:
+                _pl_df["LN"] = pd.to_numeric(_pl_df["Lợi Nhuận"], errors="coerce").fillna(0)
+                _pl_perf = (
+                    _pl_df.groupby("Place", as_index=False)
+                    .agg(LN_total=("LN","sum"), Count=("LN","count"))
+                    .sort_values("LN_total", ascending=False)
+                )
+                _pl_disp = _pl_perf.rename(columns={"Count":"Số con"}).copy()
+                _pl_disp["Lợi nhuận"] = _pl_disp["LN_total"].apply(fmt_vnd)
+                st.dataframe(_pl_disp[["Place","Số con","Lợi nhuận"]], use_container_width=True, hide_index=True)
+            else:
+                st.info("Chưa có dữ liệu Place (cột Place trống hết).")
+        else:
+            st.info("Chưa có dữ liệu bán.")
+
+    # ── Phân tích khung giờ bán hàng ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">🕐 Phân tích khung giờ bán hàng</div>', unsafe_allow_html=True)
+
+    if not sold_df.empty:
+        def _extract_hour(ts_str):
+            if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+                return None
+            try:
+                dt = datetime.fromisoformat(str(ts_str))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=VN_TZ)
+                return dt.astimezone(VN_TZ).hour
+            except Exception:
+                return None
+
+        _hour_df = sold_df.copy()
+        _hour_df["Giờ"] = _hour_df["time_ban"].apply(_extract_hour)
+        _hour_df = _hour_df.dropna(subset=["Giờ"])
+        _hour_df["Giờ"] = _hour_df["Giờ"].astype(int)
+
+        if not _hour_df.empty:
+            _hour_count = (
+                _hour_df.groupby("Giờ", as_index=False)
+                .agg(Đơn=("Giờ", "count"))
+            )
+            # Fill missing hours with 0 for full 0-23 axis
+            _all_hours = pd.DataFrame({"Giờ": range(24)})
+            _hour_count = _all_hours.merge(_hour_count, on="Giờ", how="left").fillna(0)
+            _hour_count["Đơn"] = _hour_count["Đơn"].astype(int)
+
+            _peak_hour = int(_hour_count.loc[_hour_count["Đơn"].idxmax(), "Giờ"])
+            _colors = ["#f97316" if h == _peak_hour else "#3b82f6" for h in _hour_count["Giờ"]]
+
+            fig_hour = go.Figure(go.Bar(
+                x=[f"{h:02d}:00" for h in _hour_count["Giờ"]],
+                y=_hour_count["Đơn"],
+                marker_color=_colors,
+                text=_hour_count["Đơn"].apply(lambda v: str(v) if v > 0 else ""),
+                textposition="outside",
+            ))
+            fig_hour.update_layout(
+                xaxis_title="Khung giờ (giờ VN)",
+                yaxis_title="Số đơn bán",
+                margin=dict(t=30, b=40),
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                font_color="#e2e8f0",
+                xaxis=dict(tickangle=-45),
+                height=340,
+            )
+            st.plotly_chart(fig_hour, use_container_width=True)
+            st.caption(f"🔥 Khung giờ bán nhiều nhất: **{_peak_hour:02d}:00 – {_peak_hour:02d}:59** ({int(_hour_count.loc[_hour_count['Giờ']==_peak_hour,'Đơn'].values[0])} đơn)")
+        else:
+            st.info("Chưa có dữ liệu thời gian bán hàng.")
+    else:
+        st.info("Chưa có dữ liệu bán.")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 3: TỒN LÂU

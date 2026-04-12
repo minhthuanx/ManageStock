@@ -787,7 +787,19 @@ No markdown, no extra text, no explanation."""
                                 "Content-Type": "application/json"
                             }
                             
-                            st.toast("Đang dùng AI Model: Llama-3.2-90B-Vision (Groq)", icon="🦙")
+                            # Tự động lấy danh sách Model (tránh vụ model cũ bị xoá/decommissioned)
+                            target_model = "llama-3.2-90b-vision-preview" # Fallback
+                            try:
+                                m_resp = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {ai_key}"})
+                                if m_resp.status_code == 200:
+                                    m_data = m_resp.json()
+                                    vision_models = [m["id"] for m in m_data.get("data", []) if "vision" in m["id"].lower()]
+                                    if vision_models:
+                                        target_model = next((m for m in vision_models if "90b" in m.lower()), vision_models[0])
+                            except Exception:
+                                pass
+                            
+                            st.toast(f"Đang dùng AI Model: {target_model} (Groq)", icon="🦙")
 
                             for idx, img_f in enumerate(batch_imgs):
                                 progress.progress(
@@ -803,7 +815,7 @@ No markdown, no extra text, no explanation."""
                                     mime_type = img_f.type if img_f.type else "image/jpeg"
                                     
                                     payload = {
-                                        "model": "llama-3.2-90b-vision-preview",
+                                        "model": target_model,
                                         "messages": [
                                             {
                                                 "role": "user",

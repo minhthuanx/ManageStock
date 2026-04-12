@@ -825,6 +825,7 @@ No markdown, no extra text, no explanation."""
 
                 @st.dialog("🤖 Xem trước kết quả AI — Chỉnh sửa trước khi lưu", width="large")
                 def ai_preview_dialog():
+                    global pet_db
                     pet_opts_dlg   = get_name_options(pet_db)
                     trait_opts_dlg = ["None"] + get_name_options(trait_db)
                     ns_opts_dlg    = [""] + get_name_options(ns_db, fallback="")
@@ -908,7 +909,7 @@ No markdown, no extra text, no explanation."""
                                 # Auto-add new pet name to DB
                                 existing_lower = [x.lower() for x in get_name_options(pet_db)]
                                 if r["Tên Pet"].lower() not in existing_lower:
-                                    nonlocal pet_db
+
                                     pet_db = append_row(pet_db, {"Name": r["Tên Pet"]}, LIST_SCHEMA)
                                     save_csv(pet_db, PET_LIST_FILE)
 

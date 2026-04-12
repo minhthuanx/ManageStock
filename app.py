@@ -112,6 +112,9 @@ def to_db(record: dict) -> dict:
         # convert NaN / None safely
         if isinstance(v, float) and pd.isna(v):
             v = None
+        # Xử lý lỗi Supabase khi truyền chuỗi rỗng vào cột Timestamp
+        if v == "" and mapped in ["time_nhap", "time_ban"]:
+            v = None
         out[mapped] = v
     return out
 

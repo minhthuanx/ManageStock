@@ -785,7 +785,7 @@ with tab_kho:
                             progress = st.progress(0, text="Đang khởi tạo Groq AI...")
                             
                             prompt = """Extract the following from the image and return VALID JSON only:
-{"Tên Pet": "Name of the pet", "Mutation": "Normal/Gold/Diamond/Divine/Rainbow/etc", "Tốc độ": "number only before M/s or B/s e.g. 975"}
+{"Tên Pet": "Name of the pet", "Mutation": "Normal/Gold/Diamond/Divine/Rainbow/etc", "Tốc độ": "number only before M/s or B/s e.g. 975", "Số Trait": "Count the number of trait icons or medals above the pet's head. Return 'None' if 0, else return the number as string like '1', '2'"}
 No markdown, no extra text, no explanation."""
 
                             headers = {
@@ -858,7 +858,7 @@ No markdown, no extra text, no explanation."""
                                             "Tên Pet":  parsed_data.get("Tên Pet", ""),
                                             "Mutation": parsed_data.get("Mutation", "Normal"),
                                             "M/s":      parsed_data.get("Tốc độ", ""),
-                                            "Số Trait": "None",
+                                            "Số Trait": str(parsed_data.get("Số Trait", "None")),
                                             "NameStock": "",
                                             "Giá Nhập": "",
                                         })
@@ -954,7 +954,9 @@ No markdown, no extra text, no explanation."""
                                 r_ms_raw = c3d.text_input(f"M/s", value=str(res.get("M/s") or ""), key=f"dlg_ms_{i}")
 
                                 c4d, c5d, c6d = st.columns(3)
-                                r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, key=f"dlg_trait_{i}")
+                                ai_trait = str(res.get("Số Trait") or "None").strip()
+                                ti = next((j for j, t in enumerate(trait_opts_dlg) if t.lower() == ai_trait.lower()), 0)
+                                r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, index=ti, key=f"dlg_trait_{i}")
                                 r_ns    = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_ns_{i}")
                                 r_cost  = c6d.text_input(f"Giá nhập", placeholder="150", key=f"dlg_cost_{i}")
 

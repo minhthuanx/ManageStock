@@ -775,36 +775,63 @@ with tab_kho:
                             progress = st.progress(0, text="Đang khởi tạo AI...")
                             try:
                                 genai.configure(api_key=ai_key)
-                                model = genai.GenerativeModel("gemini-1.5-flash")
                                 prompt = """Extract the following from the image and return VALID JSON only:
 {"Tên Pet": "Name of the pet", "Mutation": "Normal/Gold/Diamond/Divine/Rainbow/etc", "Tốc độ": "number only before M/s or B/s e.g. 975"}
 No markdown, no extra text, no explanation."""
+                                
+                                # Fallback loop through available models
+                                model_options = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro-vision"]
+                                active_model = None
+                                
+                                for m_name in model_options:
+                                    try:
+                                        test_model = genai.GenerativeModel(m_name)
+                                        # Just initializing doesn't throw, we need it to work in the loop
+                                        active_model = test_model
+                                        break
+                                    except Exception:
+                                        pass
+                                
+                                # Use the first one in the list, if it fails during generate, we catch it per image
+                                model = active_model or genai.GenerativeModel("gemini-1.5-flash")
+
                                 for idx, img_f in enumerate(batch_imgs):
                                     progress.progress(
                                         int((idx / len(batch_imgs)) * 100),
                                         text=f"Quét ảnh {idx+1}/{len(batch_imgs)}: {img_f.name[:20]}..."
                                     )
-                                    try:
-                                        img_f.seek(0)
-                                        image = Image.open(img_f)
-                                        resp  = model.generate_content([prompt, image])
-                                        txt   = resp.text.strip()
-                                        data  = json.loads(txt[txt.find("{"):txt.rfind("}")+1])
-                                        results.append({
-                                            "_filename": img_f.name,
-                                            "_ok": True,
-                                            "Tên Pet":  data.get("Tên Pet", ""),
-                                            "Mutation": data.get("Mutation", "Normal"),
-                                            "M/s":      data.get("Tốc độ", ""),
-                                            "Số Trait": "None",
-                                            "NameStock": "",
-                                            "Giá Nhập": "",
-                                        })
-                                    except Exception as e_img:
+                                    # Retry fallback inside the generation logic
+                                    success = False
+                                    last_err = ""
+                                    img_f.seek(0)
+                                    image = Image.open(img_f)
+                                    
+                                    for m_name in model_options:
+                                        if success: break
+                                        try:
+                                            temp_model = genai.GenerativeModel(m_name)
+                                            resp = temp_model.generate_content([prompt, image])
+                                            txt   = resp.text.strip()
+                                            data  = json.loads(txt[txt.find("{"):txt.rfind("}")+1])
+                                            results.append({
+                                                "_filename": img_f.name,
+                                                "_ok": True,
+                                                "Tên Pet":  data.get("Tên Pet", ""),
+                                                "Mutation": data.get("Mutation", "Normal"),
+                                                "M/s":      data.get("Tốc độ", ""),
+                                                "Số Trait": "None",
+                                                "NameStock": "",
+                                                "Giá Nhập": "",
+                                            })
+                                            success = True
+                                        except Exception as e_img:
+                                            last_err = str(e_img)
+                                    
+                                    if not success:
                                         results.append({
                                             "_filename": img_f.name,
                                             "_ok": False,
-                                            "_error": str(e_img),
+                                            "_error": last_err,
                                             "Tên Pet": "", "Mutation": "Normal",
                                             "M/s": "", "Số Trait": "None",
                                             "NameStock": "", "Giá Nhập": "",

@@ -719,72 +719,251 @@ with tab_kho:
         with st.container(border=True):
             st.markdown('<div class="sec-heading">📥 Nhập Kho</div>', unsafe_allow_html=True)
 
-            # AI Vision
-            with st.expander("✨ Điền tự động bằng AI (chụp ảnh)", expanded=False):
+            # =========================================================
+            # AI VISION – Key setup + multi-image + dialog preview
+            # =========================================================
+            with st.expander("✨ Nhập hàng loạt bằng AI Vision", expanded=st.session_state.get("ai_expander", False)):
+
+                # ── STEP 1: API KEY ──
+                ai_key_input = st.text_input(
+                    "🔑 Gemini API Key",
+                    type="password",
+                    value=st.session_state.get("gemini_key", ""),
+                    placeholder="AIza...",
+                    help="Lấy miễn phí tại aistudio.google.com",
+                )
+                if ai_key_input:
+                    st.session_state.gemini_key = ai_key_input
+
                 ai_key = st.session_state.get("gemini_key", "")
+
                 if not ai_key:
-                    st.info("Nhập Gemini API Key ở sidebar trái.")
+                    st.info("🔐 Nhập Gemini API Key ở trên để bắt đầu.")
                 else:
-                    tab_cam, tab_up = st.tabs(["📸 Camera", "📁 Upload"])
-                    img_data = None
-                    with tab_cam:
-                        cam = st.camera_input("Chụp", label_visibility="collapsed")
-                        if cam:
-                            img_data = cam
-                    with tab_up:
-                        upl = st.file_uploader("Ảnh", type=["png","jpg","jpeg"], label_visibility="collapsed")
-                        if upl:
-                            img_data = upl
-                    if img_data and st.button("🚀 Quét ảnh bằng AI", type="primary", use_container_width=True):
-                        with st.spinner("AI đang nhận dạng..."):
+                    # Test connection badge
+                    st.success("✅ Kết nối sẵn sàng — Bắt đầu upload ảnh bên dưới")
+
+                    # ── STEP 2: MULTI-IMAGE UPLOAD ──
+                    st.markdown("**📷 Upload nhiều ảnh Pet (hỗ trợ phân tích hàng loạt)**")
+                    batch_imgs = st.file_uploader(
+                        "Chọn ảnh",
+                        type=["png", "jpg", "jpeg", "webp"],
+                        accept_multiple_files=True,
+                        label_visibility="collapsed",
+                        key="ai_batch_upload",
+                    )
+
+                    if batch_imgs:
+                        st.caption(f"🖼️ Đã chọn **{len(batch_imgs)}** ảnh")
+                        # Preview thumbnails
+                        thumb_cols = st.columns(min(len(batch_imgs), 5))
+                        for i, img_f in enumerate(batch_imgs[:5]):
+                            with thumb_cols[i]:
+                                st.image(img_f, use_container_width=True, caption=img_f.name[:12])
+                        if len(batch_imgs) > 5:
+                            st.caption(f"+ {len(batch_imgs)-5} ảnh khác...")
+
+                        scan_btn = st.button(
+                            f"🚀 Quét {len(batch_imgs)} ảnh bằng AI",
+                            type="primary",
+                            use_container_width=True,
+                            key="btn_ai_scan_batch",
+                        )
+
+                        if scan_btn:
+                            results = []
+                            progress = st.progress(0, text="Đang khởi tạo AI...")
                             try:
                                 genai.configure(api_key=ai_key)
                                 model = genai.GenerativeModel("gemini-1.5-flash")
-                                image = Image.open(img_data)
-                                prompt = '''Extract the following from the image and return VALID JSON only:
-{"Tên Pet": "...", "Mutation": "Normal/Gold/Diamond/etc", "Tốc độ": "number only e.g. 975"}
-No markdown, no extra text.'''
-                                resp = model.generate_content([prompt, image])
-                                txt = resp.text
-                                data = json.loads(txt[txt.find("{"):txt.rfind("}")+1])
-                                st.session_state.ai_pet = data.get("Tên Pet","")
-                                st.session_state.ai_mut = data.get("Mutation","Normal")
-                                st.session_state.ai_spd = data.get("Tốc độ","")
-                                st.toast(f"✅ {data.get('Tên Pet')} | {data.get('Mutation')} | {data.get('Tốc độ')}M/s", icon="🤖")
+                                prompt = """Extract the following from the image and return VALID JSON only:
+{"Tên Pet": "Name of the pet", "Mutation": "Normal/Gold/Diamond/Divine/Rainbow/etc", "Tốc độ": "number only before M/s or B/s e.g. 975"}
+No markdown, no extra text, no explanation."""
+                                for idx, img_f in enumerate(batch_imgs):
+                                    progress.progress(
+                                        int((idx / len(batch_imgs)) * 100),
+                                        text=f"Quét ảnh {idx+1}/{len(batch_imgs)}: {img_f.name[:20]}..."
+                                    )
+                                    try:
+                                        img_f.seek(0)
+                                        image = Image.open(img_f)
+                                        resp  = model.generate_content([prompt, image])
+                                        txt   = resp.text.strip()
+                                        data  = json.loads(txt[txt.find("{"):txt.rfind("}")+1])
+                                        results.append({
+                                            "_filename": img_f.name,
+                                            "_ok": True,
+                                            "Tên Pet":  data.get("Tên Pet", ""),
+                                            "Mutation": data.get("Mutation", "Normal"),
+                                            "M/s":      data.get("Tốc độ", ""),
+                                            "Số Trait": "None",
+                                            "NameStock": "",
+                                            "Giá Nhập": "",
+                                        })
+                                    except Exception as e_img:
+                                        results.append({
+                                            "_filename": img_f.name,
+                                            "_ok": False,
+                                            "_error": str(e_img),
+                                            "Tên Pet": "", "Mutation": "Normal",
+                                            "M/s": "", "Số Trait": "None",
+                                            "NameStock": "", "Giá Nhập": "",
+                                        })
+                                progress.progress(100, text="Hoàn thành!")
+                                st.session_state.ai_batch_results = results
+                                st.session_state.ai_show_dialog = True
+                                st.rerun()
                             except Exception as e:
-                                st.error(f"AI lỗi: {e}")
+                                progress.empty()
+                                st.error(f"❌ Lỗi AI: {e}")
 
+            # =========================================================
+            # DIALOG PREVIEW + EDIT (hiện khi có kết quả AI)
+            # =========================================================
+            if st.session_state.get("ai_show_dialog") and st.session_state.get("ai_batch_results"):
+                results = st.session_state.ai_batch_results
+
+                @st.dialog("🤖 Xem trước kết quả AI — Chỉnh sửa trước khi lưu", width="large")
+                def ai_preview_dialog():
+                    pet_opts_dlg   = get_name_options(pet_db)
+                    trait_opts_dlg = ["None"] + get_name_options(trait_db)
+                    ns_opts_dlg    = [""] + get_name_options(ns_db, fallback="")
+
+                    st.caption(f"🖼️ {len(results)} ảnh đã quét — Kiểm tra và chỉnh sửa rồi bấm Lưu tất cả")
+
+                    edited_rows = []
+                    all_valid = True
+
+                    for i, res in enumerate(results):
+                        fname = res.get("_filename", f"Image {i+1}")
+                        is_ok = res.get("_ok", False)
+
+                        with st.expander(
+                            f"🖼️ {fname}" + (" — ❌ Lỗi nhận dạng" if not is_ok else ""),
+                            expanded=True,
+                        ):
+                            if not is_ok:
+                                st.warning(f"⚠️ AI không đọc được ảnh này: {res.get('_error','')} — Bạn có thể điền thủ công bên dưới.")
+
+                            c1d, c2d, c3d = st.columns(3)
+
+                            # Tên Pet
+                            ai_name = res.get("Tên Pet", "")
+                            if ai_name and ai_name.lower() not in [x.lower() for x in pet_opts_dlg]:
+                                # Tự thêm vào list nếu chưa có
+                                pet_opts_dlg = [ai_name] + pet_opts_dlg
+                            pi = next((j for j, x in enumerate(pet_opts_dlg) if x.lower() == ai_name.lower()), 0)
+                            r_name = c1d.selectbox(f"Tên Pet", pet_opts_dlg, index=pi, key=f"dlg_name_{i}")
+
+                            # Mutation
+                            ai_mut_v = res.get("Mutation", "Normal")
+                            mi = next((j for j, m in enumerate(MUTATION_OPTIONS) if m.lower() == ai_mut_v.lower()), 0)
+                            r_mut = c2d.selectbox(f"Mutation", MUTATION_OPTIONS, index=mi, key=f"dlg_mut_{i}")
+
+                            # M/s
+                            r_ms_raw = c3d.text_input(f"M/s", value=str(res.get("M/s","")), key=f"dlg_ms_{i}")
+
+                            c4d, c5d, c6d = st.columns(3)
+                            r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, key=f"dlg_trait_{i}")
+                            r_ns    = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_ns_{i}")
+                            r_cost  = c6d.text_input(f"Giá nhập (VNĐ)", placeholder="150000", key=f"dlg_cost_{i}")
+
+                            r_ms = parse_usd(r_ms_raw)
+                            err_row = []
+                            if not r_name or r_name == "None": err_row.append("Tên Pet")
+                            if r_ms <= 0:  err_row.append("M/s")
+                            if not r_ns.strip(): err_row.append("NameStock")
+                            if parse_vnd(r_cost) <= 0: err_row.append("Giá nhập")
+                            if err_row:
+                                st.warning(f"⚠️ Cần điền: {', '.join(err_row)}")
+                                all_valid = False
+
+                            edited_rows.append({
+                                "Tên Pet":  r_name,
+                                "Mutation": r_mut,
+                                "M/s":      r_ms,
+                                "Số Trait": r_trait,
+                                "NameStock": r_ns,
+                                "Giá Nhập": parse_vnd(r_cost),
+                                "_valid":   len(err_row) == 0,
+                            })
+
+                    st.markdown("---")
+                    col_cancel, col_save = st.columns([1, 2])
+                    with col_cancel:
+                        if st.button("❌ Hủy", use_container_width=True):
+                            st.session_state.ai_show_dialog = False
+                            st.session_state.ai_batch_results = []
+                            st.rerun()
+
+                    with col_save:
+                        valid_count = sum(1 for r in edited_rows if r["_valid"])
+                        save_label = f"💾 Lưu {valid_count}/{len(edited_rows)} pet hợp lệ"
+                        if st.button(save_label, type="primary", use_container_width=True, disabled=valid_count == 0):
+                            saved = 0
+                            current_df = st.session_state.df
+                            for r in edited_rows:
+                                if not r["_valid"]:
+                                    continue
+                                # Auto-add new pet name to DB
+                                existing_lower = [x.lower() for x in get_name_options(pet_db)]
+                                if r["Tên Pet"].lower() not in existing_lower:
+                                    nonlocal pet_db
+                                    pet_db = append_row(pet_db, {"Name": r["Tên Pet"]}, LIST_SCHEMA)
+                                    save_csv(pet_db, PET_LIST_FILE)
+
+                                stt = next_id(current_df, "STT")
+                                ts  = now_iso()
+                                new_row = {
+                                    "STT":        stt,
+                                    "Tên Pet":    r["Tên Pet"],
+                                    "M/s":        r["M/s"],
+                                    "Mutation":   r["Mutation"],
+                                    "Số Trait":   r["Số Trait"],
+                                    "NameStock":  r["NameStock"],
+                                    "Giá Nhập":   r["Giá Nhập"],
+                                    "Giá Bán":    0.0,
+                                    "Lợi Nhuận":  0.0,
+                                    "Doanh Thu":  0.0,
+                                    "Ngày Nhập":  now_str(),
+                                    "Ngày Bán":   "-",
+                                    "Auto Title": generate_auto_title(
+                                        r["Tên Pet"], r["Mutation"], r["Số Trait"], r["M/s"], r["NameStock"]
+                                    ),
+                                    "Trạng Thái": "Còn hàng",
+                                    "time_nhap":  ts,
+                                    "time_ban":   "",
+                                    "Ngày Tồn":   0,
+                                    "Place":      "",
+                                }
+                                current_df = append_row(current_df, new_row, MAIN_SCHEMA)
+                                if USE_SUPABASE:
+                                    sb_insert("inventory", to_db(new_row))
+                                saved += 1
+
+                            current_df = apply_ngay_ton(current_df)
+                            st.session_state.df = current_df
+                            st.session_state.ai_show_dialog = False
+                            st.session_state.ai_batch_results = []
+                            st.session_state.ai_expander = False
+                            st.toast(f"✅ Đã lưu {saved} pet lẻ thành công!", icon="💾")
+                            st.rerun()
+
+                ai_preview_dialog()
+
+            # =========================================================
+            # NHẬP THỦ CÔNG (Always visible)
+            # =========================================================
+            st.markdown("**📝 Nhập thủ công**")
             pet_opts   = get_name_options(pet_db)
             trait_opts = ["None"] + get_name_options(trait_db)
             ns_opts    = [""] + get_name_options(ns_db, fallback="")
 
-            # Determine AI defaults
-            ai_pet = str(st.session_state.get("ai_pet",""))
-            ai_mut = str(st.session_state.get("ai_mut","Normal"))
-            ai_spd = str(st.session_state.get("ai_spd",""))
-
-            if ai_pet and ai_pet.lower() not in ("none",""):
-                existing_lower = [x.lower() for x in pet_opts]
-                if ai_pet.lower() not in existing_lower:
-                    pet_db = append_row(pet_db, {"Name": ai_pet}, LIST_SCHEMA)
-                    save_csv(pet_db, PET_LIST_FILE)
-                    pet_opts = get_name_options(pet_db)
-            default_pet_idx = 0
-            for i, o in enumerate(pet_opts):
-                if o.lower() == ai_pet.lower():
-                    default_pet_idx = i
-                    break
-            default_mut_idx = 0
-            for i, m in enumerate(MUTATION_OPTIONS):
-                if m.lower() == ai_mut.lower():
-                    default_mut_idx = i
-                    break
-
-            with st.form("form_nhap_le", clear_on_submit=False):
-                p_name = st.selectbox("Tên Pet", pet_opts, index=default_pet_idx)
+            with st.form("form_nhap_le", clear_on_submit=True):
+                p_name = st.selectbox("Tên Pet", pet_opts)
                 c1, c2, c3 = st.columns(3)
-                ms_raw   = c1.text_input("M/s", value=ai_spd, placeholder="VD: 975")
-                p_mut    = c2.selectbox("Mutation", MUTATION_OPTIONS, index=default_mut_idx)
+                ms_raw   = c1.text_input("M/s", placeholder="VD: 975")
+                p_mut    = c2.selectbox("Mutation", MUTATION_OPTIONS)
                 p_trait  = c3.selectbox("Số Trait", trait_opts)
                 c4, c5 = st.columns([1.5, 1])
                 p_ns       = c4.selectbox("NameStock", ns_opts)
@@ -829,11 +1008,7 @@ No markdown, no extra text.'''
                     st.session_state.df = df
                     if USE_SUPABASE:
                         sb_insert("inventory", to_db(row))
-                    # Clear AI state
-                    for k in ("ai_pet","ai_mut","ai_spd"):
-                        st.session_state.pop(k, None)
                     st.toast("✅ Đã lưu pet lẻ!", icon="💾")
-                    # Show title for quick copy
                     st.info("📋 Copy title nhanh:")
                     st.code(row["Auto Title"], language="text")
                     st.rerun()

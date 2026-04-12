@@ -956,9 +956,15 @@ with tab_kho:
                             results = []
                             progress = st.progress(0, text="Đang khởi tạo Groq AI...")
                             
-                            prompt = """Extract the following from the image and return VALID JSON only:
-{"Tên Pet": "Name of the pet", "Mutation": "Normal/Gold/Diamond/Divine/Rainbow/etc", "Tốc độ": "Normalize to Millions (M/s). If image says '1.2B/s', return '1200'. If '975M/s', return '975'. Always return a number.", "Số Trait": "Count the number of trait icons or medals above the pet's head. Return 'None' if 0, else return the number as string like '1', '2'"}
-No markdown, no extra text, no explanation."""
+                            prompt = """This is a screenshot from the Roblox game "Steal a Brainrot". Each brainrot (pet) has an info panel above it showing: its name, speed ($/s), optional mutation indicator, and optional trait icons.
+
+Extract and return VALID JSON only (no markdown, no extra text):
+{
+  "Tên Pet": "The brainrot's name as shown in the info panel (e.g. 'Tralalero Tralala', 'Bombardiro Crocodilo')",
+  "Mutation": "Detect the mutation from visual cues or text labels. Mutations change the pet's color/glow: Gold=golden/yellow tint, Diamond=blue/crystal shimmer, Divine=white heavenly glow, Rainbow=multicolor sparkles, Bloodrot=dark red tint, Candy=pastel candy swirl, Lava=orange molten glow, Galaxy=purple starfield aura, Yin-Yang=black+white balanced glow, Radioactive=green radioactive glow, Cursed=dark purple aura, Celestial=stars/celestial shimmer. If no special color/glow is visible, return 'Normal'.",
+  "Tốc độ": "The speed/income value shown near the pet. Normalize to Millions (M number only). Examples: '1.2B/s' → '1200', '975M/s' → '975', '500K/s' → '0.5'. Always return a plain number string.",
+  "Số Trait": "Count the small trait ICONS/SYMBOLS displayed in the pet's info panel (NOT the pet model decorations). In Steal a Brainrot, traits appear as small distinct icons in a row within the info card. Known trait symbols include: asteroid, shark fin, hat, Bombardiro Crocodilo face, spider/web, graffiti spray, taco, glitch pixel, crab claw, fire/flame, three sparkles, nyan cat, white flash, strawberry, raindrop, snowflake, star. Count how many of these distinct icon symbols you see in the info panel. Return 'None' if 0 traits, else return the count as a string like '1', '2', '3'."
+}"""
 
                             headers = {
                                 "Authorization": f"Bearer {ai_key}",

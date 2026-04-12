@@ -1351,16 +1351,18 @@ No markdown, no extra text, no explanation."""
         view_df = df.copy()
         show_all = True
 
-    # Áp dụng tìm kiếm text
+    # Áp dụng tìm kiếm text – token-based: mỗi từ phải xuất hiện ở ít nhất 1 cột
     if inv_search.strip():
-        q_inv = inv_search.strip()
-        mask = (
-            view_df["STT"].astype(str).str.contains(q_inv, case=False, na=False, regex=False) |
-            view_df["Tên Pet"].astype(str).str.contains(q_inv, case=False, na=False, regex=False) |
-            view_df["Mutation"].astype(str).str.contains(q_inv, case=False, na=False, regex=False) |
-            view_df["NameStock"].astype(str).str.contains(q_inv, case=False, na=False, regex=False) |
-            view_df["Auto Title"].astype(str).str.contains(q_inv, case=False, na=False, regex=False)
-        )
+        # Chuẩn hoá: bỏ dấu '-', tách thành tokens
+        _tokens = re.split(r'[\s\-]+', inv_search.strip().lower())
+        _tokens = [t for t in _tokens if t]
+        _search_cols = ["STT","Tên Pet","Mutation","NameStock","Số Trait","Auto Title","Place"]
+        _haystack = view_df[[c for c in _search_cols if c in view_df.columns]] \
+            .astype(str).apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
+        _combined = _haystack.apply(lambda row: ' '.join(row), axis=1)
+        mask = pd.Series([True] * len(view_df), index=view_df.index)
+        for _tok in _tokens:
+            mask &= _combined.str.contains(_tok, regex=False, na=False)
         view_df = view_df[mask]
 
     display_cols = ["id","STT","Tên Pet","M/s","Mutation","Số Trait","NameStock",
@@ -1911,11 +1913,15 @@ with tab_pack:
     elif bulk_status_filter == "⛔ Sold Out":
         view_bulk_base = view_bulk_base[view_bulk_base["Trạng Thái"].astype(str) == "Sold Out"]
     if bulk_search.strip():
-        q_bk = bulk_search.strip()
-        bk_mask = (
-            view_bulk_base["Tên Lô"].astype(str).str.contains(q_bk, case=False, na=False, regex=False) |
-            view_bulk_base["Auto Title"].astype(str).str.contains(q_bk, case=False, na=False, regex=False)
-        )
+        _tokens_bk = re.split(r'[\s\-]+', bulk_search.strip().lower())
+        _tokens_bk = [t for t in _tokens_bk if t]
+        _bk_cols = ["Tên Lô","Auto Title"]
+        _bk_haystack = view_bulk_base[[c for c in _bk_cols if c in view_bulk_base.columns]] \
+            .astype(str).apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
+        _bk_combined = _bk_haystack.apply(lambda row: ' '.join(row), axis=1)
+        bk_mask = pd.Series([True] * len(view_bulk_base), index=view_bulk_base.index)
+        for _tok in _tokens_bk:
+            bk_mask &= _bk_combined.str.contains(_tok, regex=False, na=False)
         view_bulk_base = view_bulk_base[bk_mask]
 
     _bk3.metric("Kết quả", len(view_bulk_base))

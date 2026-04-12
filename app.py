@@ -902,124 +902,6 @@ with st.sidebar:
         st.progress(_goal_pct, text=f"{fmt_vnd(_today_profit)} / {fmt_vnd(_daily_target_val)} ({_goal_pct*100:.0f}%)")
     st.markdown("---")
 
-    # ── AJ: Streak & Achievements ──
-    _all_sold_sb = df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)].copy()
-
-    def _parse_ban_date(ts_str):
-        if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
-            return None
-        try:
-            dt = datetime.fromisoformat(str(ts_str))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=VN_TZ)
-            return dt.astimezone(VN_TZ).date()
-        except Exception:
-            return None
-
-    _ban_dates = _all_sold_sb["time_ban"].apply(_parse_ban_date).dropna()
-    _unique_days = sorted(set(_ban_dates), reverse=True)
-    _streak = 0
-    if _unique_days:
-        _check = _today_date
-        for _d in _unique_days:
-            if _d == _check:
-                _streak += 1
-                _check = _check - __import__("datetime").timedelta(days=1)
-            elif _d < _check:
-                break
-
-    _total_sold = len(_all_sold_sb)
-    _MILESTONES = [
-        (500, "🏆 Legend Trader"),
-        (200, "💎 Diamond Seller"),
-        (100, "🥇 Century Club"),
-        (50,  "🥈 Half Century"),
-        (20,  "🥉 Getting Started"),
-        (1,   "🌱 First Sale"),
-    ]
-    _badge = next((b for n, b in _MILESTONES if _total_sold >= n), None)
-
-    st.markdown("**🏅 Thành tích**")
-    _str1, _str2 = st.columns(2)
-    _streak_icon = "🔥" if _streak >= 3 else ("✨" if _streak >= 1 else "💤")
-    _str1.metric("Streak hiện tại", f"{_streak_icon} {_streak} ngày")
-    _str2.metric("Tổng đã bán", f"{_total_sold} con")
-    if _badge:
-        st.caption(f"Danh hiệu: **{_badge}**")
-    _next_milestone = next(((n, b) for n, b in reversed(_MILESTONES) if _total_sold < n), None)
-    if _next_milestone:
-        st.caption(f"🎯 Đến **{_next_milestone[1]}**: còn **{_next_milestone[0] - _total_sold}** con")
-    st.markdown("---")
-
-    # ── AK: Personal Records ──
-    st.markdown("**🌟 Kỷ lục cá nhân**")
-    if not _all_sold_sb.empty:
-        _ln_col = pd.to_numeric(_all_sold_sb["Lợi Nhuận"], errors="coerce").fillna(0)
-        _ton_col = pd.to_numeric(_all_sold_sb["Ngày Tồn"], errors="coerce").fillna(999)
-
-        _best_ln_idx = _ln_col.idxmax()
-        _best_ln_row = _all_sold_sb.loc[_best_ln_idx]
-        _best_ln_val = _ln_col[_best_ln_idx]
-
-        _fast_idx = _ton_col[_ton_col >= 0].idxmin()
-        _fast_row = _all_sold_sb.loc[_fast_idx]
-        _fast_days = int(_ton_col[_fast_idx])
-
-        # Best single day profit
-        _all_sold_sb["_ban_date"] = _all_sold_sb["time_ban"].apply(_parse_ban_date)
-        _day_profit = (
-            _all_sold_sb.dropna(subset=["_ban_date"])
-            .assign(_ln=lambda d: pd.to_numeric(d["Lợi Nhuận"], errors="coerce").fillna(0))
-            .groupby("_ban_date")["_ln"].sum()
-        )
-        _best_day_date = _day_profit.idxmax() if not _day_profit.empty else None
-        _best_day_val  = float(_day_profit.max()) if not _day_profit.empty else 0.0
-
-        st.caption(f"💰 Deal lãi nhất: **{fmt_vnd(_best_ln_val)}** — {str(_best_ln_row.get('Tên Pet','?'))[:18]}")
-        st.caption(f"⚡ Bán nhanh nhất: **{_fast_days} ngày** — {str(_fast_row.get('Tên Pet','?'))[:18]}")
-        if _best_day_date:
-            st.caption(f"📅 Ngày doanh thu kỷ lục: **{_best_day_date}** ({fmt_vnd(_best_day_val)})")
-    else:
-        st.caption("Chưa có dữ liệu bán để tính kỷ lục.")
-    st.markdown("---")
-
-    # ── Mốc lợi nhuận tích lũy ──
-    _total_ln_all = float(
-        pd.to_numeric(
-            df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)]["Lợi Nhuận"],
-            errors="coerce"
-        ).fillna(0).sum()
-    )
-    _LN_MILESTONES = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]  # triệu VNĐ
-    _ln_m = _total_ln_all / 1_000_000  # quy về triệu
-    # Tìm mốc tiếp theo chưa đạt
-    _next_ms = next((m for m in _LN_MILESTONES if _ln_m < m), None)
-    _last_ms = next((m for m in reversed(_LN_MILESTONES) if _ln_m >= m), None)
-
-    st.markdown("**💹 Lợi nhuận tích lũy**")
-    st.caption(f"Tổng lãi đã đạt: **{fmt_vnd(_total_ln_all)}**")
-
-    if _next_ms:
-        _base = _last_ms * 1_000_000 if _last_ms else 0
-        _target = _next_ms * 1_000_000
-        _seg_pct = min((_total_ln_all - _base) / (_target - _base), 1.0) if _target > _base else 1.0
-        st.progress(
-            max(_seg_pct, 0.0),
-            text=f"Mốc {_next_ms}M: {fmt_vnd(_total_ln_all)} / {fmt_vnd(_target)} ({_seg_pct*100:.0f}%)"
-        )
-    else:
-        st.progress(1.0, text="🏆 Đã vượt 100M tích lũy!")
-
-    # Mini checklist các mốc
-    _ms_cols = st.columns(5)
-    for _ci, _ms in enumerate(_LN_MILESTONES):
-        _done = _ln_m >= _ms
-        _ms_cols[_ci % 5].markdown(
-            f"{'✅' if _done else '⬜'} **{_ms}M**",
-            unsafe_allow_html=False,
-        )
-    st.markdown("---")
-
     if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
         st.cache_data.clear()
         del st.session_state["initialized"]
@@ -2548,6 +2430,108 @@ with tab_chart:
             _margin_pct = (_margin / _mkt_price * 100) if _mkt_price > 0 else 0
             _color = "✅" if _margin > 0 else "⚠️"
             st.info(f"{_color} Nếu bán ở **{_mkt_price:.2f}$** với giá nhập TB **{_avg_cost_usd:.2f}$** → lãi ước tính **{_margin:.2f}$** ({_margin_pct:.1f}%)")
+
+    # ── AJ: Streak & Thành tích ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">🏅 Thành tích & Kỷ lục</div>', unsafe_allow_html=True)
+
+    _all_sold_ch = sold_df.copy()
+
+    def _parse_ban_date_ch(ts_str):
+        if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+            return None
+        try:
+            dt = datetime.fromisoformat(str(ts_str))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=VN_TZ)
+            return dt.astimezone(VN_TZ).date()
+        except Exception:
+            return None
+
+    _today_ch = now_vn().date()
+    _ban_dates_ch = _all_sold_ch["time_ban"].apply(_parse_ban_date_ch).dropna()
+    _unique_days_ch = sorted(set(_ban_dates_ch), reverse=True)
+    _streak_ch = 0
+    if _unique_days_ch:
+        _chk = _today_ch
+        for _d in _unique_days_ch:
+            if _d == _chk:
+                _streak_ch += 1
+                _chk = _chk - __import__("datetime").timedelta(days=1)
+            elif _d < _chk:
+                break
+
+    _total_sold_ch = len(_all_sold_ch)
+    _SELL_MILESTONES = [
+        (500, "🏆 Legend Trader"),
+        (200, "💎 Diamond Seller"),
+        (100, "🥇 Century Club"),
+        (50,  "🥈 Half Century"),
+        (20,  "🥉 Getting Started"),
+        (1,   "🌱 First Sale"),
+    ]
+    _badge_ch = next((b for n, b in _SELL_MILESTONES if _total_sold_ch >= n), None)
+    _next_sell_ms = next(((n, b) for n, b in reversed(_SELL_MILESTONES) if _total_sold_ch < n), None)
+    _streak_icon_ch = "🔥" if _streak_ch >= 3 else ("✨" if _streak_ch >= 1 else "💤")
+
+    _ach_c1, _ach_c2, _ach_c3 = st.columns(3)
+    _ach_c1.metric("Streak", f"{_streak_icon_ch} {_streak_ch} ngày")
+    _ach_c2.metric("Tổng đã bán", f"{_total_sold_ch} con")
+    _ach_c3.metric("Danh hiệu", _badge_ch or "—")
+    if _next_sell_ms:
+        st.caption(f"🎯 Đến **{_next_sell_ms[1]}**: còn **{_next_sell_ms[0] - _total_sold_ch}** con nữa")
+
+    # ── AK: Personal Records ──
+    st.markdown("**🌟 Kỷ lục cá nhân**")
+    if not _all_sold_ch.empty:
+        _ln_col_ch = pd.to_numeric(_all_sold_ch["Lợi Nhuận"], errors="coerce").fillna(0)
+        _ton_col_ch = pd.to_numeric(_all_sold_ch["Ngày Tồn"], errors="coerce").fillna(999)
+
+        _best_ln_row_ch = _all_sold_ch.loc[_ln_col_ch.idxmax()]
+        _best_ln_val_ch = float(_ln_col_ch.max())
+        _fast_valid = _ton_col_ch[_ton_col_ch >= 0]
+        _fast_row_ch = _all_sold_ch.loc[_fast_valid.idxmin()] if not _fast_valid.empty else None
+        _fast_days_ch = int(_fast_valid.min()) if not _fast_valid.empty else 0
+
+        _day_df_ch = _all_sold_ch.copy()
+        _day_df_ch["_bd"] = _day_df_ch["time_ban"].apply(_parse_ban_date_ch)
+        _day_df_ch["_ln"] = pd.to_numeric(_day_df_ch["Lợi Nhuận"], errors="coerce").fillna(0)
+        _day_profit_ch = _day_df_ch.dropna(subset=["_bd"]).groupby("_bd")["_ln"].sum()
+        _best_day_ch = _day_profit_ch.idxmax() if not _day_profit_ch.empty else None
+        _best_day_val_ch = float(_day_profit_ch.max()) if not _day_profit_ch.empty else 0.0
+
+        _rec_c1, _rec_c2, _rec_c3 = st.columns(3)
+        _rec_c1.metric("💰 Deal lãi nhất", fmt_vnd(_best_ln_val_ch),
+                       help=str(_best_ln_row_ch.get('Tên Pet','?')))
+        _rec_c2.metric("⚡ Bán nhanh nhất", f"{_fast_days_ch} ngày",
+                       help=str(_fast_row_ch.get('Tên Pet','?')) if _fast_row_ch is not None else "")
+        _rec_c3.metric("📅 Ngày khủng", fmt_vnd(_best_day_val_ch),
+                       help=str(_best_day_ch) if _best_day_ch else "")
+    else:
+        st.info("Chưa có dữ liệu bán.")
+
+    # ── Mốc lợi nhuận tích lũy ──
+    st.markdown("**💹 Mốc lợi nhuận tích lũy**")
+    _total_ln_ch = float(_ln_col_ch.sum()) if not _all_sold_ch.empty else 0.0
+    _ln_m_ch = _total_ln_ch / 1_000_000
+    _LN_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    _nxt_ln_ms = next((m for m in _LN_MS if _ln_m_ch < m), None)
+    _lst_ln_ms = next((m for m in reversed(_LN_MS) if _ln_m_ch >= m), None)
+    st.caption(f"Tổng lãi tích lũy: **{fmt_vnd(_total_ln_ch)}**")
+    if _nxt_ln_ms:
+        _base_ch = (_lst_ln_ms or 0) * 1_000_000
+        _tgt_ch = _nxt_ln_ms * 1_000_000
+        _pct_ch = min((_total_ln_ch - _base_ch) / (_tgt_ch - _base_ch), 1.0) if _tgt_ch > _base_ch else 1.0
+        st.progress(max(_pct_ch, 0.0),
+                    text=f"Mốc {_nxt_ln_ms}M: {fmt_vnd(_total_ln_ch)} / {fmt_vnd(_tgt_ch)} ({_pct_ch*100:.0f}%)")
+    else:
+        st.progress(1.0, text="🏆 Đã vượt 100M tích lũy!")
+    _ms_row1, _ms_row2 = st.columns(5), st.columns(5)
+    for _ci, _ms in enumerate(_LN_MS):
+        _done = _ln_m_ch >= _ms
+        (_ms_row1 if _ci < 5 else _ms_row2)[_ci % 5].markdown(
+            f"{'✅' if _done else '⬜'} **{_ms}M**"
+        )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 3: TỒN LÂU

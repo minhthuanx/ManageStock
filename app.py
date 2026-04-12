@@ -788,17 +788,23 @@ No markdown, no extra text, no explanation."""
                             }
                             
                             # Tự động lấy danh sách Model (tránh vụ model cũ bị xoá/decommissioned)
-                            target_model = "llama-3.2-90b-vision-preview" # Fallback
+                            target_model = None
+                            all_models = []
                             try:
                                 m_resp = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {ai_key}"})
                                 if m_resp.status_code == 200:
                                     m_data = m_resp.json()
-                                    vision_models = [m["id"] for m in m_data.get("data", []) if "vision" in m["id"].lower()]
+                                    all_models = [m["id"] for m in m_data.get("data", [])]
+                                    vision_models = [m for m in all_models if any(k in m.lower() for k in ["vision", "scout", "pixtral", "vl"])]
                                     if vision_models:
-                                        target_model = next((m for m in vision_models if "90b" in m.lower()), vision_models[0])
+                                        target_model = next((m for m in vision_models if "90b" in m.lower() or "scout" in m.lower()), vision_models[0])
                             except Exception:
                                 pass
                             
+                            if not target_model:
+                                st.error(f"❌ Không tìm thấy Model Đọc Ảnh nào khả dụng cho Key của bạn! Danh sách model Groq trả về hiện tại: {', '.join(all_models)}")
+                                st.stop()
+                                
                             st.toast(f"Đang dùng AI Model: {target_model} (Groq)", icon="🦙")
 
                             for idx, img_f in enumerate(batch_imgs):

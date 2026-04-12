@@ -989,13 +989,14 @@ No markdown, no extra text, no explanation."""
                         if st.button(save_label, type="primary", use_container_width=True, disabled=valid_count == 0):
                             saved = 0
                             current_df = st.session_state.df
+                            sb_records_to_insert = []
+                            
                             for r in edited_rows:
                                 if not r["_valid"]:
                                     continue
                                 # Auto-add new pet name to DB
                                 existing_lower = [x.lower() for x in get_name_options(pet_db)]
                                 if r["Tên Pet"].lower() not in existing_lower:
-
                                     pet_db = append_row(pet_db, {"Name": r["Tên Pet"]}, LIST_SCHEMA)
                                     save_csv(pet_db, PET_LIST_FILE)
 
@@ -1004,11 +1005,11 @@ No markdown, no extra text, no explanation."""
                                 new_row = {
                                     "STT":        stt,
                                     "Tên Pet":    r["Tên Pet"],
-                                    "M/s":        r["M/s"],
+                                    "M/s":        float(r["M/s"]),
                                     "Mutation":   r["Mutation"],
                                     "Số Trait":   r["Số Trait"],
                                     "NameStock":  r["NameStock"],
-                                    "Giá Nhập":   r["Giá Nhập"],
+                                    "Giá Nhập":   float(r["Giá Nhập"]),
                                     "Giá Bán":    0.0,
                                     "Lợi Nhuận":  0.0,
                                     "Doanh Thu":  0.0,
@@ -1024,18 +1025,30 @@ No markdown, no extra text, no explanation."""
                                     "Place":      "",
                                 }
                                 current_df = append_row(current_df, new_row, MAIN_SCHEMA)
-                                if USE_SUPABASE:
-                                    sb_insert("inventory", to_db(new_row))
+                                sb_records_to_insert.append(to_db(new_row))
                                 saved += 1
 
-                            current_df = apply_ngay_ton(current_df)
-                            st.session_state.df = current_df
-                            st.session_state.ai_show_dialog = False
-                            st.session_state.ai_batch_results = []
-                            st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1
-                            st.session_state.ai_expander = False
-                            st.toast(f"✅ Đã lưu {saved} pet lẻ thành công!", icon="💾")
-                            st.rerun()
+                            # Đẩy 1 cục lên Supabase nếu có dữ liệu
+                            sb_ok = True
+                            if USE_SUPABASE and sb_records_to_insert:
+                                try:
+                                    supabase_client.table("inventory").insert(sb_records_to_insert).execute()
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi ghi Supabase (Database Error): {e}")
+                                    sb_ok = False
+                            
+                            if sb_ok:
+                                current_df = apply_ngay_ton(current_df)
+                                st.session_state.df = current_df
+                                save_csv(st.session_state.df, MAIN_DB_FILE)
+                                st.session_state.ai_show_dialog = False
+                                st.session_state.ai_batch_results = []
+                                st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1
+                                st.session_state.ai_expander = False
+                                st.toast(f"✅ Đã lưu {saved} pet AI thành công!", icon="🎉")
+                                import time
+                                time.sleep(1.5) # Để kịp hiển thị toast/error
+                                st.rerun()
 
                 ai_preview_dialog()
 

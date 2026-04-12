@@ -1542,8 +1542,8 @@ No markdown, no extra text, no explanation."""
     _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
     if not _copy_src.empty:
         with st.expander("📋 Copy Auto Title nhanh", expanded=False):
-            _cp1, _cp2 = st.columns([3, 1])
-            _cp_q = _cp1.text_input("Tìm pet để copy title", placeholder="Tên hoặc STT...", key="copy_title_search", label_visibility="collapsed")
+            # Full-width search — không chia cột tránh squish trên mobile
+            _cp_q = st.text_input("🔍 Tìm pet", placeholder="Tên, STT, mutation...", key="copy_title_search", label_visibility="collapsed")
             _cp_filtered = _copy_src.copy()
             if _cp_q.strip():
                 _cp_toks = re.split(r'[\s\-]+', _cp_q.strip().lower())
@@ -1555,10 +1555,16 @@ No markdown, no extra text, no explanation."""
                 for _t in _cp_toks:
                     _cp_mask &= _cp_combined.str.contains(_t, regex=False, na=False)
                 _cp_filtered = _cp_filtered[_cp_mask]
+            # Card layout: thông tin pet + code block full-width (có nút copy gốc của Streamlit)
             for _, _crow in _cp_filtered.head(10).iterrows():
-                _cc1, _cc2 = st.columns([5, 1])
-                _cc1.markdown(f"`STT {int(_crow['STT'])}` — {_crow['Auto Title'][:80]}{'...' if len(str(_crow['Auto Title']))>80 else ''}")
-                _cc2.code(_crow["Auto Title"], language=None)
+                st.markdown(
+                    f'<div style="font-size:0.78rem;color:#8b949e;margin-top:0.5rem;">'
+                    f'STT <b style="color:#38bdf8">{int(_crow["STT"])}</b> · '
+                    f'{_crow["Tên Pet"]} · <span style="color:#4ade80">{_crow["Mutation"]}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+                st.code(_crow["Auto Title"], language=None)
 
     # ── BULK SELL ──
     _bulk_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
@@ -1582,7 +1588,8 @@ No markdown, no extra text, no explanation."""
                 st.info("Không tìm thấy pet phù hợp.")
             else:
                 # Tạo bảng nhập giá từng con
-                _bs_display = _bs_df[["STT","id","Tên Pet","Mutation","M/s","Số Trait","NameStock","Giá Nhập"]].copy()
+                # Giữ id & STT trong dataframe để identify khi save, nhưng ẩn khỏi UI trên mobile
+                _bs_display = _bs_df[["STT","id","Tên Pet","Mutation","Giá Nhập"]].copy()
                 _bs_display["Giá bán ($)"] = 0.0
                 _bs_display["Place"] = ""
                 _bs_display["✓ Bán"] = False
@@ -1592,12 +1599,17 @@ No markdown, no extra text, no explanation."""
                     use_container_width=True,
                     hide_index=True,
                     num_rows="fixed",
-                    disabled=["STT","id","Tên Pet","Mutation","M/s","Số Trait","NameStock","Giá Nhập"],
+                    disabled=["STT","id","Tên Pet","Mutation","Giá Nhập"],
                     column_config={
-                        "id": st.column_config.NumberColumn("DB ID", format="%d"),
-                        "Giá Nhập": st.column_config.NumberColumn("Vốn (VNĐ)", format="%d"),
-                        "Giá bán ($)": st.column_config.NumberColumn("Giá bán ($)", min_value=0.0, step=0.5),
-                        "✓ Bán": st.column_config.CheckboxColumn("Bán?"),
+                        # Ẩn cột kỹ thuật — giữ data nhưng không chiếm chỗ trên màn hình mobile
+                        "id":       None,
+                        "STT":      None,
+                        "Tên Pet":  st.column_config.TextColumn("Pet", width="medium"),
+                        "Mutation": st.column_config.TextColumn("Mut.", width="small"),
+                        "Giá Nhập": st.column_config.NumberColumn("Vốn (₫)", format="%d", width="small"),
+                        "Giá bán ($)": st.column_config.NumberColumn("Giá ($)", min_value=0.0, step=0.5, width="small"),
+                        "Place":    st.column_config.TextColumn("Place", width="small"),
+                        "✓ Bán":    st.column_config.CheckboxColumn("Bán?", width="small"),
                     },
                 )
                 _to_sell = _bs_edited[_bs_edited["✓ Bán"] == True]

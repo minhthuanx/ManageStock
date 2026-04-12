@@ -755,8 +755,8 @@ with tab_kho:
 
                     if batch_imgs:
                         st.caption(f"🖼️ Đã chọn **{len(batch_imgs)}** ảnh")
-                        # Preview thumbnails
-                        thumb_cols = st.columns(min(len(batch_imgs), 5))
+                        # Preview thumbnails (luôn chia 5 cột để ảnh nhỏ vừa đủ)
+                        thumb_cols = st.columns(5)
                         for i, img_f in enumerate(batch_imgs[:5]):
                             with thumb_cols[i]:
                                 st.image(img_f, use_container_width=True, caption=img_f.name[:12])
@@ -888,28 +888,41 @@ No markdown, no extra text, no explanation."""
                             if not is_ok:
                                 st.warning(f"⚠️ AI không đọc được ảnh này: {res.get('_error','')} — Bạn có thể điền thủ công bên dưới.")
 
-                            c1d, c2d, c3d = st.columns(3)
+                            # Chia layout: 1 cột nhỏ hiển thị ảnh, 1 cột lớn nhập liệu
+                            img_col, form_col = st.columns([1, 3.5])
+                            
+                            with img_col:
+                                # Lấy ảnh từ session_state để preview
+                                current_files = st.session_state.get("ai_batch_upload", [])
+                                matched_img = next((f for f in current_files if f.name == fname), None)
+                                if matched_img:
+                                    st.image(matched_img, use_container_width=True)
+                                else:
+                                    st.caption("Không thể tải ảnh")
 
-                            # Tên Pet
-                            ai_name = res.get("Tên Pet", "")
-                            if ai_name and ai_name.lower() not in [x.lower() for x in pet_opts_dlg]:
-                                # Tự thêm vào list nếu chưa có
-                                pet_opts_dlg = [ai_name] + pet_opts_dlg
-                            pi = next((j for j, x in enumerate(pet_opts_dlg) if x.lower() == ai_name.lower()), 0)
-                            r_name = c1d.selectbox(f"Tên Pet", pet_opts_dlg, index=pi, key=f"dlg_name_{i}")
+                            with form_col:
+                                c1d, c2d, c3d = st.columns(3)
 
-                            # Mutation
-                            ai_mut_v = res.get("Mutation", "Normal")
-                            mi = next((j for j, m in enumerate(MUTATION_OPTIONS) if m.lower() == ai_mut_v.lower()), 0)
-                            r_mut = c2d.selectbox(f"Mutation", MUTATION_OPTIONS, index=mi, key=f"dlg_mut_{i}")
+                                # Tên Pet
+                                ai_name = res.get("Tên Pet", "")
+                                if ai_name and ai_name.lower() not in [x.lower() for x in pet_opts_dlg]:
+                                    # Tự thêm vào list nếu chưa có
+                                    pet_opts_dlg = [ai_name] + pet_opts_dlg
+                                pi = next((j for j, x in enumerate(pet_opts_dlg) if x.lower() == ai_name.lower()), 0)
+                                r_name = c1d.selectbox(f"Tên Pet", pet_opts_dlg, index=pi, key=f"dlg_name_{i}")
 
-                            # M/s
-                            r_ms_raw = c3d.text_input(f"M/s", value=str(res.get("M/s","")), key=f"dlg_ms_{i}")
+                                # Mutation
+                                ai_mut_v = res.get("Mutation", "Normal")
+                                mi = next((j for j, m in enumerate(MUTATION_OPTIONS) if m.lower() == ai_mut_v.lower()), 0)
+                                r_mut = c2d.selectbox(f"Mutation", MUTATION_OPTIONS, index=mi, key=f"dlg_mut_{i}")
 
-                            c4d, c5d, c6d = st.columns(3)
-                            r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, key=f"dlg_trait_{i}")
-                            r_ns    = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_ns_{i}")
-                            r_cost  = c6d.text_input(f"Giá nhập (VNĐ)", placeholder="150000", key=f"dlg_cost_{i}")
+                                # M/s
+                                r_ms_raw = c3d.text_input(f"M/s", value=str(res.get("M/s","")), key=f"dlg_ms_{i}")
+
+                                c4d, c5d, c6d = st.columns(3)
+                                r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, key=f"dlg_trait_{i}")
+                                r_ns    = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_ns_{i}")
+                                r_cost  = c6d.text_input(f"Giá nhập", placeholder="150", key=f"dlg_cost_{i}")
 
                             r_ms = parse_usd(r_ms_raw)
                             err_row = []

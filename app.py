@@ -174,33 +174,22 @@ def sb_upsert(table: str, records: list[dict], on_conflict: str = None) -> bool:
         st.toast(f"❌ Upsert {table}: {e}", icon="❌")
         return False
 
-def deduplicate_table(table: str, unique_col: str):
-    """Xoá các bản ghi trùng lặp trong Database, giữ lại bản ghi có ID nhỏ nhất."""
-    if not USE_SUPABASE: return
+def find_duplicates(table: str) -> pd.DataFrame:
+    """Trả về DataFrame các row bị dup hoàn toàn (trừ id) để user xem trước.”"""
+    if not USE_SUPABASE:
+        return pd.DataFrame()
     try:
         r = supabase_client.table(table).select("*").execute()
-        if not r.data: return
+        if not r.data:
+            return pd.DataFrame()
         df = pd.DataFrame(r.data)
-        # Tìm các dòng trùng lặp dựa trên unique_col (vd: auto_title)
-        dupes = df[df.duplicated(subset=[unique_col], keep=False)]
-        if dupes.empty:
-            st.info(f"✨ Bảng {table} không có dòng trùng lặp theo {unique_col}.")
-            return
-        
-        # Nhóm theo unique_col, giữ lại ID nhỏ nhất
-        to_keep = df.groupby(unique_col)['id'].min().values
-        to_delete = df[~df['id'].isin(to_keep)]['id'].tolist()
-        
-        if to_delete:
-            # Supabase delete with in_ filter
-            for i in range(0, len(to_delete), 100):
-                batch = to_delete[i:i+100]
-                supabase_client.table(table).delete().in_("id", batch).execute()
-            st.success(f"✅ Đã dọn dẹp {len(to_delete)} dòng trùng lặp trong {table}!")
-        else:
-            st.info(f"✨ Không có dòng nào cần xoá.")
+        data_cols = [c for c in df.columns if c != "id"]
+        if not data_cols:
+            return pd.DataFrame()
+        return df[df.duplicated(subset=data_cols, keep=False)].sort_values(data_cols)
     except Exception as e:
-        st.error(f"❌ Lỗi dọn dẹp {table}: {e}")
+        st.toast(f"❌ find_duplicates {table}: {e}", icon="❌")
+        return pd.DataFrame()
 
 # =============================================================================
 # CONFIGURATION
@@ -384,6 +373,22 @@ MUTATION_ICONS = {
     "radioactive": "☢️", "cursed": "😈", "rainbow": "🌈",
 }
 
+def _to_vn_iso(ts_str) -> str:
+    """Chuyển timestamp UTC từ Supabase → ISO string giờ VN (+07:00).
+    Supabase timestamptz lưu UTC nội bộ, trả về UTC khi query.
+    Hàm này đảm bảo hiển thị và tính toán luôn dùng giờ VN.
+    """
+    if not ts_str or str(ts_str).strip() in ("", "nan", "None", "null", "-"):
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(ts_str))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(VN_TZ).isoformat()
+    except Exception:
+        return str(ts_str)
+
+
 def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> str:
     icon = MUTATION_ICONS.get(str(mutation).lower(), "🌟")
     t_str = f" [{trait_str}]" if (trait_str and str(trait_str).lower() != "none") else ""
@@ -465,6 +470,10 @@ def load_inventory() -> pd.DataFrame:
                 rename_map = {c: REVERSE_MAP.get(c, c) for c in df.columns}
                 rename_map["id"] = "id"   # FORCE giữ "id" lowercase cho inventory PK
                 df = df.rename(columns=rename_map)
+                # Supabase trả time_nhap/time_ban dạng UTC → chuyển về giờ VN
+                for _tc in ["time_nhap", "time_ban"]:
+                    if _tc in df.columns:
+                        df[_tc] = df[_tc].apply(_to_vn_iso)
                 return normalize_df(df, MAIN_SCHEMA)
         except Exception as e:
             st.toast(f"❌ Load inventory: {e}", icon="❌")
@@ -2008,16 +2017,29 @@ with tab_settings:
     manage_category(cat_cols[1], "NameStock", ns_db,    NS_LIST_FILE,  "🏷️")
     manage_category(cat_cols[2], "Trait",     trait_db, TRAIT_LIST,    "🧬")
 
-    # ── Maintenance ──
+    # ── Kiểm tra trùng lặp ──
     if USE_SUPABASE:
         st.markdown("---")
-        st.markdown("### 🛠 Bảo trì Database")
+        st.markdown("### 🔍 Kiểm tra trùng lặp Database")
+        st.caption("⚠️ Hệ thống chỉ phát hiện và báo cáo — việc xóa do bạn quyết định trực tiếp trong bảng.")
         c_m1, c_m2 = st.columns(2)
-        if c_m1.button("🧹 Xoá trùng lặp theo Title (Kho Lẻ)", use_container_width=True):
-            deduplicate_table("inventory", "auto_title")
-            st.cache_data.clear()
-            st.rerun()
-        if c_m2.button("🧹 Xoá trùng lặp theo Title (Lô/Pack)", use_container_width=True):
-            deduplicate_table("bulk_inventory", "auto_title")
-            st.cache_data.clear()
-            st.rerun()
+        run_inv  = c_m1.button("🔍 Kiểm tra Kho Lẻ",  use_container_width=True)
+        run_bulk = c_m2.button("🔍 Kiểm tra Lô/Pack", use_container_width=True)
+
+        if run_inv:
+            dup_inv = find_duplicates("inventory")
+            if dup_inv.empty:
+                st.success("✨ Kho Lẻ: không có dòng trùng lặp.")
+            else:
+                st.warning(f"⚠️ Tìm thấy **{len(dup_inv)} dòng** có nội dung trùng nhau (theo Database ID):")
+                st.dataframe(dup_inv[["id"] + [c for c in dup_inv.columns if c != "id"]], use_container_width=True, hide_index=True)
+                st.caption("💡 Vào Supabase Dashboard → Table Editor → inventory → xóa thủ công các ID cần bỏ.")
+
+        if run_bulk:
+            dup_bulk = find_duplicates("bulk_inventory")
+            if dup_bulk.empty:
+                st.success("✨ Lô/Pack: không có dòng trùng lặp.")
+            else:
+                st.warning(f"⚠️ Tìm thấy **{len(dup_bulk)} dòng** có nội dung trùng nhau (theo Database ID):")
+                st.dataframe(dup_bulk[["id"] + [c for c in dup_bulk.columns if c != "id"]], use_container_width=True, hide_index=True)
+                st.caption("💡 Vào Supabase Dashboard → Table Editor → bulk_inventory → xóa thủ công các ID cần bỏ.")

@@ -312,13 +312,9 @@ def parse_vnd(s: str) -> float:
 
 
 def parse_usd(s: str) -> float:
-    s_str = str(s).upper()
-    cleaned = re.sub(r"[^0-9.]", "", s_str)
+    cleaned = re.sub(r"[^0-9.]", "", str(s))
     try:
-        val = float(cleaned) if cleaned else 0.0
-        if "B" in s_str: # Nếu là Billion thì nhân 1000 để đưa về đơn vị Millions
-            val *= 1000
-        return val
+        return float(cleaned) if cleaned else 0.0
     except ValueError:
         return 0.0
 
@@ -789,7 +785,7 @@ with tab_kho:
                             progress = st.progress(0, text="Đang khởi tạo Groq AI...")
                             
                             prompt = """Extract the following from the image and return VALID JSON only:
-{"Tên Pet": "Name of the pet", "Mutation": "Normal/Gold/Diamond/Divine/Rainbow/etc", "Tốc độ": "Normalize to Millions (M/s). If image says '1.2B/s', return '1200'. If '975M/s', return '975'. Always return a number.", "Số Trait": "Count the number of trait icons or medals above the pet's head. Return 'None' if 0, else return the number as string like '1', '2'"}
+{"Tên Pet": "Name of the pet", "Mutation": "Normal/Gold/Diamond/Divine/Rainbow/etc", "Tốc độ": "number only before M/s or B/s e.g. 975", "Số Trait": "Count the number of trait icons or medals above the pet's head. Return 'None' if 0, else return the number as string like '1', '2'"}
 No markdown, no extra text, no explanation."""
 
                             headers = {
@@ -1734,5 +1730,3 @@ with tab_settings:
     manage_category(cat_cols[0], "Pet",       pet_db,   PET_LIST_FILE, "🐾")
     manage_category(cat_cols[1], "NameStock", ns_db,    NS_LIST_FILE,  "🏷️")
     manage_category(cat_cols[2], "Trait",     trait_db, TRAIT_LIST,    "🧬")
-
-

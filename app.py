@@ -3,18 +3,10 @@ import os
 import re
 import shutil
 from datetime import datetime, timezone, timedelta
-from io import StringIO
-import traceback
 
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 import streamlit as st
-import streamlit.components.v1 as components
-
-# --- AI CONFIGURATION ---
-import google.generativeai as genai
-from PIL import Image
 
 # --- SUPABASE ---
 from supabase import create_client, Client
@@ -99,7 +91,8 @@ COL_MAP = {
     "Số Lượng Bán":         "so_luong_ban",
     "Lợi Nhuận Giao Dịch":  "loi_nhuan_giao_dich",
     "Doanh Thu Giao Dịch":  "doanh_thu_giao_dich",
-    "id":                   "id",
+    # NOTE: Không thêm "id": "id" ở đây vì sẽ gây collision với "ID": "id"
+    # và làm hỏng REVERSE_MAP cho bulk_inventory (ID=0 toàn bộ)
 }
 REVERSE_MAP = {v: k for k, v in COL_MAP.items()}
 
@@ -468,10 +461,22 @@ def load_inventory() -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def load_bulk() -> pd.DataFrame:
+    """Load bulk_inventory. Bypass sb_select/from_db để xử lý đúng 'id'→'ID'.
+    REVERSE_MAP["id"]="ID" (từ COL_MAP "ID":"id"), nhưng inventory cũng dùng
+    cột "id" nên từng bảng phải load riêng để rename đúng.
+    """
     if USE_SUPABASE:
-        df = sb_select("bulk_inventory", "id")
-        if not df.empty:
-            return normalize_df(df, BULK_SCHEMA)
+        try:
+            r = supabase_client.table("bulk_inventory").select("*").order("id").execute()
+            if r.data:
+                df = pd.DataFrame(r.data)
+                # Rename snake_case → display name, nhưng map "id" → "ID" rõ ràng
+                rename_map = {c: REVERSE_MAP.get(c, c) for c in df.columns}
+                rename_map["id"] = "ID"   # force uppercase cho bulk primary key
+                df = df.rename(columns=rename_map)
+                return normalize_df(df, BULK_SCHEMA)
+        except Exception as e:
+            st.toast(f"❌ Load bulk_inventory: {e}", icon="❌")
     return load_csv(BULK_FILE, BULK_SCHEMA)
 
 @st.cache_data(show_spinner=False, ttl=300)
@@ -532,18 +537,21 @@ def save_inventory_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
 
 def save_bulk_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
     """Sync bulk inventory to Supabase using 'id'.
-    Tách riêng UPDATE (id>0) và INSERT (id=0) để tuyệt đối tránh duplicate.
+    Tách riêng UPDATE (ID>0) và INSERT (ID=0) để tuyệt đối tránh duplicate.
+    bulk_df dùng cột 'ID' (uppercase) – khác với inventory dùng 'id' (lowercase).
     """
     if not USE_SUPABASE: return
     try:
+        # ── 1. Xoá các dòng đã bị xoá khỏi editor ──
         if not df_before.empty and not df_after.empty:
-            before_ids = set(df_before[df_before["id"] > 0]["id"].dropna().astype(int))
-            after_ids  = set(df_after[df_after["id"] > 0]["id"].dropna().astype(int))
+            before_ids = set(df_before[df_before["ID"] > 0]["ID"].dropna().astype(int))
+            after_ids  = set(df_after[df_after["ID"] > 0]["ID"].dropna().astype(int))
             for d_id in (before_ids - after_ids):
                 sb_delete("bulk_inventory", "id", d_id)
 
         records = [to_db(r) for r in df_after.to_dict("records")]
 
+        # ── 2. Phân loại: có ID thì UPDATE, không có thì INSERT mới ──
         update_records = [r for r in records if int(float(r.get("id") or 0)) > 0]
         insert_records = [r for r in records if int(float(r.get("id") or 0)) <= 0]
         for r in insert_records:
@@ -770,18 +778,6 @@ st.markdown("""
 # SIDEBAR – Gemini Key only (categories moved to Tab 4)
 # =============================================================================
 with st.sidebar:
-    st.markdown("### 🔑 Gemini AI Vision")
-    gemini_key = st.text_input(
-        "API Key",
-        type="password",
-        placeholder="Paste key tại đây...",
-        help="Lấy miễn phí tại aistudio.google.com",
-        label_visibility="collapsed",
-    )
-    if gemini_key:
-        st.session_state.gemini_key = gemini_key
-    st.caption("📌 Key được lưu trong phiên làm việc")
-
     st.markdown("---")
     st.caption(f"🕐 {now_vn().strftime('%d/%m/%Y %H:%M')} (VN)")
     if USE_SUPABASE:
@@ -1123,14 +1119,14 @@ No markdown, no extra text, no explanation."""
                                 sb_records_to_insert.append(to_db(new_row))
                                 saved += 1
 
-                            # Đẩy 1 cục lên Supabase nếu có dữ liệu
+                            # Đẩy từng record lên Supabase bằng sb_insert (an toàn hơn upsert)
                             sb_ok = True
                             if USE_SUPABASE and sb_records_to_insert:
-                                # Loại bỏ id=0 để Supabase tự cấp ID mới
                                 for r in sb_records_to_insert:
-                                    if r.get("id") == 0: del r["id"]
-                                if not sb_upsert("inventory", sb_records_to_insert, on_conflict="id"):
-                                    sb_ok = False
+                                    r.pop("id", None)  # Để DB tự cấp ID – tuyệt đối không upsert
+                                    if not sb_insert("inventory", r):
+                                        sb_ok = False
+                                        break
                             
                             if sb_ok:
                                 if USE_SUPABASE:
@@ -1279,6 +1275,10 @@ No markdown, no extra text, no explanation."""
                                 df = apply_ngay_ton(normalize_df(pd.DataFrame(recs), MAIN_SCHEMA))
                                 st.session_state.df = df
                                 if USE_SUPABASE:
+                                    # Dùng "id" (primary key) thay "stt" để tránh cập nhật sai record
+                                    _sell_id = int(float(recs[iloc_pos].get("id", 0) or 0))
+                                    _update_col = "id" if _sell_id > 0 else "stt"
+                                    _update_val = _sell_id if _sell_id > 0 else sel_stt
                                     sb_update("inventory", {
                                         "gia_ban":    float(s_price),
                                         "doanh_thu":  float(rev_vnd),
@@ -1288,7 +1288,7 @@ No markdown, no extra text, no explanation."""
                                         "time_ban":   ts_ban,
                                         "place":      s_place,
                                         "ngay_ton":   int(recs[iloc_pos]["Ngày Tồn"]),
-                                    }, "stt", sel_stt)
+                                    }, _update_col, _update_val)
                                 st.toast("💸 Bán thành công!", icon="✅")
                                 st.rerun()
                 else:
@@ -1375,9 +1375,12 @@ No markdown, no extra text, no explanation."""
             },
         )
 
-        # CẬP NHẬT: Đánh lại index theo "STT" thay vì "id" để bảo toàn ID của Supabase
-        after_reindexed  = reindex(normalize_df(edited.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT")
-        before_reindexed = reindex(normalize_df(before_edit.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT")
+        # Chỉ reindex STT khi xem "Tất cả" + không tìm kiếm → tránh STT conflict khi merge-back
+        _can_reindex = (view_mode == "🗂 Tất cả") and not _is_searching
+        after_reindexed  = reindex(normalize_df(edited.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT") if _can_reindex \
+            else normalize_df(edited.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols})
+        before_reindexed = reindex(normalize_df(before_edit.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT") if _can_reindex \
+            else normalize_df(before_edit.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols})
 
         # Regenerate auto titles
         has_title_col = "Auto Title" in after_reindexed.columns
@@ -1900,11 +1903,13 @@ with tab_pack:
         )
 
     view_bulk2 = view_bulk_base
+    _is_bulk_searching = bool(bulk_search.strip()) or bulk_status_filter != "🗂 Tất cả"
     if not view_bulk2.empty:
         before_bulk2x = view_bulk2.copy()
         edited_bulk2 = st.data_editor(
             before_bulk2x, key=f"editor_bulk2_{st.session_state.get('editor_bulk_ver', 0)}",
-            use_container_width=True, hide_index=True, num_rows="dynamic",
+            use_container_width=True, hide_index=True,
+            num_rows="fixed" if _is_bulk_searching else "dynamic",
             disabled=["ID"],
             column_config={
                 "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),

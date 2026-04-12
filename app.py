@@ -1579,13 +1579,21 @@ No markdown, no extra text, no explanation."""
     _bulk_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
     if not _bulk_src.empty:
         with st.expander("💸 Bán nhiều pet cùng lúc", expanded=False):
-            st.caption("Chọn các pet muốn bán, nhập giá cho từng con rồi xác nhận.")
-            _bs_search = st.text_input("Lọc pet cần bán", placeholder="Tên, mutation...", key="bulk_sell_search", label_visibility="collapsed")
+            # Giỏ bán tích lũy — tồn tại qua nhiều lần tìm kiếm
+            if "bulk_cart" not in st.session_state:
+                st.session_state.bulk_cart = {}  # str(id_or_stt) → row dict
+
+            # ── BƯỚC 1: Tìm & thêm vào giỏ ──
+            st.caption("🔍 Tìm pet → ➕ Thêm vào giỏ → Nhập giá → Xác nhận")
+            _bs_search = st.text_input(
+                "Tìm pet cần bán", placeholder="Tên, mutation, STT...",
+                key="bulk_sell_search", label_visibility="collapsed",
+            )
             _bs_df = _bulk_src.copy()
             if _bs_search.strip():
                 _bs_toks = re.split(r'[\s\-]+', _bs_search.strip().lower())
                 _bs_toks = [t for t in _bs_toks if t]
-                _bs_hay = _bs_df[["Tên Pet","Mutation","Auto Title","NameStock"]].astype(str) \
+                _bs_hay = _bs_df[["Tên Pet","Mutation","Auto Title","NameStock","STT"]].astype(str) \
                     .apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
                 _bs_combined = _bs_hay.apply(lambda r: ' '.join(r), axis=1)
                 _bs_mask = pd.Series([True]*len(_bs_df), index=_bs_df.index)
@@ -1593,91 +1601,128 @@ No markdown, no extra text, no explanation."""
                     _bs_mask &= _bs_combined.str.contains(_t, regex=False, na=False)
                 _bs_df = _bs_df[_bs_mask]
 
-            if _bs_df.empty:
+            if _bs_df.empty and _bs_search.strip():
                 st.info("Không tìm thấy pet phù hợp.")
             else:
-                # Tạo bảng nhập giá từng con
-                # Giữ id & STT trong dataframe để identify khi save, nhưng ẩn khỏi UI trên mobile
-                _bs_display = _bs_df[["STT","id","Tên Pet","Mutation","Giá Nhập"]].copy()
-                _bs_display["Giá bán ($)"] = 0.0
-                _bs_display["Place"] = ""
-                _bs_display["✓ Bán"] = False
-                _bs_edited = st.data_editor(
-                    _bs_display,
-                    key=f"bulk_sell_editor_{st.session_state.get('editor_inv_ver',0)}",
+                _shown_bs = _bs_df.head(15)
+                for _, _br in _shown_bs.iterrows():
+                    _bid = str(int(float(_br.get("id", 0) or 0))) if int(float(_br.get("id", 0) or 0)) > 0 else f"stt_{int(_br['STT'])}"
+                    _in_cart = _bid in st.session_state.bulk_cart
+                    _rc1, _rc2 = st.columns([4, 1])
+                    _rc1.markdown(
+                        f'<div style="font-size:0.82rem;padding:2px 0;">'
+                        f'<b style="color:#38bdf8">STT {int(_br["STT"])}</b> · '
+                        f'{_br["Tên Pet"]} · <span style="color:#4ade80">{_br["Mutation"]}</span>'
+                        f' · <span style="color:#8b949e">{fmt_vnd(float(_br["Giá Nhập"]))}</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                    if _in_cart:
+                        if _rc2.button("✓ Bỏ", key=f"bs_rm_{_bid}", use_container_width=True):
+                            del st.session_state.bulk_cart[_bid]
+                            st.rerun()
+                    else:
+                        if _rc2.button("➕", key=f"bs_add_{_bid}", use_container_width=True, type="primary"):
+                            st.session_state.bulk_cart[_bid] = _br.to_dict()
+                            st.rerun()
+                if len(_bs_df) > 15:
+                    st.caption(f"Hiển thị 15/{len(_bs_df)} — tìm cụ thể hơn để thu hẹp.")
+
+            # ── BƯỚC 2: Giỏ bán ──
+            if st.session_state.bulk_cart:
+                st.markdown("---")
+                _ch1, _ch2 = st.columns([3, 1])
+                _ch1.markdown(f"**🛒 Giỏ bán: {len(st.session_state.bulk_cart)} pet**")
+                if _ch2.button("🗑️ Xóa giỏ", key="bs_clear_cart", use_container_width=True):
+                    st.session_state.bulk_cart = {}
+                    st.rerun()
+
+                _cart_rows = []
+                for _ck, _cv in st.session_state.bulk_cart.items():
+                    _cart_rows.append({
+                        "_cart_key":   _ck,
+                        "id":          int(float(_cv.get("id", 0) or 0)),
+                        "STT":         int(float(_cv.get("STT", 0) or 0)),
+                        "Tên Pet":     str(_cv.get("Tên Pet", "")),
+                        "Mutation":    str(_cv.get("Mutation", "")),
+                        "Giá Nhập":    float(pd.to_numeric(_cv.get("Giá Nhập", 0), errors="coerce") or 0),
+                        "Giá bán ($)": 0.0,
+                        "Place":       "",
+                    })
+                _cart_df = pd.DataFrame(_cart_rows)
+                _cart_edited = st.data_editor(
+                    _cart_df.drop(columns=["_cart_key", "id", "STT"]),
+                    key=f"bulk_cart_editor_{st.session_state.get('editor_inv_ver', 0)}",
                     use_container_width=True,
                     hide_index=True,
                     num_rows="fixed",
-                    disabled=["STT","id","Tên Pet","Mutation","Giá Nhập"],
+                    disabled=["Tên Pet", "Mutation", "Giá Nhập"],
                     column_config={
-                        # Ẩn cột kỹ thuật — giữ data nhưng không chiếm chỗ trên màn hình mobile
-                        "id":       None,
-                        "STT":      None,
-                        "Tên Pet":  st.column_config.TextColumn("Pet", width="medium"),
-                        "Mutation": st.column_config.TextColumn("Mut.", width="small"),
-                        "Giá Nhập": st.column_config.NumberColumn("Vốn (₫)", format="%d", width="small"),
+                        "Tên Pet":     st.column_config.TextColumn("Pet", width="medium"),
+                        "Mutation":    st.column_config.TextColumn("Mut.", width="small"),
+                        "Giá Nhập":    st.column_config.NumberColumn("Vốn (₫)", format="%d", width="small"),
                         "Giá bán ($)": st.column_config.NumberColumn("Giá ($)", min_value=0.0, step=0.5, width="small"),
-                        "Place":    st.column_config.TextColumn("Place", width="small"),
-                        "✓ Bán":    st.column_config.CheckboxColumn("Bán?", width="small"),
+                        "Place":       st.column_config.TextColumn("Place", width="small"),
                     },
                 )
-                _to_sell = _bs_edited[_bs_edited["✓ Bán"] == True]
-                _invalid = _to_sell[_to_sell["Giá bán ($)"] <= 0]
-                if not _to_sell.empty:
-                    if not _invalid.empty:
-                        st.warning(f"⚠️ {len(_invalid)} pet chưa có giá bán > 0: {', '.join(_invalid['Tên Pet'].astype(str).tolist())}")
-                    _valid_sell = _to_sell[_to_sell["Giá bán ($)"] > 0]
-                    st.info(f"✅ Sẵn sàng bán **{len(_valid_sell)}** pet | Tổng doanh thu ước tính: **{fmt_vnd(float((_valid_sell['Giá bán ($)'] * EXCHANGE_RATE).sum()))}**")
+                # Gắn lại id/stt từ cart_df gốc (data_editor không trả về các cột bị drop)
+                _cart_edited["_cart_key"] = _cart_df["_cart_key"].values
+                _cart_edited["id"]        = _cart_df["id"].values
+                _cart_edited["STT"]       = _cart_df["STT"].values
+
+                _valid_sell   = _cart_edited[_cart_edited["Giá bán ($)"] > 0]
+                _invalid_sell = _cart_edited[_cart_edited["Giá bán ($)"] <= 0]
+                if not _invalid_sell.empty:
+                    st.caption(f"⚠️ {len(_invalid_sell)} pet chưa nhập giá sẽ bị bỏ qua")
+                if not _valid_sell.empty:
+                    st.info(f"✅ Sẵn sàng bán **{len(_valid_sell)}** pet · Doanh thu ước tính: **{fmt_vnd(float((_valid_sell['Giá bán ($)'] * EXCHANGE_RATE).sum()))}**")
                     if st.button(f"✅ Xác nhận bán {len(_valid_sell)} pet", type="primary", key="confirm_bulk_sell", use_container_width=True):
-                        if _valid_sell.empty:
-                            st.error("Không có pet hợp lệ để bán.")
-                        else:
-                            ts_ban_bulk = now_iso()
-                            _full_df = st.session_state.df.copy()
-                            _updated = 0
-                            for _, _sell_row in _valid_sell.iterrows():
-                                _s_price  = float(_sell_row["Giá bán ($)"])
-                                _s_place  = str(_sell_row.get("Place",""))
-                                _s_id     = int(float(_sell_row.get("id", 0) or 0))
-                                _s_stt    = int(float(_sell_row.get("STT", 0) or 0))
-                                _rev_vnd  = _s_price * EXCHANGE_RATE
-                                _cost_vnd = float(pd.to_numeric(_sell_row.get("Giá Nhập",0), errors="coerce") or 0)
-                                _profit   = _rev_vnd - _cost_vnd
-                                # Update session state df
-                                if _s_id > 0:
-                                    _idx = _full_df.index[_full_df["id"] == _s_id].tolist()
-                                else:
-                                    _idx = _full_df.index[_full_df["STT"] == _s_stt].tolist()
-                                if _idx:
-                                    _p = _full_df.index.get_loc(_idx[0])
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Giá Bán")]    = _s_price
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Doanh Thu")]  = _rev_vnd
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Lợi Nhuận")] = _profit
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Ngày Bán")]   = now_str()
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Trạng Thái")] = "Đã bán"
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("time_ban")]   = ts_ban_bulk
-                                    _full_df.iloc[_p, _full_df.columns.get_loc("Place")]      = _s_place
-                                if USE_SUPABASE:
-                                    _uc = "id" if _s_id > 0 else "stt"
-                                    _uv = _s_id if _s_id > 0 else _s_stt
-                                    sb_update("inventory", {
-                                        "gia_ban":    _s_price,
-                                        "doanh_thu":  _rev_vnd,
-                                        "loi_nhuan":  _profit,
-                                        "ngay_ban":   now_str(),
-                                        "trang_thai": "Đã bán",
-                                        "time_ban":   ts_ban_bulk,
-                                        "place":      _s_place,
-                                    }, _uc, _uv)
-                                _updated += 1
-                            _full_df = apply_ngay_ton(normalize_df(_full_df, MAIN_SCHEMA))
-                            st.session_state.df = _full_df
+                        ts_ban_bulk = now_iso()
+                        _full_df = st.session_state.df.copy()
+                        _updated = 0
+                        for _, _sell_row in _valid_sell.iterrows():
+                            _s_price  = float(_sell_row["Giá bán ($)"])
+                            _s_place  = str(_sell_row.get("Place", ""))
+                            _s_id     = int(float(_sell_row.get("id", 0) or 0))
+                            _s_stt    = int(float(_sell_row.get("STT", 0) or 0))
+                            _rev_vnd  = _s_price * EXCHANGE_RATE
+                            _cost_vnd = float(pd.to_numeric(_sell_row.get("Giá Nhập", 0), errors="coerce") or 0)
+                            _profit   = _rev_vnd - _cost_vnd
+                            if _s_id > 0:
+                                _idx = _full_df.index[_full_df["id"] == _s_id].tolist()
+                            else:
+                                _idx = _full_df.index[_full_df["STT"] == _s_stt].tolist()
+                            if _idx:
+                                _p = _full_df.index.get_loc(_idx[0])
+                                _full_df.iloc[_p, _full_df.columns.get_loc("Giá Bán")]    = _s_price
+                                _full_df.iloc[_p, _full_df.columns.get_loc("Doanh Thu")]  = _rev_vnd
+                                _full_df.iloc[_p, _full_df.columns.get_loc("Lợi Nhuận")] = _profit
+                                _full_df.iloc[_p, _full_df.columns.get_loc("Ngày Bán")]   = now_str()
+                                _full_df.iloc[_p, _full_df.columns.get_loc("Trạng Thái")] = "Đã bán"
+                                _full_df.iloc[_p, _full_df.columns.get_loc("time_ban")]   = ts_ban_bulk
+                                _full_df.iloc[_p, _full_df.columns.get_loc("Place")]      = _s_place
                             if USE_SUPABASE:
-                                st.cache_data.clear()
-                                st.session_state.df = apply_ngay_ton(load_inventory())
-                            st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
-                            st.toast(f"💸 Đã bán {_updated} pet thành công!", icon="✅")
-                            st.rerun()
+                                _uc = "id" if _s_id > 0 else "stt"
+                                _uv = _s_id if _s_id > 0 else _s_stt
+                                sb_update("inventory", {
+                                    "gia_ban":    _s_price,
+                                    "doanh_thu":  _rev_vnd,
+                                    "loi_nhuan":  _profit,
+                                    "ngay_ban":   now_str(),
+                                    "trang_thai": "Đã bán",
+                                    "time_ban":   ts_ban_bulk,
+                                    "place":      _s_place,
+                                }, _uc, _uv)
+                            _updated += 1
+                        _full_df = apply_ngay_ton(normalize_df(_full_df, MAIN_SCHEMA))
+                        st.session_state.df = _full_df
+                        if USE_SUPABASE:
+                            st.cache_data.clear()
+                            st.session_state.df = apply_ngay_ton(load_inventory())
+                        st.session_state.bulk_cart = {}
+                        st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
+                        st.toast(f"💸 Đã bán {_updated} pet thành công!", icon="✅")
+                        st.rerun()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 2: CHART & THỐNG KÊ

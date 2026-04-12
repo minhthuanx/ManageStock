@@ -745,12 +745,15 @@ with tab_kho:
 
                     # ── STEP 2: MULTI-IMAGE UPLOAD ──
                     st.markdown("**📷 Upload nhiều ảnh Pet (hỗ trợ phân tích hàng loạt)**")
+                    if "ai_uploader_key" not in st.session_state:
+                        st.session_state.ai_uploader_key = 0
+                        
                     batch_imgs = st.file_uploader(
                         "Chọn ảnh",
                         type=["png", "jpg", "jpeg", "webp"],
                         accept_multiple_files=True,
                         label_visibility="collapsed",
-                        key="ai_batch_upload",
+                        key=f"ai_batch_upload_{st.session_state.ai_uploader_key}",
                     )
 
                     if batch_imgs:
@@ -920,7 +923,8 @@ No markdown, no extra text, no explanation."""
                             
                             with img_col:
                                 # Lấy ảnh từ session_state để preview
-                                current_files = st.session_state.get("ai_batch_upload", [])
+                                u_key = st.session_state.get("ai_uploader_key", 0)
+                                current_files = st.session_state.get(f"ai_batch_upload_{u_key}", [])
                                 matched_img = next((f for f in current_files if f.name == fname), None)
                                 if matched_img:
                                     st.image(matched_img, use_container_width=True)
@@ -958,7 +962,7 @@ No markdown, no extra text, no explanation."""
                             if not r_ns.strip(): err_row.append("NameStock")
                             if parse_vnd(r_cost) <= 0: err_row.append("Giá nhập")
                             if err_row:
-                                st.warning(f"⚠️ Cần điền: {', '.join(err_row)}")
+                                st.info(f"ℹ️ Còn thiếu: {', '.join(err_row)}. Vui lòng điền nốt để lưu.")
                                 all_valid = False
 
                             edited_rows.append({
@@ -1028,6 +1032,7 @@ No markdown, no extra text, no explanation."""
                             st.session_state.df = current_df
                             st.session_state.ai_show_dialog = False
                             st.session_state.ai_batch_results = []
+                            st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1
                             st.session_state.ai_expander = False
                             st.toast(f"✅ Đã lưu {saved} pet lẻ thành công!", icon="💾")
                             st.rerun()

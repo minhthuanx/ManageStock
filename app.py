@@ -977,7 +977,7 @@ st.markdown(f"""
   <div class="logo">👻</div>
   <div>
     <h1>GhostlyStock{_badge_html}</h1>
-    <p>Quản lý kho Pet · Tự động hóa · Phân tích thông minh</p>
+    <p>Copyright © 2026 MINHTHUAN. All rights reserved.</p>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -2209,7 +2209,7 @@ with tab_chart:
         _dt_sold_total = float(pd.to_numeric(sold_df["Doanh Thu"], errors="coerce").fillna(0).sum()) if not sold_df.empty else 0.0
         _von_ton_total = _von_le + _von_lo
         _compare_df = pd.DataFrame({
-            "Hạng mục": ["Doanh thu đã thu", "Vốn tồn kho"],
+            "Hạng mục": ["Doanh thu", "Vốn tồn"],
             "Giá trị":   [_dt_sold_total, _von_ton_total],
         })
         fig_cmp = go.Figure(go.Bar(
@@ -2224,7 +2224,7 @@ with tab_chart:
             paper_bgcolor="#0a0a0f",
             plot_bgcolor="#0a0a0f",
             font=dict(family="Inter", color="#9d8fbf"),
-            title=dict(text="Doanh thu vs Vốn tồn", font=dict(size=13, color="#e2e8f0")),
+            title=dict(text="Doanh thu - Vốn tồn", font=dict(size=13, color="#e2e8f0")),
             margin=dict(l=10, r=10, t=50, b=10),
             height=300,
             yaxis_title="VNĐ",

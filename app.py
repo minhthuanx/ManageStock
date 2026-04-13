@@ -974,7 +974,7 @@ st.markdown(f"""
   <div class="logo">👻</div>
   <div>
     <h1>Management Dashboard{_badge_html}</h1>
-    <p>Copyright © 2026 MINHTHUANX. All rights reserved./p>
+    <p>Copyright © 2026 MINHTHUANX. All rights reserved.</p>
   </div>
 </div>
 """, unsafe_allow_html=True)

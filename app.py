@@ -987,15 +987,6 @@ In Steal a Brainrot, manual transfers are slow and dangerous. We skip the "steal
 
 Secure. Professional. Ghostly. 👻⚡"""
     st.session_state["_shop_desc"] = _SHOP_DESC
-    import streamlit.components.v1 as components
-    _esc_desc = _SHOP_DESC.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
-    components.html(f"""
-    <button onclick="navigator.clipboard.writeText(`{_esc_desc}`).then(()=>this.innerText='✅ Đã copy!').catch(()=>this.innerText='❌ Lỗi')" style="
-        width:100%;padding:8px 12px;border:none;border-radius:8px;cursor:pointer;
-        background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;
-        font-weight:600;font-size:14px;transition:all .2s;
-    ">👻 Copy mô tả Shop</button>
-    """, height=45)
     st.markdown("---")
 
     if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
@@ -1722,6 +1713,12 @@ Extract and return VALID JSON only (no markdown, no extra text):
             st.rerun()
     else:
         st.info("Không có dữ liệu để hiển thị.")
+
+    # ── COPY MÔ TẢ SHOP ──
+    _shop_desc = st.session_state.get("_shop_desc", "")
+    if _shop_desc:
+        with st.expander("👻 Copy mô tả Shop", expanded=False):
+            st.code(_shop_desc, language=None)
 
     # ── COPY AUTO TITLE NHANH ──
     _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]

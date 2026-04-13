@@ -3537,7 +3537,10 @@ with tab_chart:
             import numpy as np
             _x = np.arange(len(_wk_merged))
             _y = _wk_merged["Lợi Nhuận"].values.astype(float)
-            _m_coef, _b_coef = np.polyfit(_x, _y, 1)
+            try:
+                _m_coef, _b_coef = np.polyfit(_x, _y, 1)
+            except (np.linalg.LinAlgError, ValueError):
+                _m_coef, _b_coef = 0.0, float(_y.mean()) if len(_y) else 0.0
             _trend_y = _m_coef * _x + _b_coef
             _trend_color = "#34d399" if _m_coef >= 0 else "#f87171"
             _trend_label = f"Xu hướng {'↑ tăng' if _m_coef >= 0 else '↓ giảm'} {abs(_m_coef / max(abs(_y.mean()), 1) * 100):.1f}%/tuần"

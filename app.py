@@ -1717,9 +1717,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
     # ── COPY MÔ TẢ SHOP ──
     _shop_desc = st.session_state.get("_shop_desc", "")
     if _shop_desc:
-        if st.button("👻 Copy mô tả Shop", use_container_width=True, key="btn_copy_shop_desc"):
-            st.session_state["_show_shop_desc"] = not st.session_state.get("_show_shop_desc", False)
-        if st.session_state.get("_show_shop_desc", False):
+        with st.expander("👻 Copy mô tả Shop", expanded=False):
             st.code(_shop_desc, language=None)
 
     # ── COPY AUTO TITLE NHANH ──
@@ -1769,7 +1767,8 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     st.caption("Chưa có pet nào được nhập trong 1 giờ qua. Dùng ô tìm kiếm để tìm bất kỳ pet nào.")
             else:
                 st.caption(f"📌 {_cp_mode_label}")
-                for _, _crow in _cp_filtered.iterrows():
+                _sd = st.session_state.get("_shop_desc", "")
+                for _ci, (_, _crow) in enumerate(_cp_filtered.iterrows()):
                     st.markdown(
                         f'<div style="font-size:0.78rem;color:#8b949e;margin-top:0.5rem;">'
                         f'STT <b style="color:#38bdf8">{int(_crow["STT"])}</b> · '
@@ -1777,7 +1776,13 @@ Extract and return VALID JSON only (no markdown, no extra text):
                         f'</div>',
                         unsafe_allow_html=True,
                     )
-                    st.code(_crow["Auto Title"], language=None)
+                    _ct1, _ct2 = st.columns([4, 1])
+                    with _ct1:
+                        st.code(_crow["Auto Title"], language=None)
+                    with _ct2:
+                        if _sd:
+                            with st.expander("📋 Mô tả", expanded=False):
+                                st.code(_sd, language=None)
 
     # ── BULK SELL ──
     _bulk_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]

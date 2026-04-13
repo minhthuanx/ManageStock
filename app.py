@@ -2425,43 +2425,41 @@ with tab_chart:
         _wr3.metric("🛒 Con đã bán",      f"{_sold_cnt:,}")
         _wr4.metric("🏦 Vốn còn tồn",    fmt_vnd(_cap_remain))
 
-        _wf_x, _wf_y, _wf_m = [], [], []
-        if rev_single > 0:
-            _wf_x.append("DT Lẻ");   _wf_y.append(rev_single);         _wf_m.append("relative")
-        if rev_bulk > 0:
-            _wf_x.append("DT Lô");   _wf_y.append(rev_bulk);           _wf_m.append("relative")
-        if total_cost_single > 0:
-            _wf_x.append("Vốn Lẻ");  _wf_y.append(-total_cost_single); _wf_m.append("relative")
-        if total_cost_bulk > 0:
-            _wf_x.append("Vốn Lô");  _wf_y.append(-total_cost_bulk);   _wf_m.append("relative")
-        _wf_x.append("Lợi Nhuận Ròng"); _wf_y.append(net_profit); _wf_m.append("total")
+        _wf_labels = ["Tổng Doanh Thu", "Tổng Vốn", "Lợi Nhuận Ròng"]
+        _wf_vals   = [total_rev, total_cost, abs(net_profit)]
+        _wf_colors = ["#34d399", "#f87171", "#a78bfa" if net_profit >= 0 else "#f87171"]
 
-        _fig_wf = go.Figure(go.Waterfall(
-            orientation="v",
-            measure=_wf_m,
-            x=_wf_x,
-            y=_wf_y,
-            text=[fmt_short(v) for v in _wf_y],
+        _fig_wf = go.Figure(go.Bar(
+            x=_wf_labels,
+            y=_wf_vals,
+            marker_color=_wf_colors,
+            text=[fmt_short(v) for v in _wf_vals],
             textposition="outside",
-            textfont=dict(color="#e2e8f0", size=11, family="Inter"),
-            connector=dict(line=dict(color="#2d2040", width=1.5, dash="dot")),
-            increasing=dict(marker_color="#34d399"),
-            decreasing=dict(marker_color="#f87171"),
-            totals=dict(marker_color="#a78bfa" if net_profit >= 0 else "#f87171"),
+            textfont=dict(color="#e2e8f0", size=12, family="Inter"),
             hovertemplate="<b>%{x}</b><br>%{y:,.0f}₫<extra></extra>",
+            width=[0.45, 0.45, 0.45],
         ))
+        # Overlay a "+" or "-" annotation on LN bar to show sign
+        _ln_sign_text = ("+" if net_profit >= 0 else "−") + fmt_short(abs(net_profit))
+        _fig_wf.add_annotation(
+            x="Lợi Nhuận Ròng", y=abs(net_profit),
+            text=f"<b>{'+ ' if net_profit >= 0 else '- '}{fmt_short(abs(net_profit))}</b>",
+            showarrow=False, yshift=22,
+            font=dict(color="#a78bfa" if net_profit >= 0 else "#f87171", size=13)
+        )
         _fig_wf.update_layout(
             paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
             font=dict(family="Inter", color="#9d8fbf"),
-            xaxis=dict(tickfont=dict(color="#e2e8f0", size=12), gridcolor="#1a1528", zeroline=False),
+            xaxis=dict(tickfont=dict(color="#e2e8f0", size=13), gridcolor="#1a1528", zeroline=False),
             yaxis=dict(tickfont=dict(color="#9d8fbf"), gridcolor="#1a1528",
-                       tickformat=",.0f", zeroline=True, zerolinecolor="#4a3f6b", zerolinewidth=1.5),
-            margin=dict(l=10, r=10, t=20, b=10),
-            height=360,
+                       tickformat=",.0f", zeroline=False),
+            margin=dict(l=10, r=10, t=50, b=10),
+            height=340,
             showlegend=False,
+            bargap=0.35,
         )
         st.plotly_chart(_fig_wf, use_container_width=True)
-        st.caption("🟢 Doanh thu · 🔴 Chi phí vốn · 🟣 Lợi nhuận ròng")
+        st.caption("🟢 Doanh thu · 🔴 Chi phí vốn · 🟣 Lợi nhuận ròng (tất cả các thanh bắt đầu từ 0)")
     else:
         st.info("Chưa có dữ liệu tài chính.")
 
@@ -2577,8 +2575,13 @@ with tab_chart:
                 "Theo tuần":  "so với tuần trước",
                 "Theo tháng": "so với tháng trước",
             }.get(period, "")
+            _this_period_lbl = {
+                "Theo ngày":  "hôm nay",
+                "Theo tuần":  "tuần này",
+                "Theo tháng": "tháng này",
+            }.get(period, period_label)
             c1.metric(
-                f"Lợi nhuận {period_label} gần nhất ({last_row['Period']})",
+                f"Lợi nhuận {_this_period_lbl} ({last_row['Period']})",
                 fmt_vnd(last_row["Lợi Nhuận"]),
                 delta=delta,
                 help=f"So sánh {_period_delta_label}",
@@ -2896,19 +2899,22 @@ with tab_chart:
                     showarrow=False, font=dict(color="#4a3f6b", size=9), xanchor="left"
                 )
 
-            for _, _pr in _pp_grp.iterrows():
-                _sz2 = max(12, min(70, _pr["Count"] / max(float(_pp_grp["Count"].max()), 1) * 58 + 12))
+            _PP_PALETTE = [
+                "#a78bfa","#34d399","#f472b6","#fbbf24","#38bdf8",
+                "#fb923c","#4ade80","#e879f9","#67e8f9","#f87171",
+                "#c084fc","#86efac","#fdba74","#a5b4fc","#f9a8d4",
+                "#6ee7b7","#fde68a","#bae6fd","#ddd6fe","#bbf7d0",
+            ]
+            for _pi, (_, _pr) in enumerate(_pp_grp.iterrows()):
+                _sz2 = max(14, min(60, _pr["Count"] / max(float(_pp_grp["Count"].max()), 1) * 46 + 14))
                 _m2  = float(_pr["Margin"])
-                _c2  = "#34d399" if _m2 > 20 else ("#fbbf24" if _m2 > 5 else "#f87171")
+                _c2  = _PP_PALETTE[_pi % len(_PP_PALETTE)]
                 _fig_pp.add_trace(go.Scatter(
                     x=[_pr["AvgCost"]], y=[_pr["AvgLN"]],
-                    mode="markers+text",
+                    mode="markers",
                     name=str(_pr["_pet"]),
-                    marker=dict(size=_sz2, color=_c2, opacity=0.85,
+                    marker=dict(size=_sz2, color=_c2, opacity=0.88,
                                 line=dict(color="#0a0a0f", width=1.5)),
-                    text=[str(_pr["_pet"])],
-                    textposition="top center",
-                    textfont=dict(color="#e2e8f0", size=10),
                     hovertemplate=(
                         f"<b>{_pr['_pet']}</b><br>"
                         f"Giá nhập TB: {_pr['AvgCost']:,.0f}₫<br>"
@@ -2917,7 +2923,7 @@ with tab_chart:
                         f"Số lần bán: {int(_pr['Count'])}"
                         "<extra></extra>"
                     ),
-                    showlegend=False,
+                    showlegend=True,
                 ))
 
             _fig_pp.update_layout(
@@ -2928,12 +2934,18 @@ with tab_chart:
                 yaxis=dict(title="LN TB / con (₫)", gridcolor="#1a1528",
                            tickfont=dict(color="#9d8fbf"), tickformat=",.0f",
                            zeroline=True, zerolinecolor="#4a3f6b"),
-                margin=dict(l=10, r=10, t=20, b=10),
-                height=430,
+                legend=dict(
+                    orientation="v", x=1.01, y=1,
+                    font=dict(color="#9d8fbf", size=10),
+                    bgcolor="rgba(10,10,15,0.7)",
+                    bordercolor="#2d2040", borderwidth=1,
+                ),
+                margin=dict(l=10, r=180, t=20, b=10),
+                height=440,
                 hovermode="closest",
             )
             st.plotly_chart(_fig_pp, use_container_width=True)
-            st.caption("Kích thước = số lần bán · Màu: 🟢 Margin >20% · 🟡 5–20% · 🔴 <5% · Kẻ đứt = median")
+            st.caption("Kích thước = số lần bán · Mỗi màu = 1 loại pet · Hover để xem chi tiết · Kẻ đứt = median")
         else:
             st.info("Chưa có dữ liệu.")
     else:
@@ -2944,14 +2956,13 @@ with tab_chart:
         st.markdown("---")
         st.markdown('<div class="sec-heading">Bảng Thống Kê Theo Tháng</div>', unsafe_allow_html=True)
         monthly = (
-            pbd.assign(Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y"),
-                       SortKey=pbd["Ngày DT"].dt.to_period("M").apply(lambda p: p.start_time))
+            pbd.assign(
+                Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y"),
+                SortKey=pbd["Ngày DT"].dt.strftime("%Y-%m"),
+            )
             .groupby(["Tháng","SortKey"], as_index=False)["Lợi Nhuận"].sum()
             .sort_values("SortKey", ascending=False)
-        )
-        monthly["Doanh Thu tháng"] = monthly["Tháng"].map(
-            pbd.assign(Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y"))
-               .groupby("Tháng")["Lợi Nhuận"].sum()
+            .drop(columns=["SortKey"])
         )
         monthly_display = monthly[["Tháng","Lợi Nhuận"]].copy()
         monthly_display["Lợi Nhuận VNĐ"] = monthly_display["Lợi Nhuận"].apply(fmt_vnd)
@@ -3008,8 +3019,8 @@ with tab_chart:
             _avg_days = _sold_speed["Ngày Tồn"].mean()
             _med_days = _sold_speed["Ngày Tồn"].median()
             _sp1, _sp2 = st.columns(2)
-            _sp1.metric("Trung bình", f"{_avg_days:.1f} ngày")
-            _sp2.metric("Trung vị", f"{_med_days:.1f} ngày")
+            _sp1.metric("Trung bình", f"{int(round(_avg_days))} ngày")
+            _sp2.metric("Trung vị", f"{int(round(_med_days))} ngày")
 
             # Biểu đồ theo tên pet (top 10 bán chậm nhất)
             _spd_by_pet = (
@@ -3023,7 +3034,7 @@ with tab_chart:
                 y=_spd_by_pet["Tên Pet"],
                 orientation="h",
                 marker=dict(color="#f472b6"),
-                text=_spd_by_pet["Ngày Tồn"].apply(lambda v: f"{v:.1f}d"),
+                text=_spd_by_pet["Ngày Tồn"].apply(lambda v: f"{int(round(v))}d"),
                 textposition="outside",
                 textfont=dict(color="#e2e8f0", size=10),
             ))
@@ -3481,18 +3492,24 @@ with tab_chart:
     if has_data and not pbd.empty:
         import datetime as _dtm2
         _wk_df = pbd.copy()
-        _wk_df["_week"] = _wk_df["Ngày DT"].dt.to_period("W").apply(lambda p: p.start_time)
+        # Floor to Monday of each week (timezone-safe)
+        _wk_df["_week"] = _wk_df["Ngày DT"] - pd.to_timedelta(
+            _wk_df["Ngày DT"].dt.dayofweek, unit="d"
+        )
+        _wk_df["_week"] = _wk_df["_week"].dt.normalize()
 
         # Merge single sold count
         _wk_count_df = pd.DataFrame(columns=["_week","Số con"])
         if not sold_df.empty:
             _sc = sold_df.copy()
-            _sc["_week"] = pd.to_datetime(_sc["Ngày Bán"], dayfirst=True, errors="coerce").dt.to_period("W").apply(lambda p: p.start_time)
+            _sc["_dt"] = pd.to_datetime(_sc["Ngày Bán"], dayfirst=True, errors="coerce")
+            _sc["_week"] = (_sc["_dt"] - pd.to_timedelta(_sc["_dt"].dt.dayofweek, unit="d")).dt.normalize()
             _wk_count_df = _sc.groupby("_week", as_index=False).agg(**{"Số con": ("_week","count")})
         # Merge bulk sold count
         if not bulk_history.empty:
             _bh = bulk_history.copy()
-            _bh["_week"] = pd.to_datetime(_bh["Ngày Bán"], dayfirst=True, errors="coerce").dt.to_period("W").apply(lambda p: p.start_time)
+            _bh["_dt"] = pd.to_datetime(_bh["Ngày Bán"], dayfirst=True, errors="coerce")
+            _bh["_week"] = (_bh["_dt"] - pd.to_timedelta(_bh["_dt"].dt.dayofweek, unit="d")).dt.normalize()
             _bh_qty = _bh.groupby("_week", as_index=False).agg(
                 _bqty=("Số Lượng Bán" if "Số Lượng Bán" in _bh.columns else "Ngày Bán", "sum"
                        if "Số Lượng Bán" in _bh.columns else "count")
@@ -3513,9 +3530,9 @@ with tab_chart:
             _wk_merged = _wk_ln.copy()
             _wk_merged["Số con"] = 0
         _wk_merged = _wk_merged.sort_values("_week").tail(16)  # last 16 weeks
-        _wk_merged["_label"] = _wk_merged["_week"].dt.strftime("W%V\n%d/%m")
+        _wk_merged["_label"] = _wk_merged["_week"].dt.strftime("%d/%m/%Y")
 
-        if len(_wk_merged) >= 2:
+        if len(_wk_merged) >= 1:
             # Trend line via simple linear regression
             import numpy as np
             _x = np.arange(len(_wk_merged))

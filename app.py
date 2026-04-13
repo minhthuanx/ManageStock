@@ -2534,6 +2534,158 @@ with tab_chart:
             f"{'✅' if _done else '⬜'} **{_ms}M**"
         )
 
+    # ── SANKEY: Dòng chảy vốn theo Mutation ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">🌊 Sankey — Dòng chảy vốn theo Mutation</div>', unsafe_allow_html=True)
+
+    _sk_src, _sk_tgt, _sk_val, _sk_labels, _sk_muts = [], [], [], [], []
+    if not df.empty and "Mutation" in df.columns:
+        _sk_all = df.copy()
+        _sk_all["_mut"] = _sk_all["Mutation"].astype(str).str.strip().replace("", "Không rõ")
+        _sk_all["_gn"]  = pd.to_numeric(_sk_all["Giá Nhập"], errors="coerce").fillna(0)
+        _sk_all["_st"]  = _sk_all["Trạng Thái"].astype(str)
+        _sk_muts   = sorted(_sk_all["_mut"].dropna().unique().tolist())
+        _sk_labels = ["Tổng vốn nhập"] + _sk_muts + ["Đã bán", "Còn tồn"]
+        _sk_n_sold  = 1 + len(_sk_muts)
+        _sk_n_stock = 2 + len(_sk_muts)
+        for _i, _m in enumerate(_sk_muts):
+            _mdf = _sk_all[_sk_all["_mut"] == _m]
+            _v_all = float(_mdf["_gn"].sum())
+            if _v_all > 0:
+                _sk_src.append(0);       _sk_tgt.append(1 + _i);      _sk_val.append(_v_all)
+            _v_sold = float(_mdf[_mdf["_st"].str.contains("Đã bán",   na=False)]["_gn"].sum())
+            if _v_sold > 0:
+                _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_sold);  _sk_val.append(_v_sold)
+            _v_stock = float(_mdf[_mdf["_st"].str.contains("Còn hàng", na=False)]["_gn"].sum())
+            if _v_stock > 0:
+                _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_stock); _sk_val.append(_v_stock)
+
+    if _sk_src:
+        _mut_palette = ["#38bdf8","#818cf8","#fb923c","#34d399","#f472b6",
+                        "#a78bfa","#facc15","#60a5fa","#f87171","#4ade80"]
+        _sk_node_colors = (
+            ["#6366f1"]
+            + [_mut_palette[i % len(_mut_palette)] for i in range(len(_sk_muts))]
+            + ["#4ade80", "#f97316"]
+        )
+        fig_sk = go.Figure(go.Sankey(
+            arrangement="snap",
+            node=dict(
+                pad=15, thickness=18,
+                label=_sk_labels,
+                color=_sk_node_colors,
+                hovertemplate="%{label}: %{value:,.0f}₫<extra></extra>",
+            ),
+            link=dict(
+                source=_sk_src,
+                target=_sk_tgt,
+                value=_sk_val,
+                color="rgba(100,120,220,0.18)",
+            ),
+        ))
+        fig_sk.update_layout(
+            paper_bgcolor="#0d1117",
+            font=dict(family="Inter", color="#e2e8f0", size=11),
+            margin=dict(l=10, r=10, t=20, b=10),
+            height=420,
+        )
+        st.plotly_chart(fig_sk, use_container_width=True)
+        st.caption("Độ rộng mỗi dải = tổng vốn nhập (VNĐ). Màu xanh lá = Đã bán, cam = Còn tồn.")
+    else:
+        st.info("Chưa đủ dữ liệu để vẽ Sankey.")
+
+    # ── CALENDAR HEATMAP: GitHub-style lợi nhuận ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">📅 Calendar Heatmap — Lợi nhuận 365 ngày gần nhất</div>', unsafe_allow_html=True)
+
+    if has_data and not pbd.empty:
+        import datetime as _dtm
+        _cal_today = now_vn().date()
+        _cal_start = _cal_today - _dtm.timedelta(days=364)
+        _cal_pbd = pbd.copy()
+        _cal_pbd["_date"] = _cal_pbd["Ngày DT"].dt.date
+        _cal_pbd["_ln"]   = pd.to_numeric(_cal_pbd["Lợi Nhuận"], errors="coerce").fillna(0)
+        _day_map = _cal_pbd.groupby("_date")["_ln"].sum().to_dict()
+
+        _all_days_cal = [_cal_start + _dtm.timedelta(days=i) for i in range(365)]
+        _start_dow   = _all_days_cal[0].weekday()          # 0=Mon
+        _padded_cal  = [None] * _start_dow + _all_days_cal
+        while len(_padded_cal) % 7 != 0:
+            _padded_cal.append(None)
+        _n_weeks_cal = len(_padded_cal) // 7
+
+        _z_cal, _text_cal = [], []
+        _dow_labels_cal = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+        for _dow in range(7):
+            _rz, _rt = [], []
+            for _wk in range(_n_weeks_cal):
+                _d = _padded_cal[_wk * 7 + _dow]
+                if _d is None:
+                    _rz.append(None); _rt.append("")
+                else:
+                    _p = _day_map.get(_d, 0)
+                    _rz.append(float(_p))
+                    _rt.append(
+                        f"{_d.strftime('%d/%m/%Y')}<br>{fmt_vnd(_p)}" if _p
+                        else f"{_d.strftime('%d/%m/%Y')}<br>—"
+                    )
+            _z_cal.append(_rz); _text_cal.append(_rt)
+
+        _week_x_labels = []
+        for _wk in range(_n_weeks_cal):
+            _fd = next((x for x in _padded_cal[_wk*7:_wk*7+7] if x is not None), None)
+            _week_x_labels.append(_fd.strftime("%d/%m") if _fd else "")
+
+        _zmax_cal = max((v for v in _day_map.values() if v > 0), default=1)
+        fig_cal = go.Figure(go.Heatmap(
+            z=_z_cal,
+            x=list(range(_n_weeks_cal)),
+            y=_dow_labels_cal,
+            text=_text_cal,
+            hovertemplate="%{text}<extra></extra>",
+            colorscale=[
+                [0.0,  "#161b22"],
+                [0.01, "#0e4429"],
+                [0.3,  "#006d32"],
+                [0.6,  "#26a641"],
+                [1.0,  "#39d353"],
+            ],
+            zmin=0,
+            zmax=_zmax_cal,
+            showscale=True,
+            colorbar=dict(thickness=10, len=0.8, tickfont=dict(size=9, color="#8b949e")),
+            xgap=2, ygap=2,
+        ))
+        fig_cal.update_layout(
+            paper_bgcolor="#0d1117",
+            plot_bgcolor="#0d1117",
+            font=dict(family="Inter", color="#8b949e", size=10),
+            xaxis=dict(
+                tickmode="array",
+                tickvals=list(range(0, _n_weeks_cal, 4)),
+                ticktext=[_week_x_labels[i] for i in range(0, _n_weeks_cal, 4)],
+                tickfont=dict(size=9, color="#8b949e"),
+                showgrid=False, zeroline=False,
+            ),
+            yaxis=dict(
+                tickfont=dict(size=10, color="#8b949e"),
+                showgrid=False, zeroline=False,
+                autorange="reversed",
+            ),
+            margin=dict(l=40, r=20, t=15, b=40),
+            height=210,
+        )
+        st.plotly_chart(fig_cal, use_container_width=True)
+
+        _cal_active = sum(1 for v in _day_map.values() if v > 0)
+        _cal_max_d  = max(_day_map, key=_day_map.get) if _day_map else None
+        _calcc1, _calcc2 = st.columns(2)
+        _calcc1.caption(f"📆 Ngày có doanh thu (365 ngày): **{_cal_active}** ngày")
+        if _cal_max_d:
+            _calcc2.caption(f"🌟 Ngày đỉnh: **{_cal_max_d.strftime('%d/%m/%Y')}** — {fmt_vnd(_day_map[_cal_max_d])}")
+    else:
+        st.info("Chưa có dữ liệu bán để vẽ calendar.")
+
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 3: TỒN LÂU
 # ─────────────────────────────────────────────────────────────────────────────

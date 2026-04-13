@@ -236,6 +236,7 @@ BULK_SCHEMA = {
     "Lợi Nhuận":           0.0,
     "Trạng Thái":          "Available",
     "Auto Title":          "",
+    "NameStock":           "",
 }
 
 HISTORY_SCHEMA = {
@@ -3076,6 +3077,7 @@ with tab_pack:
                         "Lợi Nhuận": -b_cost2,
                         "Trạng Thái": "Available",
                         "Auto Title": auto_title2,
+                        "NameStock": b_ns2,
                     }
                     bulk_df = append_row(bulk_df, row2, BULK_SCHEMA)
                     st.session_state.bulk_df = bulk_df
@@ -3170,7 +3172,7 @@ with tab_pack:
 
     st.markdown("---")
     st.markdown("**Danh Sách Lô Hàng**")
-    bulk_cols_display2 = ["ID","Tên Lô","Số Lượng Gốc","Còn Lại","Ngày Nhập",
+    bulk_cols_display2 = ["ID","Tên Lô","NameStock","Số Lượng Gốc","Còn Lại","Ngày Nhập",
                           "Giá Nhập Tổng","Doanh Thu Tích Lũy","Lợi Nhuận","Trạng Thái","Auto Title"]
 
     # ── THANH CÔNG CỤ LÔ PACK ──
@@ -3197,7 +3199,7 @@ with tab_pack:
     if bulk_search.strip():
         _tokens_bk = re.split(r'[\s\-]+', bulk_search.strip().lower())
         _tokens_bk = [t for t in _tokens_bk if t]
-        _bk_cols = ["Tên Lô","Auto Title"]
+        _bk_cols = ["Tên Lô","NameStock","Auto Title"]
         _bk_haystack = view_bulk_base[[c for c in _bk_cols if c in view_bulk_base.columns]] \
             .astype(str).apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
         _bk_combined = _bk_haystack.apply(lambda row: ' '.join(row), axis=1)
@@ -3228,6 +3230,7 @@ with tab_pack:
             num_rows="fixed" if _is_bulk_searching else "dynamic",
             disabled=["ID"],
             column_config={
+                "NameStock": st.column_config.TextColumn("NameStock", width="small"),
                 "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
                 "Giá Nhập Tổng": st.column_config.NumberColumn("Vốn nhập (VNĐ)", format="%d"),
                 "Doanh Thu Tích Lũy": st.column_config.NumberColumn("Doanh thu (VNĐ)", format="%d"),

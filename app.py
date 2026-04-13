@@ -2663,9 +2663,9 @@ with tab_chart:
         else:
             st.info("Chưa có dữ liệu.")
 
-    # ── Horizontal grouped bar: Doanh thu & LN theo Mutation ──
+    # ── Bubble Scatter: Volume vs Margin per Mutation ──
     st.markdown("---")
-    st.markdown('<div class="sec-heading">📊 Doanh Thu & Lợi Nhuận Theo Mutation</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">🫧 Hiệu Quả Theo Mutation — Volume vs Margin</div>', unsafe_allow_html=True)
 
     if not sold_df.empty and "Mutation" in sold_df.columns:
         _tm_df = sold_df.copy()
@@ -2674,56 +2674,101 @@ with tab_chart:
         _tm_df["_ln"]  = pd.to_numeric(_tm_df["Lợi Nhuận"], errors="coerce").fillna(0)
         _tm_grp = (
             _tm_df.groupby("_mut", as_index=False)
-            .agg(DT=("_dt","sum"), LN=("_ln","sum"), Count=("_ln","count"))
-            .query("DT > 0")
-            .sort_values("LN", ascending=True)  # sort by profit so best is at top
+            .agg(DT=("_dt","sum"), LN_total=("_ln","sum"), Count=("_ln","count"))
+            .query("Count > 0")
         )
+        _tm_grp["LN_per_unit"] = _tm_grp["LN_total"] / _tm_grp["Count"]
+        _tm_grp["Margin_pct"]  = (_tm_grp["LN_total"] / _tm_grp["DT"].replace(0, float("nan")) * 100).fillna(0)
+
         if not _tm_grp.empty:
-            _ln_colors = ["#34d399" if v >= 0 else "#f87171" for v in _tm_grp["LN"]]
-            _fig_mut2 = go.Figure()
-            _fig_mut2.add_trace(go.Bar(
-                name="Doanh Thu",
-                y=_tm_grp["_mut"],
-                x=_tm_grp["DT"],
-                orientation="h",
-                marker=dict(color="#818cf8", opacity=0.75),
-                text=_tm_grp["DT"].apply(lambda v: f"{v/1e6:.1f}M"),
-                textposition="inside",
-                textfont=dict(color="#e2e8f0", size=10),
-                hovertemplate="<b>%{y}</b><br>Doanh thu: %{x:,.0f}₫<extra></extra>",
-            ))
-            _fig_mut2.add_trace(go.Bar(
-                name="Lợi Nhuận",
-                y=_tm_grp["_mut"],
-                x=_tm_grp["LN"],
-                orientation="h",
-                marker=dict(color=_ln_colors, opacity=0.85),
-                text=_tm_grp["LN"].apply(lambda v: f"{'+' if v>=0 else ''}{v/1e6:.1f}M"),
-                textposition="inside",
-                textfont=dict(color="#0a0a0f", size=10),
-                hovertemplate="<b>%{y}</b><br>Lợi nhuận: %{x:,.0f}₫<br>Số con: " +
-                    _tm_grp["Count"].astype(str) + "<extra></extra>",
-                customdata=_tm_grp[["Count"]].values,
-            ))
-            _fig_mut2.update_layout(
-                barmode="group",
+            # Quadrant reference lines at medians
+            _med_x = float(_tm_grp["Count"].median())
+            _med_y = float(_tm_grp["LN_per_unit"].median())
+
+            # Color palette per mutation (distinct vivid colors)
+            _MUT_PALETTE = {
+                "Normal":"#94a3b8","Gold":"#fbbf24","Diamond":"#67e8f9",
+                "Bloodrot":"#f87171","Candy":"#f9a8d4","Divine":"#c084fc",
+                "Lava":"#fb923c","Galaxy":"#818cf8","Yin-Yang":"#e2e8f0",
+                "Radioactive":"#86efac","Cursed":"#4ade80","Rainbow":"#f472b6",
+                "Không rõ":"#6b7280",
+            }
+            _dot_colors = [_MUT_PALETTE.get(m, "#a78bfa") for m in _tm_grp["_mut"]]
+
+            _fig_bub = go.Figure()
+
+            # Quadrant shading
+            _fig_bub.add_hrect(y0=_med_y, y1=_tm_grp["LN_per_unit"].max()*1.2,
+                               fillcolor="rgba(52,211,153,0.04)", line_width=0)
+            _fig_bub.add_hrect(y0=_tm_grp["LN_per_unit"].min()*1.2, y1=_med_y,
+                               fillcolor="rgba(248,113,113,0.04)", line_width=0)
+
+            # Quadrant lines
+            _fig_bub.add_hline(y=_med_y, line=dict(color="#2d2040", width=1, dash="dot"))
+            _fig_bub.add_vline(x=_med_x, line=dict(color="#2d2040", width=1, dash="dot"))
+
+            # Quadrant labels
+            for _ql_x, _ql_y, _ql_txt in [
+                (_tm_grp["Count"].max()*0.92, _tm_grp["LN_per_unit"].max()*1.1, "⭐ Ngôi sao"),
+                (_tm_grp["Count"].max()*0.03, _tm_grp["LN_per_unit"].max()*1.1, "💎 Hiếm & lời"),
+                (_tm_grp["Count"].max()*0.92, _med_y*0.02, "📦 Bán nhiều, ít lời"),
+                (_tm_grp["Count"].max()*0.03, _med_y*0.02, "⚠️ Cần xem xét"),
+            ]:
+                _fig_bub.add_annotation(
+                    x=_ql_x, y=_ql_y, text=_ql_txt,
+                    showarrow=False, font=dict(color="#4a3f6b", size=9),
+                    xanchor="left",
+                )
+
+            # Bubbles
+            for _, _row in _tm_grp.iterrows():
+                _col = _MUT_PALETTE.get(str(_row["_mut"]), "#a78bfa")
+                _sz  = max(20, min(80, _row["DT"] / (_tm_grp["DT"].max() or 1) * 70 + 12))
+                _fig_bub.add_trace(go.Scatter(
+                    x=[_row["Count"]],
+                    y=[_row["LN_per_unit"]],
+                    mode="markers+text",
+                    name=str(_row["_mut"]),
+                    marker=dict(
+                        size=_sz,
+                        color=_col,
+                        opacity=0.85,
+                        line=dict(color="#0a0a0f", width=1.5),
+                    ),
+                    text=[str(_row["_mut"])],
+                    textposition="top center",
+                    textfont=dict(color="#e2e8f0", size=10),
+                    hovertemplate=(
+                        f"<b>{_row['_mut']}</b><br>"
+                        f"Số con: {int(_row['Count'])}<br>"
+                        f"LN TB/con: {_row['LN_per_unit']:,.0f}₫<br>"
+                        f"Tổng LN: {_row['LN_total']:,.0f}₫<br>"
+                        f"Doanh thu: {_row['DT']:,.0f}₫<br>"
+                        f"Margin: {_row['Margin_pct']:.1f}%"
+                        "<extra></extra>"
+                    ),
+                    showlegend=False,
+                ))
+
+            _fig_bub.update_layout(
                 paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
                 font=dict(family="Inter", color="#9d8fbf"),
                 xaxis=dict(
+                    title="Số con đã bán (volume)",
+                    gridcolor="#1a1528", tickfont=dict(color="#9d8fbf"),
+                    zeroline=False,
+                ),
+                yaxis=dict(
+                    title="LN trung bình / con (₫)",
                     gridcolor="#1a1528", tickfont=dict(color="#9d8fbf"),
                     tickformat=",.0f", zeroline=True, zerolinecolor="#4a3f6b",
                 ),
-                yaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#e2e8f0")),
-                legend=dict(
-                    orientation="h", x=0, y=1.04,
-                    font=dict(color="#9d8fbf"),
-                    bgcolor="rgba(0,0,0,0)",
-                ),
-                margin=dict(l=10, r=10, t=40, b=10),
-                height=max(280, len(_tm_grp) * 45),
-                showlegend=True,
+                margin=dict(l=10, r=10, t=20, b=10),
+                height=420,
+                hovermode="closest",
             )
-            st.plotly_chart(_fig_mut2, use_container_width=True)
+            st.plotly_chart(_fig_bub, use_container_width=True)
+            st.caption("Kích thước bubble = tổng doanh thu · Kẻ đứt = median")
         else:
             st.info("Chưa có dữ liệu.")
     else:

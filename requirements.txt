@@ -5,4 +5,4 @@ plotly
 google-generativeai
 Pillow
 psutil
-st-aggrid
+st_aggrid

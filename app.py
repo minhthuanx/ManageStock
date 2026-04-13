@@ -15,7 +15,7 @@ from supabase import create_client, Client
 # PAGE CONFIG (must be first Streamlit call)
 # =============================================================================
 st.set_page_config(
-    page_title="GhostlyStock",
+    page_title="Management Dashboard",
     page_icon="👻",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -976,7 +976,7 @@ st.markdown(f"""
 <div class="hero-banner">
   <div class="logo">👻</div>
   <div>
-    <h1>GhostlyStock{_badge_html}</h1>
+    <h1>Management Dashboard{_badge_html}</h1>
     <p>Copyright © 2026 MINHTHUAN. All rights reserved.</p>
   </div>
 </div>
@@ -1038,7 +1038,7 @@ with st.sidebar:
     st.markdown("---")
 
     # ── Copy Shop Description ──
-    _SHOP_DESC = """👻Welcome to GhostlyStock - The Safest Way to Trade! 👻
+    _SHOP_DESC = """👻Welcome to Management Dashboard - The Safest Way to Trade! 👻
 
 Don't risk your items with "base-stealing" transfers. While others make you "steal" items from base to base, we use the "Trade Machine" for every order! 🚀
 
@@ -1060,7 +1060,7 @@ How to get your Brainrot 📦:
 
 5️⃣ Secure the Loot: Once accepted, your Brainrot is 100% secured in your base—no risk of being intercepted!
 
-Why GhostlyStock is Different?
+Why Management Dashboard is Different?
 
 In Steal a Brainrot, manual transfers are slow and dangerous. We skip the "stealing" hassle entirely! By utilizing the in-game Trade function, we guarantee your pets are protected during the entire process. No shared servers required, no risks taken.
 

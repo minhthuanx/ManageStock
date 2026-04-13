@@ -677,16 +677,16 @@ st.markdown("""
 
 /* ─── Root variables ─── */
 :root {
-  --bg:        #0d1117;
-  --surface:   #161b22;
-  --surface2:  #1f2937;
-  --border:    #30363d;
-  --accent:    #38bdf8;
-  --accent2:   #22d3ee;
+  --bg:        #0a0a0f;
+  --surface:   #110f1a;
+  --surface2:  #1a1528;
+  --border:    #2d2540;
+  --accent:    #c084fc;
+  --accent2:   #e879f9;
   --green:     #4ade80;
   --red:       #f87171;
-  --text:      #e6edf3;
-  --muted:     #8b949e;
+  --text:      #f0e6ff;
+  --muted:     #9d8fbf;
   --radius:    12px;
 }
 
@@ -722,10 +722,10 @@ div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: var(--m
 }
 .stButton > button[kind="primary"] {
   background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
-  color: #0d1117 !important;
+  color: #0a0a0f !important;
   border: none !important;
 }
-.stButton > button:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(56,189,248,0.3) !important; }
+.stButton > button:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(192,132,252,0.35) !important; }
 
 /* ─── Tabs ─── */
 [data-testid="stTabs"] > div:first-child { gap: 0.3rem; border-bottom: 1px solid var(--border); }
@@ -752,7 +752,7 @@ div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: var(--m
 }
 .stTextInput input:focus, .stNumberInput input:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(56,189,248,0.15) !important;
+  box-shadow: 0 0 0 2px rgba(192,132,252,0.2) !important;
 }
 
 /* ─── Containers ─── */
@@ -771,7 +771,7 @@ div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: var(--m
 
 /* ─── Hero banner ─── */
 .hero-banner {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  background: linear-gradient(135deg, #0f0a1e 0%, #1a0f2e 50%, #0f0a1e 100%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.9rem 1.2rem;
@@ -889,7 +889,7 @@ _badge_count = int(df[
     (pd.to_numeric(df["Ngày Tồn"], errors="coerce").fillna(0) >= 7)
 ].shape[0])
 _badge_html = (
-    f'<span style="background:#f87171;color:#0d1117;border-radius:999px;'
+    f'<span style="background:#f87171;color:#0a0a0f;border-radius:999px;'
     f'padding:2px 9px;font-size:0.75rem;font-weight:700;margin-left:8px;">⚠️ {_badge_count} tồn lâu</span>'
     if _badge_count > 0 else ""
 )
@@ -1804,8 +1804,8 @@ Extract and return VALID JSON only (no markdown, no extra text):
                 st.caption(f"📌 {_cp_mode_label}")
                 for _ci, (_, _crow) in enumerate(_cp_filtered.iterrows()):
                     st.markdown(
-                        f'<div style="font-size:0.78rem;color:#8b949e;margin-top:0.5rem;">'
-                        f'STT <b style="color:#38bdf8">{int(_crow["STT"])}</b> · '
+                        f'<div style="font-size:0.78rem;color:#9d8fbf;margin-top:0.5rem;">'
+                        f'STT <b style="color:#c084fc">{int(_crow["STT"])}</b> · '
                         f'{_crow["Tên Pet"]} · <span style="color:#4ade80">{_crow["Mutation"]}</span>'
                         f'</div>',
                         unsafe_allow_html=True,
@@ -1870,9 +1870,9 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     _rc1, _rc2 = st.columns([4, 1])
                     _rc1.markdown(
                         f'<div style="font-size:0.82rem;padding:2px 0;">'
-                        f'<b style="color:#38bdf8">STT {int(_br["STT"])}</b> · '
+                        f'<b style="color:#c084fc">STT {int(_br["STT"])}</b> · '
                         f'{_br["Tên Pet"]} · <span style="color:#4ade80">{_br["Mutation"]}</span>'
-                        f' · <span style="color:#8b949e">{fmt_vnd(float(_br["Giá Nhập"]))}</span>'
+                        f' · <span style="color:#9d8fbf">{fmt_vnd(float(_br["Giá Nhập"]))}</span>'
                         f'</div>',
                         unsafe_allow_html=True,
                     )
@@ -2089,26 +2089,26 @@ with tab_chart:
             textposition="outside",
             textfont=dict(size=11, color="#e2e8f0", family="Inter"),
             marker=dict(
-                color="#38bdf8",
-                line=dict(color="#38bdf8", width=0),
+                color="#c084fc",
+                line=dict(color="#c084fc", width=0),
             ),
             cliponaxis=False,
         ))
         fig.update_layout(
-            paper_bgcolor="#0d1117",
-            plot_bgcolor="#0d1117",
-            font=dict(family="Inter", color="#8b949e", size=11),
+            paper_bgcolor="#0a0a0f",
+            plot_bgcolor="#0a0a0f",
+            font=dict(family="Inter", color="#9d8fbf", size=11),
             xaxis=dict(
                 type="category",
-                tickfont=dict(size=10, color="#8b949e"),
-                gridcolor="#1f2937",
-                linecolor="#30363d",
+                tickfont=dict(size=10, color="#9d8fbf"),
+                gridcolor="#1a1528",
+                linecolor="#2d2540",
             ),
             yaxis=dict(
                 title="Lợi nhuận (VNĐ)",
-                tickfont=dict(size=10, color="#8b949e"),
-                gridcolor="#1f2937",
-                linecolor="#30363d",
+                tickfont=dict(size=10, color="#9d8fbf"),
+                gridcolor="#1a1528",
+                linecolor="#2d2540",
                 tickformat=",.0f",
             ),
             margin=dict(l=10, r=10, t=30, b=10),
@@ -2158,9 +2158,9 @@ with tab_chart:
             textfont=dict(color="#e2e8f0"),
         ))
         fig_cmp.update_layout(
-            paper_bgcolor="#0d1117",
-            plot_bgcolor="#0d1117",
-            font=dict(family="Inter", color="#8b949e"),
+            paper_bgcolor="#0a0a0f",
+            plot_bgcolor="#0a0a0f",
+            font=dict(family="Inter", color="#9d8fbf"),
             title=dict(text="Doanh thu vs Vốn tồn", font=dict(size=13, color="#e2e8f0")),
             margin=dict(l=10, r=10, t=50, b=10),
             height=300,
@@ -2185,18 +2185,18 @@ with tab_chart:
                 x=top_pets["Lợi Nhuận"],
                 y=top_pets["Tên Pet"],
                 orientation="h",
-                marker=dict(color="#38bdf8"),
+                marker=dict(color="#c084fc"),
                 text=top_pets["Lợi Nhuận"].apply(fmt_short),
                 textposition="outside",
                 textfont=dict(color="#e2e8f0", size=10),
             ))
             fig_bar.update_layout(
-                paper_bgcolor="#0d1117",
-                plot_bgcolor="#0d1117",
-                font=dict(family="Inter", color="#8b949e"),
+                paper_bgcolor="#0a0a0f",
+                plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf"),
                 title=dict(text="Top 10 Pet Lợi nhuận cao", font=dict(size=13, color="#e2e8f0")),
-                xaxis=dict(gridcolor="#1f2937", tickformat=",.0f", tickfont=dict(color="#8b949e")),
-                yaxis=dict(gridcolor="#1f2937", tickfont=dict(color="#e2e8f0")),
+                xaxis=dict(gridcolor="#1a1528", tickformat=",.0f", tickfont=dict(color="#9d8fbf")),
+                yaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#e2e8f0")),
                 margin=dict(l=10, r=10, t=50, b=10),
                 height=300,
                 showlegend=False,
@@ -2257,11 +2257,11 @@ with tab_chart:
                 textfont=dict(color="#e2e8f0", size=10),
             ))
             fig_spd.update_layout(
-                paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
-                font=dict(family="Inter", color="#8b949e"),
+                paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf"),
                 title=dict(text="Top 10 Pet bán chậm nhất (ngày TB)", font=dict(size=12, color="#e2e8f0")),
-                xaxis=dict(gridcolor="#1f2937", tickfont=dict(color="#8b949e")),
-                yaxis=dict(gridcolor="#1f2937", tickfont=dict(color="#e2e8f0")),
+                xaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#9d8fbf")),
+                yaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#e2e8f0")),
                 margin=dict(l=10, r=20, t=45, b=10),
                 height=300, showlegend=False,
             )
@@ -2291,11 +2291,11 @@ with tab_chart:
                 hovertemplate="<b>%{y}</b><br>TB/con: %{x:,.0f}₫<br>Tổng: %{customdata[0]:,.0f}₫<br>Số con: %{customdata[1]}<extra></extra>",
             ))
             fig_mut.update_layout(
-                paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
-                font=dict(family="Inter", color="#8b949e"),
+                paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf"),
                 title=dict(text="Lợi nhuận TB theo Mutation", font=dict(size=12, color="#e2e8f0")),
-                xaxis=dict(gridcolor="#1f2937", tickformat=",.0f", tickfont=dict(color="#8b949e")),
-                yaxis=dict(gridcolor="#1f2937", tickfont=dict(color="#e2e8f0")),
+                xaxis=dict(gridcolor="#1a1528", tickformat=",.0f", tickfont=dict(color="#9d8fbf")),
+                yaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#e2e8f0")),
                 margin=dict(l=10, r=20, t=45, b=10),
                 height=300, showlegend=False,
             )
@@ -2578,7 +2578,7 @@ with tab_chart:
                 _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_stock); _sk_val.append(_v_stock)
 
     if _sk_src:
-        _mut_palette = ["#38bdf8","#818cf8","#fb923c","#34d399","#f472b6",
+        _mut_palette = ["#c084fc","#818cf8","#fb923c","#34d399","#f472b6",
                         "#a78bfa","#facc15","#60a5fa","#f87171","#4ade80"]
         _sk_node_colors = (
             ["#6366f1"]
@@ -2601,7 +2601,7 @@ with tab_chart:
             ),
         ))
         fig_sk.update_layout(
-            paper_bgcolor="#0d1117",
+            paper_bgcolor="#0a0a0f",
             font=dict(family="Inter", color="#e2e8f0", size=11),
             margin=dict(l=10, r=10, t=20, b=10),
             height=420,
@@ -2661,7 +2661,7 @@ with tab_chart:
             text=_text_cal,
             hovertemplate="%{text}<extra></extra>",
             colorscale=[
-                [0.0,  "#161b22"],
+                [0.0,  "#110f1a"],
                 [0.01, "#0e4429"],
                 [0.3,  "#006d32"],
                 [0.6,  "#26a641"],
@@ -2670,22 +2670,22 @@ with tab_chart:
             zmin=0,
             zmax=_zmax_cal,
             showscale=True,
-            colorbar=dict(thickness=10, len=0.8, tickfont=dict(size=9, color="#8b949e")),
+            colorbar=dict(thickness=10, len=0.8, tickfont=dict(size=9, color="#9d8fbf")),
             xgap=2, ygap=2,
         ))
         fig_cal.update_layout(
-            paper_bgcolor="#0d1117",
-            plot_bgcolor="#0d1117",
-            font=dict(family="Inter", color="#8b949e", size=10),
+            paper_bgcolor="#0a0a0f",
+            plot_bgcolor="#0a0a0f",
+            font=dict(family="Inter", color="#9d8fbf", size=10),
             xaxis=dict(
                 tickmode="array",
                 tickvals=list(range(0, _n_weeks_cal, 4)),
                 ticktext=[_week_x_labels[i] for i in range(0, _n_weeks_cal, 4)],
-                tickfont=dict(size=9, color="#8b949e"),
+                tickfont=dict(size=9, color="#9d8fbf"),
                 showgrid=False, zeroline=False,
             ),
             yaxis=dict(
-                tickfont=dict(size=10, color="#8b949e"),
+                tickfont=dict(size=10, color="#9d8fbf"),
                 showgrid=False, zeroline=False,
                 autorange="reversed",
             ),

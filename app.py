@@ -2507,10 +2507,13 @@ with tab_chart:
             sort_key = chart_df["Ngày DT"].dt.normalize()
         elif period == "Theo tuần":
             chart_df["Period"] = chart_df["Ngày DT"].dt.strftime("W%V/%Y")
-            sort_key = chart_df["Ngày DT"].dt.to_period("W").apply(lambda p: p.start_time)
+            sort_key = (
+                chart_df["Ngày DT"]
+                - pd.to_timedelta(chart_df["Ngày DT"].dt.dayofweek, unit="d")
+            ).dt.normalize()
         else:
             chart_df["Period"] = chart_df["Ngày DT"].dt.strftime("%m/%Y")
-            sort_key = chart_df["Ngày DT"].dt.to_period("M").apply(lambda p: p.start_time)
+            sort_key = chart_df["Ngày DT"].dt.strftime("%Y-%m")
 
         chart_df["SortKey"] = sort_key
         agg = (
@@ -2569,7 +2572,12 @@ with tab_chart:
             if prev_row is not None:
                 delta_val = last_row["Lợi Nhuận"] - prev_row["Lợi Nhuận"]
                 # Streamlit detects sign from string prefix — must put "-" before "₫"
-                delta = ("-" if delta_val < 0 else "") + f"₫{abs(delta_val):,.0f}"
+                _delta_cmp_lbl = {
+                    "Theo ngày":  "so với hôm qua",
+                    "Theo tuần":  "so với tuần trước",
+                    "Theo tháng": "so với tháng trước",
+                }.get(period, "")
+                delta = ("-" if delta_val < 0 else "") + f"₫{abs(delta_val):,.0f}" + (f" {_delta_cmp_lbl}" if _delta_cmp_lbl else "")
             _period_delta_label = {
                 "Theo ngày":  "so với hôm qua",
                 "Theo tuần":  "so với tuần trước",

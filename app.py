@@ -9,6 +9,12 @@ import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
 
+try:
+    from st_aggrid import AgGrid, GridOptionsBuilder, ColumnsAutoSizeMode, GridUpdateMode, JsCode
+    _HAS_AGGRID = True
+except ImportError:
+    _HAS_AGGRID = False
+
 # --- SUPABASE ---
 from supabase import create_client, Client
 
@@ -2390,6 +2396,78 @@ with tab_chart:
     k3.metric("📥 Tổng vốn nhập",    fmt_vnd(total_cost))
     k4.metric("📦 Pet đang tồn",     f"{total_stock:,}")
 
+    # ── Waterfall: Dòng Chảy Tài Chính ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">🌊 Dòng Chảy Tài Chính</div>', unsafe_allow_html=True)
+
+    if total_rev > 0 or total_cost > 0:
+        _margin_pct = net_profit / total_rev * 100 if total_rev > 0 else 0
+        _roi_pct    = net_profit / total_cost * 100 if total_cost > 0 else 0
+        _sold_cnt   = len(sold_df)
+        if not bulk_history.empty and "Số Lượng Bán" in bulk_history.columns:
+            _sold_cnt += int(pd.to_numeric(bulk_history["Số Lượng Bán"], errors="coerce").fillna(0).sum())
+        _cap_remain = float(
+            pd.to_numeric(
+                df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]["Giá Nhập"],
+                errors="coerce"
+            ).fillna(0).sum()
+        )
+        if not bulk_df.empty:
+            _bdf2 = bulk_df.copy()
+            _bdf2["_orig"] = pd.to_numeric(_bdf2["Số Lượng Gốc"], errors="coerce").fillna(1).replace(0, 1)
+            _bdf2["_left"] = pd.to_numeric(_bdf2["Còn Lại"],       errors="coerce").fillna(0)
+            _bdf2["_cost"] = pd.to_numeric(_bdf2["Giá Nhập Tổng"], errors="coerce").fillna(0)
+            _cap_remain += float((_bdf2["_cost"] / _bdf2["_orig"] * _bdf2["_left"]).sum())
+
+        _wr1, _wr2, _wr3, _wr4 = st.columns(4)
+        _wr1.metric("📊 Margin",          f"{_margin_pct:.1f}%")
+        _wr2.metric("💹 ROI",             f"{_roi_pct:.1f}%")
+        _wr3.metric("🛒 Con đã bán",      f"{_sold_cnt:,}")
+        _wr4.metric("🏦 Vốn còn tồn",    fmt_vnd(_cap_remain))
+
+        _wf_x, _wf_y, _wf_m = [], [], []
+        if rev_single > 0:
+            _wf_x.append("DT Lẻ");   _wf_y.append(rev_single);         _wf_m.append("relative")
+        if rev_bulk > 0:
+            _wf_x.append("DT Lô");   _wf_y.append(rev_bulk);           _wf_m.append("relative")
+        if total_cost_single > 0:
+            _wf_x.append("Vốn Lẻ");  _wf_y.append(-total_cost_single); _wf_m.append("relative")
+        if total_cost_bulk > 0:
+            _wf_x.append("Vốn Lô");  _wf_y.append(-total_cost_bulk);   _wf_m.append("relative")
+        _wf_x.append("Lợi Nhuận Ròng"); _wf_y.append(net_profit); _wf_m.append("total")
+
+        _fig_wf = go.Figure(go.Waterfall(
+            orientation="v",
+            measure=_wf_m,
+            x=_wf_x,
+            y=_wf_y,
+            text=[("" if v >= 0 else "") + fmt_short(v) for v in _wf_y],
+            textposition="outside",
+            textfont=dict(color="#e2e8f0", size=11, family="Inter"),
+            connector=dict(line=dict(color="#2d2040", width=1.5, dash="dot")),
+            increasing=dict(marker=dict(color="#34d399", opacity=0.85, line=dict(color="#0a0a0f", width=1))),
+            decreasing=dict(marker=dict(color="#f87171", opacity=0.85, line=dict(color="#0a0a0f", width=1))),
+            totals=dict(marker=dict(
+                color="#a78bfa" if net_profit >= 0 else "#f87171",
+                opacity=0.9, line=dict(color="#0a0a0f", width=1)
+            )),
+            hovertemplate="<b>%{x}</b><br>%{y:,.0f}₫<extra></extra>",
+        ))
+        _fig_wf.update_layout(
+            paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+            font=dict(family="Inter", color="#9d8fbf"),
+            xaxis=dict(tickfont=dict(color="#e2e8f0", size=12), gridcolor="#1a1528", zeroline=False),
+            yaxis=dict(tickfont=dict(color="#9d8fbf"), gridcolor="#1a1528",
+                       tickformat=",.0f", zeroline=True, zerolinecolor="#4a3f6b", zerolinewidth=1.5),
+            margin=dict(l=10, r=10, t=20, b=10),
+            height=360,
+            showlegend=False,
+        )
+        st.plotly_chart(_fig_wf, use_container_width=True)
+        st.caption("🟢 Doanh thu · 🔴 Chi phí vốn · 🟣 Lợi nhuận ròng")
+    else:
+        st.info("Chưa có dữ liệu tài chính.")
+
     st.markdown("---")
 
     # ── Build unified profit-by-date dataframe ──
@@ -2497,10 +2575,19 @@ with tab_chart:
                 delta_val = last_row["Lợi Nhuận"] - prev_row["Lợi Nhuận"]
                 # Streamlit detects sign from string prefix — must put "-" before "₫"
                 delta = ("-" if delta_val < 0 else "") + f"₫{abs(delta_val):,.0f}"
-            c1.metric(f"LN {period_label} này · {last_row['Period']}",
-                      fmt_vnd(last_row["Lợi Nhuận"]), delta=delta)
-            c2.metric(f"Số {period_label} ghi nhận",  f"{len(agg):,}")
-            c3.metric(f"TB mỗi {period_label}",  fmt_vnd(agg['Lợi Nhuận'].mean()))
+            _period_delta_label = {
+                "Theo ngày":  "so với hôm qua",
+                "Theo tuần":  "so với tuần trước",
+                "Theo tháng": "so với tháng trước",
+            }.get(period, "")
+            c1.metric(
+                f"Lợi nhuận {period_label} gần nhất ({last_row['Period']})",
+                fmt_vnd(last_row["Lợi Nhuận"]),
+                delta=delta,
+                help=f"So sánh {_period_delta_label}",
+            )
+            c2.metric(f"Số {period_label} có giao dịch",  f"{len(agg):,}")
+            c3.metric(f"Lợi nhuận trung bình mỗi {period_label}",  fmt_vnd(agg['Lợi Nhuận'].mean()))
     else:
         st.info("Chưa có dữ liệu giao dịch để hiển thị.")
 
@@ -2774,6 +2861,87 @@ with tab_chart:
     else:
         st.info("Chưa có dữ liệu.")
 
+    # ── Pet Performance Scatter ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">🔵 Hiệu Quả Theo Tên Pet — Giá vs Lợi Nhuận</div>', unsafe_allow_html=True)
+
+    if not sold_df.empty:
+        _pp_df = sold_df.copy()
+        _pp_df["_gn"]  = pd.to_numeric(_pp_df["Giá Nhập"],  errors="coerce").fillna(0)
+        _pp_df["_ln"]  = pd.to_numeric(_pp_df["Lợi Nhuận"], errors="coerce").fillna(0)
+        _pp_df["_pet"] = _pp_df["Tên Pet"].astype(str).str.strip()
+        _pp_grp = (
+            _pp_df.groupby("_pet", as_index=False)
+            .agg(AvgCost=("_gn","mean"), AvgLN=("_ln","mean"),
+                 TotalDT=("_gn","sum"),  Count=("_ln","count"))
+        )
+        _pp_grp["Margin"] = _pp_grp["AvgLN"] / (_pp_grp["AvgCost"].replace(0, float("nan"))) * 100
+        _pp_grp = _pp_grp[_pp_grp["AvgCost"] > 0].dropna(subset=["Margin"])
+
+        if not _pp_grp.empty:
+            _med_px = float(_pp_grp["AvgCost"].median())
+            _med_py = float(_pp_grp["AvgLN"].median())
+
+            _fig_pp = go.Figure()
+            _fig_pp.add_hline(y=_med_py, line=dict(color="#2d2040", width=1, dash="dot"))
+            _fig_pp.add_vline(x=_med_px, line=dict(color="#2d2040", width=1, dash="dot"))
+
+            _pp_xmax = float(_pp_grp["AvgCost"].max())
+            _pp_ymax = float(_pp_grp["AvgLN"].max())
+            for _qx2, _qy2, _qt2 in [
+                (_pp_xmax * 0.65, _pp_ymax * 1.05, "💰 Đắt & lời nhiều"),
+                (_pp_xmax * 0.01, _pp_ymax * 1.05, "💎 Rẻ & lời nhiều"),
+                (_pp_xmax * 0.65, _med_py * 0.05,  "📦 Đắt, lời ít"),
+                (_pp_xmax * 0.01, _med_py * 0.05,  "⚠️ Rẻ, lời ít"),
+            ]:
+                _fig_pp.add_annotation(
+                    x=_qx2, y=_qy2, text=_qt2,
+                    showarrow=False, font=dict(color="#4a3f6b", size=9), xanchor="left"
+                )
+
+            for _, _pr in _pp_grp.iterrows():
+                _sz2 = max(12, min(70, _pr["Count"] / max(float(_pp_grp["Count"].max()), 1) * 58 + 12))
+                _m2  = float(_pr["Margin"])
+                _c2  = "#34d399" if _m2 > 20 else ("#fbbf24" if _m2 > 5 else "#f87171")
+                _fig_pp.add_trace(go.Scatter(
+                    x=[_pr["AvgCost"]], y=[_pr["AvgLN"]],
+                    mode="markers+text",
+                    name=str(_pr["_pet"]),
+                    marker=dict(size=_sz2, color=_c2, opacity=0.85,
+                                line=dict(color="#0a0a0f", width=1.5)),
+                    text=[str(_pr["_pet"])],
+                    textposition="top center",
+                    textfont=dict(color="#e2e8f0", size=10),
+                    hovertemplate=(
+                        f"<b>{_pr['_pet']}</b><br>"
+                        f"Giá nhập TB: {_pr['AvgCost']:,.0f}₫<br>"
+                        f"LN TB/con: {_pr['AvgLN']:,.0f}₫<br>"
+                        f"Margin: {_m2:.1f}%<br>"
+                        f"Số lần bán: {int(_pr['Count'])}"
+                        "<extra></extra>"
+                    ),
+                    showlegend=False,
+                ))
+
+            _fig_pp.update_layout(
+                paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf"),
+                xaxis=dict(title="Giá nhập TB (₫)", gridcolor="#1a1528",
+                           tickfont=dict(color="#9d8fbf"), tickformat=",.0f", zeroline=False),
+                yaxis=dict(title="LN TB / con (₫)", gridcolor="#1a1528",
+                           tickfont=dict(color="#9d8fbf"), tickformat=",.0f",
+                           zeroline=True, zerolinecolor="#4a3f6b"),
+                margin=dict(l=10, r=10, t=20, b=10),
+                height=430,
+                hovermode="closest",
+            )
+            st.plotly_chart(_fig_pp, use_container_width=True)
+            st.caption("Kích thước = số lần bán · Màu: 🟢 Margin >20% · 🟡 5–20% · 🔴 <5% · Kẻ đứt = median")
+        else:
+            st.info("Chưa có dữ liệu.")
+    else:
+        st.info("Chưa có dữ liệu bán.")
+
     # ── Weekly / Monthly summary table ──
     if has_data and not pbd.empty:
         st.markdown("---")
@@ -2790,8 +2958,45 @@ with tab_chart:
         )
         monthly_display = monthly[["Tháng","Lợi Nhuận"]].copy()
         monthly_display["Lợi Nhuận VNĐ"] = monthly_display["Lợi Nhuận"].apply(fmt_vnd)
-        monthly_display = monthly_display.drop(columns=["Lợi Nhuận"])
-        st.dataframe(monthly_display, use_container_width=True, hide_index=True)
+        # Keep raw number for aggrid sorting, display formatted string separately
+        monthly_display["Tổng Giao Dịch"] = monthly_display["Tháng"].map(
+            pbd.assign(Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y")).groupby("Tháng")["Lợi Nhuận"].count()
+        ).fillna(0).astype(int)
+
+        if _HAS_AGGRID:
+            _pos_cell_style = JsCode("""
+                function(params) {
+                    if (params.value > 0)  return { color: '#34d399', fontWeight: '600' };
+                    if (params.value < 0)  return { color: '#f87171', fontWeight: '600' };
+                    return { color: '#9d8fbf' };
+                }
+            """)
+            _gb_mo = GridOptionsBuilder.from_dataframe(
+                monthly_display[["Tháng","Lợi Nhuận","Lợi Nhuận VNĐ","Tổng Giao Dịch"]]
+            )
+            _gb_mo.configure_default_column(filter=True, sortable=True, resizable=True)
+            _gb_mo.configure_column("Tháng",         width=110)
+            _gb_mo.configure_column("Lợi Nhuận",     hide=True)
+            _gb_mo.configure_column("Lợi Nhuận VNĐ", minWidth=160, flex=1,
+                                    cellStyle=_pos_cell_style)
+            _gb_mo.configure_column("Tổng Giao Dịch", width=140,
+                                    type=["numericColumn","numberColumnFilter"])
+            _gb_mo.configure_pagination(enabled=True, paginationAutoPageSize=False, paginationPageSize=15)
+            AgGrid(
+                monthly_display[["Tháng","Lợi Nhuận","Lợi Nhuận VNĐ","Tổng Giao Dịch"]],
+                gridOptions=_gb_mo.build(),
+                theme="balham-dark",
+                update_mode=GridUpdateMode.NO_UPDATE,
+                columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
+                use_container_width=True,
+                height=350,
+                allow_unsafe_jscode=True,
+            )
+        else:
+            st.dataframe(
+                monthly_display[["Tháng","Lợi Nhuận VNĐ","Tổng Giao Dịch"]],
+                use_container_width=True, hide_index=True
+            )
 
     # ── Avg days to sell + Top mutation ──
     st.markdown("---")
@@ -3272,6 +3477,276 @@ with tab_chart:
     else:
         st.info("Chưa có dữ liệu.")
 
+    # ── ⚡ Xu Hướng Bán Theo Tuần ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">⚡ Xu Hướng Bán Theo Tuần</div>', unsafe_allow_html=True)
+
+    if has_data and not pbd.empty:
+        import datetime as _dtm2
+        _wk_df = pbd.copy()
+        _wk_df["_week"] = _wk_df["Ngày DT"].dt.to_period("W").apply(lambda p: p.start_time)
+
+        # Merge single sold count
+        _wk_count_df = pd.DataFrame(columns=["_week","Số con"])
+        if not sold_df.empty:
+            _sc = sold_df.copy()
+            _sc["_week"] = pd.to_datetime(_sc["Ngày Bán"], dayfirst=True, errors="coerce").dt.to_period("W").apply(lambda p: p.start_time)
+            _wk_count_df = _sc.groupby("_week", as_index=False).agg(**{"Số con": ("_week","count")})
+        # Merge bulk sold count
+        if not bulk_history.empty:
+            _bh = bulk_history.copy()
+            _bh["_week"] = pd.to_datetime(_bh["Ngày Bán"], dayfirst=True, errors="coerce").dt.to_period("W").apply(lambda p: p.start_time)
+            _bh_qty = _bh.groupby("_week", as_index=False).agg(
+                _bqty=("Số Lượng Bán" if "Số Lượng Bán" in _bh.columns else "Ngày Bán", "sum"
+                       if "Số Lượng Bán" in _bh.columns else "count")
+            ).rename(columns={"_bqty": "Số con bulk"})
+            if not _wk_count_df.empty:
+                _wk_count_df = _wk_count_df.merge(_bh_qty, on="_week", how="outer").fillna(0)
+                _wk_count_df["Số con"] = _wk_count_df.get("Số con", 0) + _wk_count_df.get("Số con bulk", 0)
+            else:
+                _wk_count_df = _bh_qty.rename(columns={"Số con bulk": "Số con"})
+
+        _wk_ln = _wk_df.groupby("_week", as_index=False)["Lợi Nhuận"].sum()
+        if not _wk_count_df.empty:
+            _wk_merged = _wk_ln.merge(
+                _wk_count_df[["_week","Số con"]] if "Số con" in _wk_count_df.columns else _wk_ln[["_week"]],
+                on="_week", how="left"
+            ).fillna(0)
+        else:
+            _wk_merged = _wk_ln.copy()
+            _wk_merged["Số con"] = 0
+        _wk_merged = _wk_merged.sort_values("_week").tail(16)  # last 16 weeks
+        _wk_merged["_label"] = _wk_merged["_week"].dt.strftime("W%V\n%d/%m")
+
+        if len(_wk_merged) >= 2:
+            # Trend line via simple linear regression
+            import numpy as np
+            _x = np.arange(len(_wk_merged))
+            _y = _wk_merged["Lợi Nhuận"].values.astype(float)
+            _m_coef, _b_coef = np.polyfit(_x, _y, 1)
+            _trend_y = _m_coef * _x + _b_coef
+            _trend_color = "#34d399" if _m_coef >= 0 else "#f87171"
+            _trend_label = f"Xu hướng {'↑ tăng' if _m_coef >= 0 else '↓ giảm'} {abs(_m_coef / max(abs(_y.mean()), 1) * 100):.1f}%/tuần"
+
+            _bar_colors = ["#34d399" if v >= 0 else "#f87171" for v in _wk_merged["Lợi Nhuận"]]
+            _fig_wk = go.Figure()
+            _fig_wk.add_trace(go.Bar(
+                x=_wk_merged["_label"], y=_wk_merged["Lợi Nhuận"],
+                name="LN/tuần", marker_color=_bar_colors, opacity=0.7,
+                text=_wk_merged["Lợi Nhuận"].apply(fmt_short),
+                textposition="outside", textfont=dict(color="#e2e8f0", size=9),
+                hovertemplate="<b>%{x}</b><br>Lợi nhuận: %{y:,.0f}₫<extra></extra>",
+                yaxis="y1",
+            ))
+            _fig_wk.add_trace(go.Scatter(
+                x=_wk_merged["_label"], y=_wk_merged["Số con"],
+                name="Số con bán", mode="lines+markers",
+                line=dict(color="#c084fc", width=2),
+                marker=dict(size=6, color="#c084fc"),
+                hovertemplate="<b>%{x}</b><br>Số con: %{y:,.0f}<extra></extra>",
+                yaxis="y2",
+            ))
+            _fig_wk.add_trace(go.Scatter(
+                x=_wk_merged["_label"], y=_trend_y.tolist(),
+                name=_trend_label, mode="lines",
+                line=dict(color=_trend_color, width=2, dash="dash"),
+                hoverinfo="skip", yaxis="y1",
+            ))
+            _fig_wk.update_layout(
+                paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf"),
+                xaxis=dict(tickfont=dict(color="#e2e8f0", size=10), gridcolor="#1a1528"),
+                yaxis=dict(title="Lợi nhuận (₫)", gridcolor="#1a1528",
+                           tickfont=dict(color="#9d8fbf"), tickformat=",.0f",
+                           zeroline=True, zerolinecolor="#4a3f6b"),
+                yaxis2=dict(title="Số con", overlaying="y", side="right",
+                            tickfont=dict(color="#c084fc"), zeroline=False, showgrid=False),
+                legend=dict(orientation="h", x=0, y=1.08, font=dict(color="#9d8fbf")),
+                margin=dict(l=10, r=50, t=40, b=10),
+                height=360, barmode="overlay",
+            )
+            st.plotly_chart(_fig_wk, use_container_width=True)
+
+            # 4 KPI cho tuần này vs tuần trước
+            _last2 = _wk_merged.tail(2)
+            if len(_last2) == 2:
+                _this = _last2.iloc[-1]
+                _prev = _last2.iloc[-2]
+                _wkc1, _wkc2, _wkc3, _wkc4 = st.columns(4)
+                _wkc1.metric("Lợi nhuận tuần này", fmt_vnd(_this["Lợi Nhuận"]),
+                             delta=fmt_short(_this["Lợi Nhuận"] - _prev["Lợi Nhuận"]))
+                _wkc2.metric("Tuần trước", fmt_vnd(_prev["Lợi Nhuận"]))
+                _wkc3.metric("Số con tuần này", f"{int(_this['Số con']):,}")
+                _avg_wk = float(_wk_merged["Lợi Nhuận"].mean())
+                _wkc4.metric("Trung bình mỗi tuần", fmt_vnd(_avg_wk))
+    else:
+        st.info("Chưa có dữ liệu.")
+
+    # ── 🧬 Phân Tích Trait ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">🧬 Phân Tích Theo Trait</div>', unsafe_allow_html=True)
+
+    if not sold_df.empty and "Số Trait" in sold_df.columns:
+        _tr_df = sold_df.copy()
+        _tr_df["_ln"]    = pd.to_numeric(_tr_df["Lợi Nhuận"], errors="coerce").fillna(0)
+        _tr_df["_dt"]    = pd.to_numeric(_tr_df["Doanh Thu"],  errors="coerce").fillna(0)
+        _tr_df["_gn"]    = pd.to_numeric(_tr_df["Giá Nhập"],   errors="coerce").fillna(0)
+        _tr_df["_trait"] = _tr_df["Số Trait"].astype(str).str.strip().replace({"": "None", "nan": "None", "0": "None"})
+
+        _tr_grp = (
+            _tr_df.groupby("_trait", as_index=False)
+            .agg(LN_mean=("_ln","mean"), LN_total=("_ln","sum"),
+                 DT_total=("_dt","sum"),  GN_mean=("_gn","mean"), Count=("_ln","count"))
+        )
+        _tr_grp["Margin"] = (_tr_grp["LN_total"] / _tr_grp["DT_total"].replace(0, float("nan")) * 100).fillna(0)
+        _sort_order = {"None":0}
+        _tr_grp["_s"] = _tr_grp["_trait"].map(lambda x: _sort_order.get(x, 99))
+        _tr_grp = _tr_grp.sort_values(["_s","LN_mean"], ascending=[True, False]).drop(columns=["_s"])
+
+        _trc1, _trc2 = st.columns(2)
+        with _trc1:
+            _tr_colors = ["#94a3b8" if t == "None" else
+                          "#34d399" if i % 3 == 1 else
+                          "#a78bfa" if i % 3 == 2 else "#f472b6"
+                          for i, t in enumerate(_tr_grp["_trait"])]
+            _fig_tr = go.Figure(go.Bar(
+                x=_tr_grp["_trait"], y=_tr_grp["LN_mean"],
+                marker_color=_tr_colors, opacity=0.85,
+                text=_tr_grp["LN_mean"].apply(fmt_short),
+                textposition="outside", textfont=dict(color="#e2e8f0", size=10),
+                customdata=_tr_grp[["LN_total","Count","Margin"]].values,
+                hovertemplate=(
+                    "<b>Trait: %{x}</b><br>"
+                    "LN TB/con: %{y:,.0f}₫<br>"
+                    "Tổng LN: %{customdata[0]:,.0f}₫<br>"
+                    "Số con: %{customdata[1]}<br>"
+                    "Margin: %{customdata[2]:.1f}%"
+                    "<extra></extra>"
+                ),
+            ))
+            _fig_tr.update_layout(
+                title=dict(text="Lợi Nhuận TB / Con theo Trait", font=dict(size=12, color="#e2e8f0")),
+                paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf"),
+                xaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#e2e8f0")),
+                yaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#9d8fbf"),
+                           tickformat=",.0f", zeroline=True, zerolinecolor="#4a3f6b"),
+                margin=dict(l=10, r=10, t=40, b=10), height=300, showlegend=False,
+            )
+            st.plotly_chart(_fig_tr, use_container_width=True)
+
+        with _trc2:
+            _tr_disp = _tr_grp.copy()
+            _tr_disp["LN TB/con"]  = _tr_disp["LN_mean"].apply(fmt_vnd)
+            _tr_disp["Tổng LN"]    = _tr_disp["LN_total"].apply(fmt_vnd)
+            _tr_disp["Giá nhập TB"] = _tr_disp["GN_mean"].apply(fmt_vnd)
+            _tr_disp["Margin %"]   = _tr_disp["Margin"].apply(lambda v: f"{v:.1f}%")
+            _tr_disp = _tr_disp.rename(columns={"_trait":"Trait","Count":"Số con"})
+            st.markdown("**Bảng chi tiết theo Trait**")
+            st.dataframe(
+                _tr_disp[["Trait","Số con","LN TB/con","Tổng LN","Giá nhập TB","Margin %"]],
+                use_container_width=True, hide_index=True, height=300,
+            )
+    else:
+        st.info("Chưa có dữ liệu bán.")
+
+    # ── 🏦 Hiệu Suất Vốn ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">🏦 Hiệu Suất Vốn</div>', unsafe_allow_html=True)
+
+    # Capital inputs
+    _cap_invested_single = float(pd.to_numeric(df["Giá Nhập"], errors="coerce").fillna(0).sum()) if not df.empty else 0.0
+    _cap_invested_bulk   = float(pd.to_numeric(bulk_df["Giá Nhập Tổng"], errors="coerce").fillna(0).sum()) if not bulk_df.empty else 0.0
+    _cap_invested_total  = _cap_invested_single + _cap_invested_bulk
+
+    # Capital returned (cost of sold items)
+    _cap_returned_single = float(pd.to_numeric(sold_df["Giá Nhập"], errors="coerce").fillna(0).sum()) if not sold_df.empty else 0.0
+    _cap_returned_bulk   = 0.0
+    if not bulk_df.empty and not bulk_history.empty:
+        _bdf_cost_rate = bulk_df.copy()
+        _bdf_cost_rate["_orig"] = pd.to_numeric(_bdf_cost_rate["Số Lượng Gốc"], errors="coerce").fillna(1).replace(0, 1)
+        _bdf_cost_rate["_cost"] = pd.to_numeric(_bdf_cost_rate["Giá Nhập Tổng"], errors="coerce").fillna(0)
+        _bdf_cost_rate["_unit_cost"] = _bdf_cost_rate["_cost"] / _bdf_cost_rate["_orig"]
+        _bdf_map = dict(zip(_bdf_cost_rate["Tên Lô"].astype(str), _bdf_cost_rate["_unit_cost"]))
+        if "Tên Lô" in bulk_history.columns and "Số Lượng Bán" in bulk_history.columns:
+            _bh2 = bulk_history.copy()
+            _bh2["_qty"]  = pd.to_numeric(_bh2["Số Lượng Bán"], errors="coerce").fillna(0)
+            _bh2["_rate"] = _bh2["Tên Lô"].astype(str).map(_bdf_map).fillna(0)
+            _cap_returned_bulk = float((_bh2["_qty"] * _bh2["_rate"]).sum())
+    _cap_returned_total = _cap_returned_single + _cap_returned_bulk
+
+    # Locked capital (still in stock)
+    _cap_locked_single = float(pd.to_numeric(
+        df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]["Giá Nhập"],
+        errors="coerce"
+    ).fillna(0).sum()) if not df.empty else 0.0
+    _cap_locked_bulk = 0.0
+    if not bulk_df.empty:
+        _bdf3 = bulk_df[bulk_df["Trạng Thái"].astype(str) == "Available"].copy()
+        if not _bdf3.empty:
+            _bdf3["_orig"] = pd.to_numeric(_bdf3["Số Lượng Gốc"], errors="coerce").fillna(1).replace(0, 1)
+            _bdf3["_left"] = pd.to_numeric(_bdf3["Còn Lại"], errors="coerce").fillna(0)
+            _bdf3["_cost"] = pd.to_numeric(_bdf3["Giá Nhập Tổng"], errors="coerce").fillna(0)
+            _cap_locked_bulk = float((_bdf3["_cost"] / _bdf3["_orig"] * _bdf3["_left"]).sum())
+    _cap_locked_total = _cap_locked_single + _cap_locked_bulk
+
+    _recovery_pct = _cap_returned_total / _cap_invested_total * 100 if _cap_invested_total > 0 else 0.0
+    _lock_pct     = _cap_locked_total   / _cap_invested_total * 100 if _cap_invested_total > 0 else 0.0
+
+    # Ước tính thời gian hoàn vốn: dựa trên tốc độ thu hồi vốn hiện tại
+    _days_active = max((now_vn().replace(tzinfo=None) - pd.to_datetime(
+        df["Ngày Nhập"].dropna().replace("", float("nan")),
+        dayfirst=True, errors="coerce"
+    ).dropna().min().replace(tzinfo=None)).days, 1) if not df.empty else 1
+    _daily_recovery = _cap_returned_total / _days_active if _days_active > 0 else 0
+    _days_to_recover = int(_cap_locked_total / _daily_recovery) if _daily_recovery > 0 else 0
+
+    # Gauge chart: Recovery %
+    _fig_gauge = go.Figure(go.Indicator(
+        mode="gauge+number+delta",
+        value=_recovery_pct,
+        delta={"reference": 80, "suffix": "%", "increasing": {"color": "#34d399"}, "decreasing": {"color": "#f87171"}},
+        number={"suffix": "%", "font": {"size": 36, "color": "#e2e8f0", "family": "Inter"}},
+        gauge={
+            "axis": {"range": [0, 100], "tickcolor": "#4a3f6b",
+                     "tickfont": {"color": "#9d8fbf", "size": 10}},
+            "bar":  {"color": "#a78bfa", "thickness": 0.25},
+            "bgcolor": "#0a0a0f",
+            "bordercolor": "#2d2040",
+            "steps": [
+                {"range": [0,  40], "color": "rgba(248,113,113,0.12)"},
+                {"range": [40, 70], "color": "rgba(251,191,36,0.10)"},
+                {"range": [70,100], "color": "rgba(52,211,153,0.10)"},
+            ],
+            "threshold": {
+                "line": {"color": "#fbbf24", "width": 2},
+                "thickness": 0.8, "value": 80,
+            },
+        },
+        title={"text": "% Vốn Đã Thu Hồi", "font": {"size": 13, "color": "#9d8fbf", "family": "Inter"}},
+    ))
+    _fig_gauge.update_layout(
+        paper_bgcolor="#0a0a0f",
+        font=dict(family="Inter", color="#9d8fbf"),
+        margin=dict(l=20, r=20, t=30, b=10),
+        height=260,
+    )
+
+    _gc1, _gc2 = st.columns([1.1, 1])
+    with _gc1:
+        st.plotly_chart(_fig_gauge, use_container_width=True)
+    with _gc2:
+        st.markdown("&nbsp;", unsafe_allow_html=True)
+        _cv1, _cv2 = st.columns(2)
+        _cv1.metric("Tổng vốn đã bỏ ra",    fmt_vnd(_cap_invested_total))
+        _cv2.metric("Vốn đã thu về",         fmt_vnd(_cap_returned_total))
+        _cv3, _cv4 = st.columns(2)
+        _cv3.metric("Vốn đang kẹt trong kho", fmt_vnd(_cap_locked_total),
+                    delta=f"-{_lock_pct:.1f}% vốn")
+        _cv4.metric("Ước tính hoàn vốn còn lại",
+                    f"~{_days_to_recover} ngày" if _days_to_recover > 0 and _days_to_recover < 3650 else "—",
+                    help="Dựa trên tốc độ thu hồi vốn trung bình hiện tại")
+
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 3: TỒN LÂU
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3325,16 +3800,48 @@ with tab_ton:
         m3.metric("Thời hạn tồn kho", f"{int(old_items['Ngày Tồn'].max())} ngày")
 
         old_items["Giá trị vốn"] = old_items["Giá trị vốn (VNĐ)"].apply(fmt_vnd)
-        st.dataframe(
-            old_items[["Loại","Item","Số lượng còn","Ngày Nhập","Ngày Tồn","Giá trị vốn","Auto Title"]],
-            use_container_width=True,
-            hide_index=True,
-            height=420,
-            column_config={
-                "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
-                "Ngày Tồn": st.column_config.NumberColumn("Ngày Tồn", format="%d ngày"),
-            },
-        )
+        _ton_disp = old_items[["Loại","Item","Số lượng còn","Ngày Nhập","Ngày Tồn","Giá trị vốn","Auto Title"]].copy()
+
+        if _HAS_AGGRID:
+            _gb_ton = GridOptionsBuilder.from_dataframe(_ton_disp)
+            _gb_ton.configure_default_column(
+                filter=True, sortable=True, resizable=True,
+                wrapText=False, autoHeight=False,
+            )
+            _gb_ton.configure_column("Auto Title", minWidth=220, flex=2)
+            _gb_ton.configure_column("Item",       minWidth=140, flex=1)
+            _gb_ton.configure_column("Loại",       width=100, filter="agSetColumnFilter")
+            _gb_ton.configure_column("Ngày Tồn",   width=110, type=["numericColumn","numberColumnFilter"])
+            _gb_ton.configure_column("Số lượng còn", width=120, type=["numericColumn"])
+            _gb_ton.configure_column("Giá trị vốn", minWidth=140)
+            _gb_ton.configure_column("Ngày Nhập",  width=110)
+            _gb_ton.configure_pagination(enabled=True, paginationAutoPageSize=False, paginationPageSize=20)
+            _gb_ton.configure_grid_options(
+                domLayout="normal",
+                suppressMovableColumns=False,
+                headerHeight=36,
+                rowHeight=34,
+            )
+            _gb_ton.configure_selection("single", use_checkbox=False)
+            _grid_ton = _gb_ton.build()
+            AgGrid(
+                _ton_disp,
+                gridOptions=_grid_ton,
+                theme="balham-dark",
+                update_mode=GridUpdateMode.NO_UPDATE,
+                columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
+                use_container_width=True,
+                height=420,
+                allow_unsafe_jscode=False,
+            )
+        else:
+            st.dataframe(
+                _ton_disp, use_container_width=True, hide_index=True, height=420,
+                column_config={
+                    "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
+                    "Ngày Tồn":   st.column_config.NumberColumn("Ngày Tồn", format="%d ngày"),
+                },
+            )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 4: LÔ PACK

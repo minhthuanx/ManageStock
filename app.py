@@ -673,7 +673,7 @@ trait_db = load_csv(TRAIT_LIST,    LIST_SCHEMA)
 # =============================================================================
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 /* ─── Root variables ─── */
 :root {
@@ -696,6 +696,9 @@ html, body, [data-testid="stAppViewContainer"] {
   font-family: 'Inter', sans-serif !important;
   background: var(--bg) !important;
   color: var(--text) !important;
+  font-feature-settings: "tnum" 1, "cv01" 1, "ss01" 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] { background: var(--surface) !important; border-right: 1px solid var(--border); }
@@ -973,8 +976,8 @@ st.markdown(f"""
 <div class="hero-banner">
   <div class="logo">👻</div>
   <div>
-    <h1>Management Dashboard{_badge_html}</h1>
-    <p>Copyright © 2026 MINHTHUANX. All rights reserved.</p>
+    <h1>GhostlyStock{_badge_html}</h1>
+    <p>Quản lý kho Pet · Tự động hóa · Phân tích thông minh</p>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -1582,23 +1585,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     sel_stt = int(sel.split(" — ")[0])
                     sel_row = filt[filt["STT"] == sel_stt].iloc[0]
 
-                    # ── #15 Price history for this pet ──
-                    _hist_prices = pd.to_numeric(
-                        df[
-                            (df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)) &
-                            (df["Tên Pet"].astype(str) == str(sel_row["Tên Pet"]))
-                        ]["Giá Bán"],
-                        errors="coerce"
-                    ).dropna()
-                    _hist_prices = _hist_prices[_hist_prices > 0]
-
-                    with st.container(border=True):
-                        st.caption(f"🐾 **{sel_row['Tên Pet']}** | Nhập: **{fmt_vnd(float(sel_row['Giá Nhập']))}** | Tồn: **{int(sel_row['Ngày Tồn'])} ngày**")
-                        if len(_hist_prices) >= 1:
-                            _p_min = _hist_prices.min()
-                            _p_avg = _hist_prices.mean()
-                            _p_max = _hist_prices.max()
-                            st.caption(f"📊 Lịch sử **{len(_hist_prices)}** lần bán | thấp: **{_p_min:.2f}$** — TB: **{_p_avg:.2f}$** — cao: **{_p_max:.2f}$**")
+                    st.caption(f"🔍 Tìm được **{len(filt)}** kết quả khớp")
 
                     with st.form("form_ban_le", clear_on_submit=True):
                         c1, c2 = st.columns([1.2, 1])

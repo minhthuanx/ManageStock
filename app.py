@@ -2497,10 +2497,10 @@ with tab_chart:
                 delta_val = last_row["Lợi Nhuận"] - prev_row["Lợi Nhuận"]
                 # Streamlit detects sign from string prefix — must put "-" before "₫"
                 delta = ("-" if delta_val < 0 else "") + f"₫{abs(delta_val):,.0f}"
-            c1.metric(f"Lợi nhuận {period_label} gần nhất ({last_row['Period']})",
+            c1.metric(f"LN {period_label} này · {last_row['Period']}",
                       fmt_vnd(last_row["Lợi Nhuận"]), delta=delta)
-            c2.metric(f"Tổng {period_label} đã có",  f"{len(agg):,}")
-            c3.metric(f"Trung bình/{period_label}",  fmt_vnd(agg['Lợi Nhuận'].mean()))
+            c2.metric(f"Số {period_label} ghi nhận",  f"{len(agg):,}")
+            c3.metric(f"TB mỗi {period_label}",  fmt_vnd(agg['Lợi Nhuận'].mean()))
     else:
         st.info("Chưa có dữ liệu giao dịch để hiển thị.")
 
@@ -2588,9 +2588,9 @@ with tab_chart:
         _cum_total_days = len(_cum_daily)
         _kc1, _kc2, _kc3, _kc4 = st.columns(4)
         _kc1.metric("Tổng tích lũy", fmt_vnd(_cum_total))
-        _kc2.metric("Ngày tốt nhất", fmt_vnd(_cum_best_day))
-        _kc3.metric("Ngày tệ nhất", fmt_vnd(_cum_worst_day))
-        _kc4.metric("Ngày có lời", f"{_cum_pos_days} / {_cum_total_days} ngày")
+        _kc2.metric("📈 Ngày đỉnh", fmt_vnd(_cum_best_day))
+        _kc3.metric("📉 Ngày thấp nhất", fmt_vnd(_cum_worst_day))
+        _kc4.metric("✅ Ngày có lời", f"{_cum_pos_days} / {_cum_total_days} ngày")
     else:
         st.info("Chưa có dữ liệu giao dịch để hiển thị.")
 
@@ -3182,7 +3182,7 @@ with tab_chart:
 
     # ── CALENDAR HEATMAP: GitHub-style lợi nhuận ──
     st.markdown("---")
-    st.markdown('<div class="sec-heading">Calendar Heatmap — Lợi Nhuận 365 Ngày Gần Nhất</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">📅 Lịch Lợi Nhuận — 1 Năm Gần Nhất</div>', unsafe_allow_html=True)
 
     if has_data and not pbd.empty:
         import datetime as _dtm
@@ -3722,3 +3722,93 @@ with tab_settings:
                 st.warning(f"Phát hiện **{len(dup_bulk)} bản ghi** trùng lặp:")
                 st.dataframe(dup_bulk[["id"] + [c for c in dup_bulk.columns if c != "id"]], use_container_width=True, hide_index=True)
                 st.caption("Truy cập Supabase Dashboard → Table Editor → bulk_inventory → xoá thủ công theo ID.")
+
+    # ── Tài Nguyên Hệ Thống ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">🖥️ Tình Trạng Tài Nguyên</div>', unsafe_allow_html=True)
+
+    import sys, os, gc
+
+    # ── Process metrics via psutil ──
+    try:
+        import psutil
+        _proc   = psutil.Process(os.getpid())
+        _mem_mi = _proc.memory_info()
+        _rss_mb = _mem_mi.rss / 1024 / 1024
+        _vms_mb = _mem_mi.vms / 1024 / 1024
+        _cpu_p  = _proc.cpu_percent(interval=0.1)
+        _sys_mem   = psutil.virtual_memory()
+        _sys_used  = _sys_mem.used  / 1024 / 1024 / 1024
+        _sys_total = _sys_mem.total / 1024 / 1024 / 1024
+        _sys_pct   = _sys_mem.percent
+        _has_psutil = True
+    except ImportError:
+        _has_psutil = False
+
+    # ── Session state metrics ──
+    import pickle
+    def _est_size_bytes(obj):
+        try:
+            return sys.getsizeof(pickle.dumps(obj, protocol=2))
+        except Exception:
+            return sys.getsizeof(obj)
+
+    _ss_keys     = list(st.session_state.keys())
+    _ss_total_b  = sum(_est_size_bytes(st.session_state[k]) for k in _ss_keys)
+    _ss_mb       = _ss_total_b / 1024 / 1024
+
+    _df_inv      = st.session_state.get("df", pd.DataFrame())
+    _df_bulk     = st.session_state.get("bulk_df", pd.DataFrame())
+    _df_hist     = st.session_state.get("bulk_history", pd.DataFrame())
+
+    # ── Row 1: system / process ──
+    _rc1, _rc2, _rc3, _rc4 = st.columns(4)
+
+    if _has_psutil:
+        _rss_color  = "normal" if _rss_mb < 300 else ("off" if _rss_mb < 600 else "inverse")
+        _cpu_color  = "normal" if _cpu_p  < 30  else ("off" if _cpu_p  < 70  else "inverse")
+        _ram_delta  = f"RAM hệ thống: {_sys_pct:.0f}%"
+        _rc1.metric("💾 RAM Process (RSS)", f"{_rss_mb:.1f} MB", delta=f"VMS {_vms_mb:.0f} MB")
+        _rc2.metric("⚙️ CPU Process", f"{_cpu_p:.1f}%")
+        _rc3.metric("🖥️ RAM Hệ Thống", f"{_sys_used:.2f} / {_sys_total:.2f} GB", delta=f"{_sys_pct:.0f}% dùng")
+    else:
+        _rc1.metric("💾 RAM Process", "N/A", delta="Cài psutil để đo")
+        _rc2.metric("⚙️ CPU Process", "N/A")
+        _rc3.metric("🖥️ RAM Hệ Thống", "N/A")
+
+    _rc4.metric("🗂️ Session State", f"{_ss_mb:.2f} MB", delta=f"{len(_ss_keys)} keys")
+
+    # ── Row 2: DataFrame sizes ──
+    _rd1, _rd2, _rd3, _rd4 = st.columns(4)
+    _rd1.metric("📋 Tồn kho lẻ",    f"{len(_df_inv):,} hàng",  delta=f"~{_est_size_bytes(_df_inv)//1024} KB")
+    _rd2.metric("📦 Lô hàng",        f"{len(_df_bulk):,} lô",   delta=f"~{_est_size_bytes(_df_bulk)//1024} KB")
+    _rd3.metric("📜 Lịch sử lô",     f"{len(_df_hist):,} giao dịch", delta=f"~{_est_size_bytes(_df_hist)//1024} KB")
+    _gc_objs = gc.get_count()
+    _rd4.metric("♻️ GC Objects",     f"{sum(_gc_objs):,}", delta=f"gen {_gc_objs[0]}/{_gc_objs[1]}/{_gc_objs[2]}")
+
+    # ── Session state detail expander ──
+    with st.expander("🔍 Chi tiết Session State Keys"):
+        _ss_rows = []
+        for _k in sorted(_ss_keys):
+            try:
+                _sz = _est_size_bytes(st.session_state[_k])
+                _tp = type(st.session_state[_k]).__name__
+                if isinstance(st.session_state[_k], pd.DataFrame):
+                    _tp = f"DataFrame ({len(st.session_state[_k])} rows)"
+                _ss_rows.append({"Key": _k, "Type": _tp, "Size (bytes)": _sz})
+            except Exception:
+                _ss_rows.append({"Key": _k, "Type": "?", "Size (bytes)": 0})
+        _ss_detail_df = pd.DataFrame(_ss_rows).sort_values("Size (bytes)", ascending=False).reset_index(drop=True)
+        st.dataframe(_ss_detail_df, use_container_width=True, hide_index=True,
+                     column_config={"Size (bytes)": st.column_config.NumberColumn(format="%,d")})
+
+    # ── Manual GC + clear cache buttons ──
+    _rb1, _rb2 = st.columns(2)
+    if _rb1.button("♻️ Chạy Garbage Collector", use_container_width=True):
+        _before = sum(gc.get_count())
+        _collected = gc.collect()
+        st.success(f"GC: thu hồi {_collected} objects · còn {sum(gc.get_count())} (trước: {_before})")
+    if _rb2.button("🧹 Xoá Cache Streamlit", use_container_width=True):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.success("Đã xoá toàn bộ cache @st.cache_data và @st.cache_resource.")

@@ -2476,7 +2476,7 @@ with tab_chart:
     _perf_c1, _perf_c2 = st.columns(2)
 
     with _perf_c1:
-    st.markdown("**Vòng Quay Hàng — Thời gian tồn kho TB trước khi bán**")
+        st.markdown("**Vòng Quay Hàng — Thời gian tồn kho TB trước khi bán**")
         if not sold_df.empty:
             _sold_speed = sold_df.copy()
             _sold_speed["Ngày Tồn"] = pd.to_numeric(_sold_speed["Ngày Tồn"], errors="coerce").fillna(0)
@@ -2516,7 +2516,7 @@ with tab_chart:
             st.info("Chưa có dữ liệu bán.")
 
     with _perf_c2:
-    st.markdown("**Hiệu Suất Theo Mutation**")
+        st.markdown("**Hiệu Suất Theo Mutation**")
         if not sold_df.empty:
             _mut_perf = (
                 sold_df.copy()
@@ -2629,7 +2629,7 @@ with tab_chart:
                 height=340,
             )
             st.plotly_chart(fig_hour, use_container_width=True)
-    st.caption(f"Cao điểm: **{_peak_hour:02d}:00 – {_peak_hour:02d}:59** · {int(_hour_count.loc[_hour_count['Giờ']==_peak_hour,'Đơn'].values[0])} giao dịch")
+            st.caption(f"Cao điểm: **{_peak_hour:02d}:00 – {_peak_hour:02d}:59** · {int(_hour_count.loc[_hour_count['Giờ']==_peak_hour,'Đơn'].values[0])} giao dịch")
         else:
             st.info("Chưa có dữ liệu thời gian bán hàng.")
     else:

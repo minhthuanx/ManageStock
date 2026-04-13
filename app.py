@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 import streamlit as st
 
 # --- SUPABASE ---
@@ -730,9 +731,8 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   border: none !important;
 }
 .stButton > button[kind="primary"]:hover {
-  transform: translateY(-1px) !important;
-  box-shadow: 0 6px 20px rgba(192,132,252,0.4) !important;
-  filter: brightness(1.08) !important;
+  box-shadow: 0 6px 24px rgba(192,132,252,0.5) !important;
+  filter: brightness(1.1) !important;
 }
 
 /* ─── Tabs ─── */
@@ -835,7 +835,7 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   text-align: center;
   transition: all 0.2s;
 }
-.stat-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(192,132,252,0.12); }
+.stat-card:hover { border-color: var(--accent); box-shadow: 0 8px 24px rgba(192,132,252,0.2); }
 .stat-card .val  { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
 .stat-card .lbl  { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; letter-spacing: 0.04em; }
 
@@ -877,8 +877,7 @@ div[data-testid="stMetric"] {
 div[data-testid="stMetric"]:hover {
   border-color: var(--accent) !important;
   border-left-color: var(--accent2) !important;
-  box-shadow: 0 6px 20px rgba(192,132,252,0.15) !important;
-  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(192,132,252,0.22) !important;
 }
 
 /* ─── Expanders — clean borderless ─── */
@@ -973,8 +972,7 @@ div[data-testid="stMetric"]:hover {
   font-weight: 600 !important;
 }
 .copy-desc-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(192,132,252,0.4) !important;
+  box-shadow: 0 4px 24px rgba(192,132,252,0.5) !important;
 }
 
 /* ─── Toast override ─── */
@@ -2403,6 +2401,94 @@ with tab_chart:
     else:
         st.info("Chưa có dữ liệu giao dịch để hiển thị.")
 
+    # ── Cumulative Profit Line ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">📈 Lợi Nhuận Tích Lũy</div>', unsafe_allow_html=True)
+
+    if has_data and not pbd.empty:
+        _cum_df = (
+            pbd[["Ngày DT","Lợi Nhuận"]]
+            .dropna(subset=["Ngày DT"])
+            .sort_values("Ngày DT")
+            .copy()
+        )
+        _cum_df["Tích Lũy"] = _cum_df["Lợi Nhuận"].cumsum()
+        _cum_df["Ngày"] = _cum_df["Ngày DT"].dt.strftime("%d/%m/%Y")
+
+        # milestone annotations
+        _cum_milestones = [10_000_000, 20_000_000, 30_000_000, 50_000_000, 100_000_000]
+        _annotations = []
+        for _ms_val in _cum_milestones:
+            _cross = _cum_df[_cum_df["Tích Lũy"] >= _ms_val]
+            if not _cross.empty:
+                _ms_row = _cross.iloc[0]
+                _annotations.append(dict(
+                    x=_ms_row["Ngày DT"], y=_ms_val,
+                    text=f"🏆 {_ms_val//1_000_000}M",
+                    showarrow=True, arrowhead=2, arrowcolor="#fef08a",
+                    font=dict(color="#fef08a", size=10),
+                    bgcolor="#1a1528", bordercolor="#fef08a", borderwidth=1,
+                    ax=0, ay=-30,
+                ))
+
+        _fig_cum = go.Figure()
+        # Fill area below line
+        _fig_cum.add_trace(go.Scatter(
+            x=_cum_df["Ngày DT"], y=_cum_df["Tích Lũy"],
+            mode="lines",
+            fill="tozeroy",
+            fillcolor="rgba(124,58,237,0.15)",
+            line=dict(color="#a78bfa", width=2.5),
+            name="Tích lũy",
+            hovertemplate="%{x|%d/%m/%Y}<br><b>%{y:,.0f}₫</b><extra></extra>",
+        ))
+        # Daily profit as subtle bar overlay on secondary y
+        _fig_cum.add_trace(go.Bar(
+            x=_cum_df["Ngày DT"], y=_cum_df["Lợi Nhuận"],
+            name="Hàng ngày",
+            yaxis="y2",
+            marker=dict(
+                color=_cum_df["Lợi Nhuận"].apply(lambda v: "#34d399" if v >= 0 else "#f87171"),
+                opacity=0.5,
+            ),
+            hovertemplate="%{x|%d/%m/%Y}<br>Ngày: %{y:,.0f}₫<extra></extra>",
+        ))
+
+        _fig_cum.update_layout(
+            paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+            font=dict(family="Inter", color="#9d8fbf"),
+            annotations=_annotations,
+            xaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#9d8fbf"), showgrid=False),
+            yaxis=dict(
+                title="Tích lũy (₫)", gridcolor="#1a1528",
+                tickfont=dict(color="#9d8fbf"),
+                tickformat=",.0f",
+            ),
+            yaxis2=dict(
+                title="Ngày (₫)", overlaying="y", side="right",
+                showgrid=False, tickfont=dict(color="#9d8fbf"),
+                tickformat=",.0f",
+            ),
+            legend=dict(orientation="h", x=0, y=1.08, font=dict(color="#9d8fbf")),
+            margin=dict(l=10, r=10, t=40, b=10),
+            height=380,
+            hovermode="x unified",
+        )
+        st.plotly_chart(_fig_cum, use_container_width=True)
+
+        # Summary KPIs
+        _cum_total = float(_cum_df["Tích Lũy"].iloc[-1]) if not _cum_df.empty else 0.0
+        _cum_best_day = float(_cum_df["Lợi Nhuận"].max())
+        _cum_worst_day = float(_cum_df["Lợi Nhuận"].min())
+        _cum_pos_days = int((_cum_df["Lợi Nhuận"] > 0).sum())
+        _kc1, _kc2, _kc3, _kc4 = st.columns(4)
+        _kc1.metric("Tổng tích lũy", fmt_vnd(_cum_total))
+        _kc2.metric("Ngày tốt nhất", fmt_vnd(_cum_best_day))
+        _kc3.metric("Ngày tệ nhất", fmt_vnd(_cum_worst_day))
+        _kc4.metric("Ngày có lời", f"{_cum_pos_days} / {len(_cum_df)} ngày")
+    else:
+        st.info("Chưa có dữ liệu giao dịch để hiển thị.")
+
     st.markdown("---")
     # ── Revenue channel split ──
     st.markdown('<div class="sec-heading">Phân Tích Kênh & Sản Phẩm</div>', unsafe_allow_html=True)
@@ -2471,6 +2557,50 @@ with tab_chart:
             st.plotly_chart(fig_bar, use_container_width=True)
         else:
             st.info("Chưa có dữ liệu.")
+
+    # ── Treemap: Doanh thu & Lợi nhuận theo Mutation ──
+    st.markdown("---")
+    st.markdown('<div class="sec-heading">Treemap — Phân Bổ Doanh Thu Theo Mutation</div>', unsafe_allow_html=True)
+
+    if not sold_df.empty and "Mutation" in sold_df.columns:
+        _tm_df = sold_df.copy()
+        _tm_df["_mut"] = _tm_df["Mutation"].astype(str).str.strip().replace("", "Không rõ")
+        _tm_df["_dt"]  = pd.to_numeric(_tm_df["Doanh Thu"], errors="coerce").fillna(0)
+        _tm_df["_ln"]  = pd.to_numeric(_tm_df["Lợi Nhuận"], errors="coerce").fillna(0)
+        _tm_grp = (
+            _tm_df.groupby("_mut", as_index=False)
+            .agg(DT=("_dt","sum"), LN=("_ln","sum"), Count=("_ln","count"))
+            .query("DT > 0")
+            .sort_values("DT", ascending=False)
+        )
+        if not _tm_grp.empty:
+            _tm_fig = px.treemap(
+                _tm_grp,
+                path=["_mut"],
+                values="DT",
+                color="LN",
+                color_continuous_scale=["#1a0a2e","#7c3aed","#e879f9","#fef08a"],
+                color_continuous_midpoint=0,
+                custom_data=["Count","LN"],
+            )
+            _tm_fig.update_traces(
+                texttemplate="<b>%{label}</b><br>%{value:,.0f}₫<br>%{customdata[1]:,.0f}₫ LN",
+                hovertemplate="<b>%{label}</b><br>Doanh thu: %{value:,.0f}₫<br>Lợi nhuận: %{customdata[1]:,.0f}₫<br>Số con: %{customdata[0]}<extra></extra>",
+                textfont=dict(family="Inter", size=12),
+                marker=dict(line=dict(color="#0a0a0f", width=2)),
+            )
+            _tm_fig.update_layout(
+                paper_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#e2e8f0"),
+                coloraxis_showscale=False,
+                margin=dict(l=0, r=0, t=10, b=0),
+                height=360,
+            )
+            st.plotly_chart(_tm_fig, use_container_width=True)
+        else:
+            st.info("Chưa có dữ liệu.")
+    else:
+        st.info("Chưa có dữ liệu.")
 
     # ── Weekly / Monthly summary table ──
     if has_data and not pbd.empty:

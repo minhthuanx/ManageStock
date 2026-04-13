@@ -1893,7 +1893,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
         view_cols = [c for c in display_cols if c in view_df.columns]
 
         # Nút xuất CSV + đếm kết quả
-        _tb3.metric("Kết quả", len(view_df))
+        _tb3.metric("Tổng sổ", len(view_df))
         if not view_df.empty:
             csv_inv = view_df[view_cols].to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
             st.download_button(
@@ -3215,7 +3215,7 @@ with tab_pack:
             bk_mask &= _bk_combined.str.contains(_tok, regex=False, na=False)
         view_bulk_base = view_bulk_base[bk_mask]
 
-    _bk3.metric("Kết quả", len(view_bulk_base))
+    _bk3.metric("Tổng số", len(view_bulk_base))
     if not view_bulk_base.empty:
         csv_bulk = view_bulk_base.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
         st.download_button(

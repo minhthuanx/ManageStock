@@ -701,17 +701,8 @@ html, body, [data-testid="stAppViewContainer"] {
 [data-testid="stSidebar"] { background: var(--surface) !important; border-right: 1px solid var(--border); }
 .block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; }
 
-/* ─── Metric cards ─── */
-div[data-testid="stMetric"] {
-  background: var(--surface) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  padding: 0.7rem 0.9rem !important;
-  transition: border-color 0.2s;
-}
-div[data-testid="stMetric"]:hover { border-color: var(--accent) !important; }
-div[data-testid="stMetricValue"] { font-size: clamp(1rem, 2.5vw, 1.4rem) !important; font-weight: 700 !important; }
-div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: var(--muted) !important; }
+div[data-testid="stMetricValue"] { font-size: clamp(1rem, 2.5vw, 1.4rem) !important; font-weight: 700 !important; color: var(--text) !important; }
+div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--muted) !important; letter-spacing: 0.03em; text-transform: uppercase; }
 
 /* ─── Buttons ─── */
 .stButton > button {
@@ -728,20 +719,26 @@ div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: var(--m
 .stButton > button:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(192,132,252,0.35) !important; }
 
 /* ─── Tabs ─── */
-[data-testid="stTabs"] > div:first-child { gap: 0.3rem; border-bottom: 1px solid var(--border); }
+[data-testid="stTabs"] > div:first-child { gap: 0; border-bottom: 1px solid var(--border); }
 [data-testid="stTab"] {
-  border-radius: 8px 8px 0 0 !important;
-  padding: 0.45rem 1rem !important;
+  border-radius: 0 !important;
+  padding: 0.6rem 1.1rem !important;
   font-weight: 500 !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
   color: var(--muted) !important;
   border: none !important;
   background: transparent !important;
+  transition: color 0.2s ease !important;
 }
 [data-testid="stTab"][aria-selected="true"] {
   color: var(--accent) !important;
+  font-weight: 700 !important;
   border-bottom: 2px solid var(--accent) !important;
   background: transparent !important;
 }
+[data-testid="stTab"]:hover { color: var(--text) !important; background: rgba(192,132,252,0.04) !important; }
 
 /* ─── Inputs ─── */
 .stTextInput input, .stNumberInput input, .stSelectbox select {
@@ -762,17 +759,30 @@ div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: var(--m
   border-radius: var(--radius) !important;
 }
 
-/* ─── DataFrames ─── */
-.stDataFrame { border-radius: var(--radius) !important; overflow: hidden !important; }
+/* ─── DataFrames — material glass ─── */
+.stDataFrame,
+[data-testid="stDataFrameResizable"] {
+  border-radius: var(--radius) !important;
+  overflow: hidden !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 2px 20px rgba(0,0,0,0.25), 0 0 0 0 transparent !important;
+  background: var(--surface) !important;
+  transition: box-shadow 0.25s ease !important;
+}
+.stDataFrame:hover,
+[data-testid="stDataFrameResizable"]:hover {
+  box-shadow: 0 4px 28px rgba(0,0,0,0.35), 0 0 0 1px rgba(192,132,252,0.18) !important;
+}
 
 /* ─── Status badges ─── */
 .badge-sold   { color: var(--green); font-weight: 600; }
 .badge-stock  { color: var(--accent); font-weight: 600; }
 
-/* ─── Hero banner ─── */
+/* ─── Hero banner — glassmorphism ─── */
 .hero-banner {
-  background: linear-gradient(135deg, #0f0a1e 0%, #1a0f2e 50%, #0f0a1e 100%);
-  border: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(192,132,252,0.08) 0%, rgba(232,121,249,0.05) 50%, rgba(192,132,252,0.08) 100%);
+  border: 1px solid rgba(192,132,252,0.2);
+  backdrop-filter: blur(12px);
   border-radius: var(--radius);
   padding: 0.9rem 1.2rem;
   margin-bottom: 1rem;
@@ -781,7 +791,7 @@ div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: var(--m
   gap: 0.8rem;
 }
 .hero-banner .logo { font-size: 2rem; }
-.hero-banner h1 { margin: 0; font-size: clamp(1.1rem, 3vw, 1.5rem); font-weight: 700; }
+.hero-banner h1 { margin: 0; font-size: clamp(1.1rem, 3vw, 1.5rem); font-weight: 700; letter-spacing: -0.01em; }
 .hero-banner p  { margin: 0; color: var(--muted); font-size: 0.82rem; }
 
 /* ─── Stats row ─── */
@@ -799,19 +809,85 @@ div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: var(--m
   text-align: center;
   transition: all 0.2s;
 }
-.stat-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.stat-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(192,132,252,0.12); }
 .stat-card .val  { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
-.stat-card .lbl  { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; }
+.stat-card .lbl  { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; letter-spacing: 0.04em; }
 
-/* ─── Section headings ─── */
+/* ─── Section headings — Material overline ─── */
 .sec-heading {
-  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  color: var(--text);
-  border-left: 3px solid var(--accent);
-  padding-left: 0.6rem;
-  margin: 1rem 0 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 1.2rem 0 0.7rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(192,132,252,0.2);
+  width: 100%;
 }
+.sec-heading::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--accent), var(--accent2));
+  flex-shrink: 0;
+}
+
+/* ─── Metric cards — left stripe style ─── */
+div[data-testid="stMetric"] {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-left: 3px solid var(--accent) !important;
+  border-radius: var(--radius) !important;
+  padding: 0.7rem 0.9rem !important;
+  transition: all 0.2s;
+  box-shadow: 0 2px 12px rgba(192,132,252,0.05) !important;
+}
+div[data-testid="stMetric"]:hover {
+  border-color: var(--accent) !important;
+  border-left-color: var(--accent2) !important;
+  box-shadow: 0 6px 20px rgba(192,132,252,0.15) !important;
+  transform: translateY(-1px);
+}
+
+/* ─── Expanders — clean borderless ─── */
+[data-testid="stExpander"] {
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  background: var(--surface) !important;
+  overflow: hidden !important;
+}
+[data-testid="stExpander"] summary {
+  padding: 0.6rem 0.9rem !important;
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+  letter-spacing: 0.01em !important;
+  color: var(--text) !important;
+  background: var(--surface) !important;
+  border: none !important;
+}
+[data-testid="stExpander"] summary:hover { color: var(--accent) !important; }
+
+/* ─── Progress bar ─── */
+[data-testid="stProgressBar"] > div > div {
+  background: linear-gradient(90deg, var(--accent), var(--accent2)) !important;
+  border-radius: 999px !important;
+}
+[data-testid="stProgressBar"] > div {
+  background: var(--surface2) !important;
+  border-radius: 999px !important;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
 /* ─── Mobile responsive ─── */
 @media (max-width: 768px) {
@@ -1014,7 +1090,7 @@ Secure. Professional. Ghostly. 👻⚡"""
 # MAIN TABS
 # =============================================================================
 tab_kho, tab_pack, tab_chart, tab_ton, tab_settings = st.tabs([
-    "📦 Kho Lẻ", "📦 Lô (Pack)", "📊 Chart & Thống kê", "⏳ Tồn lâu", "⚙️ Cài đặt",
+    "Kho Lẻ", "Lô Pack", "Thống Kê", "Tồn Lâu", "Cài Đặt",
 ])
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1026,7 +1102,7 @@ with tab_kho:
     # ── NHẬP KHO ──
     with col_in:
         with st.container(border=True):
-            st.markdown('<div class="sec-heading">📥 Nhập Kho</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sec-heading">Nhập Kho</div>', unsafe_allow_html=True)
 
             # =========================================================
             # AI VISION – Key setup + multi-image + dialog preview
@@ -1478,7 +1554,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
     # ── BÁN LẺ ──
     with col_sell:
         with st.container(border=True):
-            st.markdown('<div class="sec-heading">💰 Bán Pet Lẻ</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sec-heading">Bán Pet Lẻ</div>', unsafe_allow_html=True)
 
             active = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
             q = st.text_input("🔍 Tìm pet", placeholder="STT, tên, mutation, namestock...", key=f"sell_search_q_{_sv()}")
@@ -1575,7 +1651,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                 st.info("Không có pet lẻ nào đang còn hàng.")
 
     # ── BẢNG TỒN KHO ──
-    st.markdown('<div class="sec-heading">📋 Tồn Kho Lẻ</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Tồn Kho Lẻ</div>', unsafe_allow_html=True)
 
     # ── THANH CÔNG CỤ ──
     _tb1, _tb2, _tb3 = st.columns([2, 2.5, 1])
@@ -2016,7 +2092,7 @@ with tab_chart:
     total_stock = stock_count_single + stock_count_bulk
 
     # ── KPI Row ──
-    st.markdown('<div class="sec-heading">💎 Tổng quan</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Tổng Quan</div>', unsafe_allow_html=True)
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("💰 Lợi nhuận ròng",   fmt_vnd(net_profit))
     k2.metric("📈 Tổng doanh thu",   fmt_vnd(total_rev))
@@ -2050,7 +2126,7 @@ with tab_chart:
         pbd["Lợi Nhuận"] = pd.to_numeric(pbd["Lợi Nhuận"], errors="coerce").fillna(0)
 
     # ── Period selector ──
-    st.markdown('<div class="sec-heading">📊 Biểu đồ lợi nhuận</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Biểu Đồ Lợi Nhuận</div>', unsafe_allow_html=True)
     period_col, _ = st.columns([2, 3])
     period = period_col.radio(
         "Xem theo",
@@ -2138,7 +2214,7 @@ with tab_chart:
 
     st.markdown("---")
     # ── Revenue channel split ──
-    st.markdown('<div class="sec-heading">📈 Phân tích kênh & sản phẩm</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Phân Tích Kênh & Sản Phẩm</div>', unsafe_allow_html=True)
     c_left, c_right = st.columns(2)
 
     with c_left:
@@ -2208,7 +2284,7 @@ with tab_chart:
     # ── Weekly / Monthly summary table ──
     if has_data and not pbd.empty:
         st.markdown("---")
-        st.markdown('<div class="sec-heading">📅 Bảng thống kê theo tháng</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Bảng Thống Kê Theo Tháng</div>', unsafe_allow_html=True)
         monthly = (
             pbd.assign(Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y"),
                        SortKey=pbd["Ngày DT"].dt.to_period("M").apply(lambda p: p.start_time))
@@ -2226,7 +2302,7 @@ with tab_chart:
 
     # ── Avg days to sell + Top mutation ──
     st.markdown("---")
-    st.markdown('<div class="sec-heading">⚡ Hiệu suất bán hàng</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Hiệu Suất Bán Hàng</div>', unsafe_allow_html=True)
     _perf_c1, _perf_c2 = st.columns(2)
 
     with _perf_c1:
@@ -2312,7 +2388,7 @@ with tab_chart:
 
     # ── Phân tích theo NameStock ──
     st.markdown("---")
-    st.markdown('<div class="sec-heading">🏷️ Phân tích theo NameStock</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Phân Tích Theo NameStock</div>', unsafe_allow_html=True)
 
     if not sold_df.empty and "NameStock" in sold_df.columns:
         _ns_grp = sold_df.copy()
@@ -2333,7 +2409,7 @@ with tab_chart:
 
     # ── Phân tích khung giờ bán hàng ──
     st.markdown("---")
-    st.markdown('<div class="sec-heading">🕐 Phân tích khung giờ bán hàng</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Phân Tích Khung Giờ Bán Hàng</div>', unsafe_allow_html=True)
 
     if not sold_df.empty:
         def _extract_hour(ts_str):
@@ -2391,7 +2467,7 @@ with tab_chart:
 
     # ── #27 Heatmap ngày × giờ ──
     st.markdown("---")
-    st.markdown('<div class="sec-heading">🗓️ Heatmap: Thứ × Giờ</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Heatmap: Thứ × Giờ</div>', unsafe_allow_html=True)
 
     if not sold_df.empty:
         def _extract_dt_parts(ts_str):
@@ -2451,7 +2527,7 @@ with tab_chart:
 
     # ── AJ: Streak & Thành tích ──
     st.markdown("---")
-    st.markdown('<div class="sec-heading">🏅 Thành tích & Kỷ lục</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Thành Tích & Kỷ Lục</div>', unsafe_allow_html=True)
 
     _all_sold_ch = sold_df.copy()
 
@@ -2553,7 +2629,7 @@ with tab_chart:
 
     # ── SANKEY: Dòng chảy vốn theo Mutation ──
     st.markdown("---")
-    st.markdown('<div class="sec-heading">🌊 Sankey — Dòng chảy vốn theo Mutation</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Sankey — Dòng Chảy Vốn Theo Mutation</div>', unsafe_allow_html=True)
 
     _sk_src, _sk_tgt, _sk_val, _sk_labels, _sk_muts = [], [], [], [], []
     if not df.empty and "Mutation" in df.columns:
@@ -2613,7 +2689,7 @@ with tab_chart:
 
     # ── CALENDAR HEATMAP: GitHub-style lợi nhuận ──
     st.markdown("---")
-    st.markdown('<div class="sec-heading">📅 Calendar Heatmap — Lợi nhuận 365 ngày gần nhất</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Calendar Heatmap — Lợi Nhuận 365 Ngày Gần Nhất</div>', unsafe_allow_html=True)
 
     if has_data and not pbd.empty:
         import datetime as _dtm
@@ -2707,7 +2783,7 @@ with tab_chart:
 # TAB 3: TỒN LÂU
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_ton:
-    st.markdown('<div class="sec-heading">⏳ Hàng Tồn Lâu</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Hàng Tồn Lâu</div>', unsafe_allow_html=True)
 
     c_thresh, c_sort = st.columns([1, 2])
     age_thresh = c_thresh.slider("Số ngày tồn tối thiểu", 1, 120, 7)
@@ -2771,7 +2847,7 @@ with tab_ton:
 # TAB 4: LÔ PACK
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_pack:
-    st.markdown('<div class="sec-heading">📦 Quản lý Lô (Pack)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Quản Lý Lô (Pack)</div>', unsafe_allow_html=True)
 
     pack_in, pack_sell = st.columns([1.15, 1], gap="medium")
 
@@ -2998,7 +3074,7 @@ with tab_pack:
 # TAB 5: CÀI ĐẶT (Chỉ danh mục)
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_settings:
-    st.markdown('<div class="sec-heading">⚙️ Quản lý danh mục</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-heading">Quản Lý Danh Mục</div>', unsafe_allow_html=True)
 
     cat_cols = st.columns(3)
 

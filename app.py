@@ -2979,40 +2979,10 @@ with tab_chart:
             pbd.assign(Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y")).groupby("Tháng")["Lợi Nhuận"].count()
         ).fillna(0).astype(int)
 
-        if _HAS_AGGRID:
-            _pos_cell_style = JsCode("""
-                function(params) {
-                    if (params.value > 0)  return { color: '#34d399', fontWeight: '600' };
-                    if (params.value < 0)  return { color: '#f87171', fontWeight: '600' };
-                    return { color: '#9d8fbf' };
-                }
-            """)
-            _gb_mo = GridOptionsBuilder.from_dataframe(
-                monthly_display[["Tháng","Lợi Nhuận","Lợi Nhuận VNĐ","Tổng Giao Dịch"]]
-            )
-            _gb_mo.configure_default_column(filter=True, sortable=True, resizable=True)
-            _gb_mo.configure_column("Tháng",         width=110)
-            _gb_mo.configure_column("Lợi Nhuận",     hide=True)
-            _gb_mo.configure_column("Lợi Nhuận VNĐ", minWidth=160, flex=1,
-                                    cellStyle=_pos_cell_style)
-            _gb_mo.configure_column("Tổng Giao Dịch", width=140,
-                                    type=["numericColumn","numberColumnFilter"])
-            _gb_mo.configure_pagination(enabled=True, paginationAutoPageSize=False, paginationPageSize=15)
-            AgGrid(
-                monthly_display[["Tháng","Lợi Nhuận","Lợi Nhuận VNĐ","Tổng Giao Dịch"]],
-                gridOptions=_gb_mo.build(),
-                theme="balham-dark",
-                update_mode=GridUpdateMode.NO_UPDATE,
-                columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
-                use_container_width=True,
-                height=350,
-                allow_unsafe_jscode=True,
-            )
-        else:
-            st.dataframe(
-                monthly_display[["Tháng","Lợi Nhuận VNĐ","Tổng Giao Dịch"]],
-                use_container_width=True, hide_index=True
-            )
+        st.dataframe(
+            monthly_display[["Tháng","Lợi Nhuận VNĐ","Tổng Giao Dịch"]],
+            use_container_width=True, hide_index=True
+        )
 
     # ── Avg days to sell + Top mutation ──
     st.markdown("---")

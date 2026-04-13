@@ -957,6 +957,106 @@ div[data-testid="stMetric"]:hover {
 /* ─── Toast override ─── */
 [data-testid="stToast"] { font-size: 0.85rem !important; border-radius: 10px !important; }
 
+/* ─── Alert / Notification boxes ─── */
+[data-testid="stAlert"] {
+  border-radius: var(--radius) !important;
+  border-width: 1px !important;
+  font-size: 0.84rem !important;
+  padding: 0.65rem 0.9rem !important;
+}
+/* info */
+[data-testid="stAlert"][kind="info"],
+div[data-testid="stInfo"] > div {
+  background: rgba(192,132,252,0.07) !important;
+  border-color: rgba(192,132,252,0.3) !important;
+  color: var(--text) !important;
+}
+/* success */
+[data-testid="stAlert"][kind="success"],
+div[data-testid="stSuccess"] > div {
+  background: rgba(134,239,172,0.07) !important;
+  border-color: rgba(134,239,172,0.3) !important;
+  color: var(--text) !important;
+}
+/* warning */
+[data-testid="stAlert"][kind="warning"],
+div[data-testid="stWarning"] > div {
+  background: rgba(251,191,36,0.07) !important;
+  border-color: rgba(251,191,36,0.25) !important;
+  color: var(--text) !important;
+}
+/* error */
+[data-testid="stAlert"][kind="error"],
+div[data-testid="stError"] > div {
+  background: rgba(244,114,182,0.07) !important;
+  border-color: rgba(244,114,182,0.3) !important;
+  color: var(--text) !important;
+}
+
+/* ─── Secondary / default buttons ─── */
+.stButton > button[kind="secondary"] {
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+}
+.stButton > button[kind="secondary"]:hover {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+.stButton > button[kind="tertiary"] {
+  background: transparent !important;
+  color: var(--muted) !important;
+  border: none !important;
+}
+.stButton > button[kind="tertiary"]:hover { color: var(--accent) !important; }
+
+/* ─── Form container ─── */
+[data-testid="stForm"] {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  padding: 1rem !important;
+}
+
+/* ─── Selectbox / multiselect styled ─── */
+[data-baseweb="select"] > div:first-child {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  color: var(--text) !important;
+}
+[data-baseweb="select"] > div:first-child:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(192,132,252,0.2) !important;
+}
+[data-baseweb="popover"] [data-baseweb="menu"] {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+}
+[data-baseweb="popover"] [role="option"]:hover {
+  background: rgba(192,132,252,0.1) !important;
+}
+[data-baseweb="tag"] {
+  background: rgba(192,132,252,0.15) !important;
+  color: var(--accent) !important;
+  border: none !important;
+  border-radius: 6px !important;
+}
+
+/* ─── Caption / small text ─── */
+[data-testid="stCaptionContainer"] p {
+  color: var(--muted) !important;
+  font-size: 0.76rem !important;
+}
+
+/* ─── Divider ─── */
+hr {
+  border: none !important;
+  border-top: 1px solid var(--border) !important;
+  margin: 0.8rem 0 !important;
+}
+
 /* ─── Hide Streamlit branding ─── */
 #MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
 </style>

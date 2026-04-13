@@ -2945,7 +2945,7 @@ with tab_chart:
         _calcc1, _calcc2 = st.columns(2)
         _calcc1.caption(f"Ngày có giao dịch: **{_cal_active}** / 365 ngày")
         if _cal_max_d:
-            _calcc2.caption(f"Ngày đỉnh cao: **{_cal_max_d.strftime('%d/%m/%Y')}** · {fmt_vnd(_day_map[_cal_max_d])}")")
+            _calcc2.caption(f"Ngày đỉnh cao: **{_cal_max_d.strftime('%d/%m/%Y')}** · {fmt_vnd(_day_map[_cal_max_d])}")
     else:
         st.info("Chưa có dữ liệu.")
 

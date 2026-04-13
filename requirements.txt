@@ -4,3 +4,4 @@ pandas
 plotly
 google-generativeai
 Pillow
+psutil

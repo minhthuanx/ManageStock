@@ -3145,7 +3145,7 @@ with tab_pack:
                         if USE_SUPABASE:
                             sb_insert("bulk_history", to_db(hist_row2))
                             sb_update("bulk_inventory", {
-                                "con_lai":            new_con_lai2,
+                                "con_lai":            int(new_con_lai2),
                                 "doanh_thu_tich_luy": new_dt2,
                                 "loi_nhuan":          new_loi_nhuan2,
                                 "trang_thai":         new_status2,

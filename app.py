@@ -814,11 +814,65 @@ div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: var(--m
 }
 
 /* ─── Mobile responsive ─── */
-@media (max-width: 640px) {
-  .block-container { padding: 0.5rem 0.5rem 3rem !important; }
-  div[data-testid="stMetricValue"] { font-size: 1rem !important; }
-  .stat-card .val { font-size: 1rem; }
-  [data-testid="stTab"] { padding: 0.35rem 0.6rem !important; font-size: 0.8rem !important; }
+@media (max-width: 768px) {
+  .block-container { padding: 0.4rem 0.4rem 3rem !important; }
+  div[data-testid="stMetricValue"] { font-size: 0.95rem !important; }
+  div[data-testid="stMetricLabel"] { font-size: 0.68rem !important; }
+  .stat-card .val { font-size: 0.95rem; }
+  [data-testid="stTab"] { padding: 0.3rem 0.45rem !important; font-size: 0.72rem !important; }
+  .hero-banner { padding: 0.6rem 0.8rem; gap: 0.5rem; }
+  .hero-banner .logo { font-size: 1.5rem; }
+  .hero-banner h1 { font-size: 1rem !important; }
+  .hero-banner p { font-size: 0.72rem; }
+  .sec-heading { font-size: 0.88rem; margin: 0.7rem 0 0.4rem; }
+
+  /* Columns stack vertically on mobile */
+  [data-testid="stHorizontalBlock"] {
+    flex-wrap: wrap !important;
+    gap: 0.3rem !important;
+  }
+  [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    min-width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  /* Forms compact */
+  .stForm { padding: 0.5rem !important; }
+  .stButton > button { padding: 0.5rem 0.8rem !important; font-size: 0.82rem !important; }
+
+  /* DataEditor scroll hint */
+  .stDataFrame { max-height: 350px !important; }
+  [data-testid="stDataFrameResizable"] { font-size: 0.75rem !important; }
+
+  /* Expanders compact */
+  [data-testid="stExpander"] summary { font-size: 0.85rem !important; padding: 0.4rem 0.6rem !important; }
+
+  /* Selectbox / inputs */
+  .stTextInput input, .stNumberInput input { font-size: 0.85rem !important; padding: 0.4rem 0.6rem !important; }
+  .stSelectbox [data-baseweb="select"] { font-size: 0.85rem !important; }
+
+  /* Radio buttons (filters) wrap better */
+  [data-testid="stRadio"] > div { flex-wrap: wrap !important; gap: 0.2rem !important; }
+  [data-testid="stRadio"] label { font-size: 0.75rem !important; padding: 0.25rem 0.5rem !important; }
+
+  /* Sidebar overlay */
+  [data-testid="stSidebar"] { min-width: 260px !important; }
+
+  /* Plotly charts */
+  .js-plotly-plot { min-height: 250px !important; }
+}
+
+/* ─── Copy description button ─── */
+.copy-desc-btn {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
+.copy-desc-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(99,102,241,0.3) !important;
 }
 
 /* ─── Toast override ─── */
@@ -902,6 +956,39 @@ with st.sidebar:
     if _daily_target_val > 0:
         _goal_pct = min(_today_profit / _daily_target_val, 1.0)
         st.progress(_goal_pct, text=f"{fmt_vnd(_today_profit)} / {fmt_vnd(_daily_target_val)} ({_goal_pct*100:.0f}%)")
+    st.markdown("---")
+
+    # ── Copy Shop Description ──
+    _SHOP_DESC = """👻Welcome to GhostlyStock - The Safest Way to Trade! 👻
+
+Don't risk your items with "base-stealing" transfers. While others make you "steal" items from base to base, we use the "Trade Machine" for every order! 🚀
+
+✅ Best Prices 💸
+
+✅ Zero Risk (Trade Machine) 🔒
+
+✅ Instant Delivery 🚚⚡
+
+How to get your Brainrot 📦:
+
+1️⃣ Send Username: Please provide your username after payment.
+
+2️⃣ Stay Online: Stay active in-game to receive your trade invite.
+
+3️⃣ Accept Invite: Our team will send you a request via the Trade Machine.
+
+4️⃣ Confirm Trade: We transfer your Brainrot directly through the secure trade interface.
+
+5️⃣ Secure the Loot: Once accepted, your Brainrot is 100% secured in your base—no risk of being intercepted!
+
+Why GhostlyStock is Different?
+
+In Steal a Brainrot, manual transfers are slow and dangerous. We skip the "stealing" hassle entirely! By utilizing the in-game Trade function, we guarantee your pets are protected during the entire process. No shared servers required, no risks taken.
+
+Secure. Professional. Ghostly. 👻⚡"""
+    st.session_state["_shop_desc"] = _SHOP_DESC
+    with st.expander("📝 Mô tả Shop", expanded=False):
+        st.code(_SHOP_DESC, language=None)
     st.markdown("---")
 
     if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
@@ -1628,6 +1715,11 @@ Extract and return VALID JSON only (no markdown, no extra text):
             st.rerun()
     else:
         st.info("Không có dữ liệu để hiển thị.")
+
+    # ── COPY MÔ TẢ SHOP ──
+    with st.expander("👻 Copy mô tả Shop", expanded=False):
+        st.code(st.session_state.get("_shop_desc", ""), language=None)
+        st.caption("💡 Bấm vào icon 📋 góc phải ô code để copy.")
 
     # ── COPY AUTO TITLE NHANH ──
     _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]

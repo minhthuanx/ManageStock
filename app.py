@@ -348,7 +348,7 @@ def _clear_searches():
     """Clear all search text inputs before st.rerun() so they reset to empty."""
     for _k in _SEARCH_KEYS:
         if _k in st.session_state:
-            st.session_state[_k] = ""
+            del st.session_state[_k]
 
 def fmt_short(v: float) -> str:
     """Format ₫1.5M style for chart labels."""

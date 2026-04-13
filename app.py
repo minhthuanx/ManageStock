@@ -1773,7 +1773,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     with st.form("form_ban_le", clear_on_submit=True):
                         c1, c2 = st.columns([1.2, 1])
                         s_price_raw = c1.text_input("Đơn giá ($)", placeholder="VD: 5.5")
-                        s_place     = c2.text_input("Kênh bán (tuỳ chọn)", placeholder="Eldorado...")
+                        s_place     = c2.text_input("Kênh bán (tuỳ chọn)", placeholder="Note anything...")
                         sell_btn    = st.form_submit_button("Xác Nhận Giao Dịch", type="primary", use_container_width=True)
 
                     if sell_btn:

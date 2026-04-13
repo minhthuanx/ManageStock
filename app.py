@@ -1718,8 +1718,23 @@ Extract and return VALID JSON only (no markdown, no extra text):
     _shop_desc = st.session_state.get("_shop_desc", "")
     if _shop_desc:
         import streamlit.components.v1 as components
-        _esc = _shop_desc.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
-        components.html(f"""<button onclick="navigator.clipboard.writeText(`{_esc}`).then(()=>{{this.innerText='✅ Đã copy!';setTimeout(()=>this.innerText='👻 Copy mô tả Shop',1500)}}).catch(()=>this.innerText='❌ Lỗi')" style="width:100%;padding:10px 16px;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-weight:600;font-size:14px;">👻 Copy mô tả Shop</button>""", height=48)
+        import base64 as _b64
+        _b64_desc = _b64.b64encode(_shop_desc.encode("utf-8")).decode("ascii")
+        components.html(
+            f"""<button id="cpShop" style="width:100%;padding:10px 16px;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-weight:600;font-size:14px;">\ud83d\udc7b Copy m\u00f4 t\u1ea3 Shop</button>
+<script>
+document.getElementById("cpShop").addEventListener("click", function(){{
+  var txt = atob("{_b64_desc}");
+  var decoded = decodeURIComponent(escape(txt));
+  var btn = this;
+  navigator.clipboard.writeText(decoded).then(function(){{
+    btn.innerText="\u2705 \u0110\u00e3 copy!";
+    setTimeout(function(){{ btn.innerText="\ud83d\udc7b Copy m\u00f4 t\u1ea3 Shop"; }}, 1500);
+  }}).catch(function(){{ btn.innerText="\u274c L\u1ed7i"; }});
+}});
+</script>""",
+            height=48,
+        )
 
     # ── COPY AUTO TITLE NHANH ──
     _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]

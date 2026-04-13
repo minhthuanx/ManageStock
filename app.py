@@ -1773,7 +1773,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     with st.form("form_ban_le", clear_on_submit=True):
                         c1, c2 = st.columns([1.2, 1])
                         s_price_raw = c1.text_input("Đơn giá ($)", placeholder="VD: 5.5")
-                        s_place     = c2.text_input("Kênh bán (tuỳ chọn)", placeholder="Note anything...")
+                        s_place     = c2.text_input("Kênh bán (tuỳ chọn)", placeholder="Eldorado...")
                         sell_btn    = st.form_submit_button("Xác Nhận Giao Dịch", type="primary", use_container_width=True)
 
                     if sell_btn:
@@ -2240,6 +2240,17 @@ Extract and return VALID JSON only (no markdown, no extra text):
 # TAB 2: CHART & THỐNG KÊ
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_chart:
+    st.markdown(
+        '<div style="display:inline-flex;align-items:center;gap:8px;'
+        'background:linear-gradient(135deg,rgba(192,132,252,0.12),rgba(232,121,249,0.08));'
+        'border:1px solid rgba(192,132,252,0.35);border-radius:8px;'
+        'padding:6px 14px;margin-bottom:12px;">'
+        '<span style="font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;'
+        'color:#9d8fbf;font-weight:500;">Ngày bắt đầu</span>'
+        '<span style="font-size:0.88rem;font-weight:600;color:#c084fc;letter-spacing:0.02em;">13/04/2026</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
     # ── Aggregate data ──
     sold_df = df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False, regex=False)].copy()
 

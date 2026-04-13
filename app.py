@@ -683,8 +683,8 @@ st.markdown("""
   --border:    #2d2540;
   --accent:    #c084fc;
   --accent2:   #e879f9;
-  --green:     #4ade80;
-  --red:       #f87171;
+  --green:     #86efac;
+  --red:       #f472b6;
   --text:      #f0e6ff;
   --muted:     #9d8fbf;
   --radius:    12px;
@@ -864,15 +864,15 @@ div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: var(--m
 
 /* ─── Copy description button ─── */
 .copy-desc-btn {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
-  color: white !important;
+  background: linear-gradient(135deg, #c084fc, #e879f9) !important;
+  color: #0a0a0f !important;
   border: none !important;
   border-radius: 8px !important;
   font-weight: 600 !important;
 }
 .copy-desc-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 15px rgba(99,102,241,0.3) !important;
+  box-shadow: 0 4px 20px rgba(192,132,252,0.4) !important;
 }
 
 /* ─── Toast override ─── */
@@ -889,7 +889,7 @@ _badge_count = int(df[
     (pd.to_numeric(df["Ngày Tồn"], errors="coerce").fillna(0) >= 7)
 ].shape[0])
 _badge_html = (
-    f'<span style="background:#f87171;color:#0a0a0f;border-radius:999px;'
+    f'<span style="background:#9333ea;color:#f0e6ff;border-radius:999px;'
     f'padding:2px 9px;font-size:0.75rem;font-weight:700;margin-left:8px;">⚠️ {_badge_count} tồn lâu</span>'
     if _badge_count > 0 else ""
 )
@@ -1739,8 +1739,8 @@ Extract and return VALID JSON only (no markdown, no extra text):
     if _b64_desc:
         _cmp.html(
             '<button id="cpShopTop" style="width:100%;padding:9px 14px;border:none;'
-            'border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);'
-            'color:#fff;font-weight:600;font-size:13px;">&#x1F47B; Copy m&#xF4; t&#x1EA3; Shop</button>'
+            'border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#c084fc,#e879f9);'
+            'color:#0a0a0f;font-weight:600;font-size:13px;">&#x1F47B; Copy m&#xF4; t&#x1EA3; Shop</button>'
             '<script>(function(){'
             'var btn=document.getElementById("cpShopTop");'
             'var b64="' + _b64_desc + '";'
@@ -1806,7 +1806,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     st.markdown(
                         f'<div style="font-size:0.78rem;color:#9d8fbf;margin-top:0.5rem;">'
                         f'STT <b style="color:#c084fc">{int(_crow["STT"])}</b> · '
-                        f'{_crow["Tên Pet"]} · <span style="color:#4ade80">{_crow["Mutation"]}</span>'
+                        f'{_crow["Tên Pet"]} · <span style="color:#c084fc">{_crow["Mutation"]}</span>'
                         f'</div>',
                         unsafe_allow_html=True,
                     )
@@ -1818,8 +1818,8 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             _bid = "cpShop" + str(_ci)
                             _cmp.html(
                                 '<button id="' + _bid + '" style="width:100%;padding:8px 4px;border:none;'
-                                'border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);'
-                                'color:#fff;font-weight:600;font-size:11px;">&#x1F47B; M&#xF4; t&#x1EA3;</button>'
+                                'border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#c084fc,#e879f9);'
+                                'color:#0a0a0f;font-weight:600;font-size:11px;">&#x1F47B; M&#xF4; t&#x1EA3;</button>'
                                 '<script>(function(){'
                                 'var btn=document.getElementById("' + _bid + '");'
                                 'var b64="' + _b64_desc + '";'
@@ -1871,7 +1871,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     _rc1.markdown(
                         f'<div style="font-size:0.82rem;padding:2px 0;">'
                         f'<b style="color:#c084fc">STT {int(_br["STT"])}</b> · '
-                        f'{_br["Tên Pet"]} · <span style="color:#4ade80">{_br["Mutation"]}</span>'
+                        f'{_br["Tên Pet"]} · <span style="color:#c084fc">{_br["Mutation"]}</span>'
                         f' · <span style="color:#9d8fbf">{fmt_vnd(float(_br["Giá Nhập"]))}</span>'
                         f'</div>',
                         unsafe_allow_html=True,
@@ -2152,7 +2152,7 @@ with tab_chart:
         fig_cmp = go.Figure(go.Bar(
             x=_compare_df["Hạng mục"],
             y=_compare_df["Giá trị"],
-            marker_color=["#4ade80", "#f97316"],
+            marker_color=["#c084fc", "#e879f9"],
             text=_compare_df["Giá trị"].apply(fmt_short),
             textposition="outside",
             textfont=dict(color="#e2e8f0"),
@@ -2251,7 +2251,7 @@ with tab_chart:
                 x=_spd_by_pet["Ngày Tồn"],
                 y=_spd_by_pet["Tên Pet"],
                 orientation="h",
-                marker=dict(color="#f87171"),
+                marker=dict(color="#f472b6"),
                 text=_spd_by_pet["Ngày Tồn"].apply(lambda v: f"{v:.1f}d"),
                 textposition="outside",
                 textfont=dict(color="#e2e8f0", size=10),
@@ -2283,7 +2283,7 @@ with tab_chart:
                 x=_mut_perf["LN_mean"],
                 y=_mut_perf["Mutation"],
                 orientation="h",
-                marker=dict(color="#4ade80"),
+                marker=dict(color="#a78bfa"),
                 text=_mut_perf["LN_mean"].apply(fmt_short),
                 textposition="outside",
                 textfont=dict(color="#e2e8f0", size=10),
@@ -2363,7 +2363,7 @@ with tab_chart:
             _hour_count["Đơn"] = _hour_count["Đơn"].astype(int)
 
             _peak_hour = int(_hour_count.loc[_hour_count["Đơn"].idxmax(), "Giờ"])
-            _colors = ["#f97316" if h == _peak_hour else "#3b82f6" for h in _hour_count["Giờ"]]
+            _colors = ["#e879f9" if h == _peak_hour else "#7c3aed" for h in _hour_count["Giờ"]]
 
             fig_hour = go.Figure(go.Bar(
                 x=[f"{h:02d}:00" for h in _hour_count["Giờ"]],
@@ -2578,12 +2578,12 @@ with tab_chart:
                 _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_stock); _sk_val.append(_v_stock)
 
     if _sk_src:
-        _mut_palette = ["#c084fc","#818cf8","#fb923c","#34d399","#f472b6",
-                        "#a78bfa","#facc15","#60a5fa","#f87171","#4ade80"]
+        _mut_palette = ["#c084fc","#818cf8","#f472b6","#a78bfa","#e879f9",
+                        "#d8b4fe","#c4b5fd","#a5b4fc","#f0abfc","#ddd6fe"]
         _sk_node_colors = (
-            ["#6366f1"]
+            ["#9333ea"]
             + [_mut_palette[i % len(_mut_palette)] for i in range(len(_sk_muts))]
-            + ["#4ade80", "#f97316"]
+            + ["#c084fc", "#e879f9"]
         )
         fig_sk = go.Figure(go.Sankey(
             arrangement="snap",

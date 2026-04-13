@@ -3101,7 +3101,7 @@ with tab_pack:
                 target2 = avail2[avail2["ID"]==target_id2].iloc[0]
                 st.caption(f"**{target2['Tên Lô']}** · Còn: **{int(target2['Còn Lại'])}** · Vốn: **{fmt_vnd(float(target2['Giá Nhập Tổng']))}**")
 
-                with st.form("form_ban_lo2", clear_on_submit=True):
+                with st.form("form_ban_lo2", clear_on_submit=False):
                     s1t, s2t = st.columns(2)
                     s_qty2     = s1t.number_input("Số lượng", min_value=1, max_value=int(target2["Còn Lại"]), key="sqty2")
                     s_prc_raw2 = s2t.text_input("Đơn giá ($/unit)", placeholder="3.5", key="sprc2")
@@ -3142,19 +3142,28 @@ with tab_pack:
                         st.session_state.bulk_df      = bulk_df
                         st.session_state.bulk_history = bulk_history
 
+                        write_ok = True
                         if USE_SUPABASE:
-                            sb_insert("bulk_history", to_db(hist_row2))
-                            sb_update("bulk_inventory", {
+                            ok1 = sb_insert("bulk_history", to_db(hist_row2))
+                            ok2 = sb_update("bulk_inventory", {
                                 "con_lai":            int(new_con_lai2),
                                 "doanh_thu_tich_luy": new_dt2,
                                 "loi_nhuan":          new_loi_nhuan2,
                                 "trang_thai":         new_status2,
                             }, "id", int(target2["ID"]))
-                            st.cache_data.clear()
-                            st.session_state.bulk_df      = load_bulk()
-                            st.session_state.bulk_history = load_bulk_history()
-                        st.toast("Giao dịch hoàn tất", icon="✅")
-                        st.rerun()
+                            write_ok = ok1 and ok2
+                            if write_ok:
+                                st.cache_data.clear()
+                                st.session_state.bulk_df      = load_bulk()
+                                st.session_state.bulk_history = load_bulk_history()
+                            else:
+                                # Reset guard so user can retry the same transaction
+                                st.session_state.last_ban_lo_key = None
+                        if write_ok:
+                            st.toast("Giao dịch hoàn tất", icon="✅")
+                            st.rerun()
+                        else:
+                            st.error("Ghi dữ liệu thất bại, vui lòng thử lại.")
             else:
                 st.info("Hiện không có lô hàng khả dụng.")
 

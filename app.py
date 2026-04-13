@@ -18,7 +18,7 @@ st.set_page_config(
     page_title="GhostlyStock",
     page_icon="👻",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # =============================================================================
@@ -994,6 +994,22 @@ Secure. Professional. Ghostly. 👻⚡"""
         del st.session_state["initialized"]
         st.rerun()
 
+    # ── Auto-refresh cố định 5 phút ──
+    import streamlit.components.v1 as _cmp_ar
+    _cmp_ar.html(
+        '<script>'
+        '(function(){'
+        '  setTimeout(function(){'
+        '    var btns = window.parent.document.querySelectorAll("button[kind=\'secondary\']");'
+        '    var found = Array.from(btns).find(function(b){return b.innerText.includes("T\u1ea3i l\u1ea1i d\u1eef li\u1ec7u");});'
+        '    if(found){found.click();} else {window.parent.location.reload();}'
+        '  }, 300000);'
+        '})();'
+        '</script>',
+        height=0,
+    )
+    st.caption("🟢 Tự động tải lại sau **5 phút**")
+
 # =============================================================================
 # MAIN TABS
 # =============================================================================
@@ -1549,6 +1565,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                         "place":      s_place,
                                         "ngay_ton":   int(recs[iloc_pos]["Ngày Tồn"]),
                                     }, _update_col, _update_val)
+                                    st.cache_data.clear()
                                 st.toast("💸 Bán thành công!", icon="✅")
                                 _clear_searches()
                                 st.rerun()
@@ -2875,6 +2892,9 @@ with tab_pack:
                                 "loi_nhuan":          new_loi_nhuan2,
                                 "trang_thai":         new_status2,
                             }, "id", int(target2["ID"]))
+                            st.cache_data.clear()
+                            st.session_state.bulk_df      = load_bulk()
+                            st.session_state.bulk_history = load_bulk_history()
                         st.toast("💸 Đã bán lô pack!", icon="✅")
                         st.rerun()
             else:

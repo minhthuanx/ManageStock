@@ -973,8 +973,8 @@ st.markdown(f"""
 <div class="hero-banner">
   <div class="logo">👻</div>
   <div>
-    <h1>GhostlyStock{_badge_html}</h1>
-    <p>Quản lý kho Pet · Tự động hóa · Phân tích thông minh</p>
+    <h1>Management Dashboard{_badge_html}</h1>
+    <p>Copyright © 2026 MINHTHUANX. All rights reserved./p>
   </div>
 </div>
 """, unsafe_allow_html=True)

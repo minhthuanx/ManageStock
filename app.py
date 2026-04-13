@@ -345,10 +345,12 @@ def fmt_vnd(v: float) -> str:
 _SEARCH_KEYS = ["sell_search_q", "inv_table_search", "copy_title_search", "bulk_sell_search", "bulk_table_search"]
 
 def _clear_searches():
-    """Clear all search text inputs before st.rerun() so they reset to empty."""
-    for _k in _SEARCH_KEYS:
-        if _k in st.session_state:
-            del st.session_state[_k]
+    """Bump search version counter → widgets recreate with empty values on next rerun."""
+    st.session_state["_search_ver"] = st.session_state.get("_search_ver", 0) + 1
+
+def _sv() -> str:
+    """Return current search version suffix for widget keys."""
+    return str(st.session_state.get("_search_ver", 0))
 
 def fmt_short(v: float) -> str:
     """Format ₫1.5M style for chart labels."""
@@ -1378,7 +1380,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
             st.markdown('<div class="sec-heading">💰 Bán Pet Lẻ</div>', unsafe_allow_html=True)
 
             active = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
-            q = st.text_input("🔍 Tìm pet", placeholder="STT, tên, mutation, namestock...", key="sell_search_q")
+            q = st.text_input("🔍 Tìm pet", placeholder="STT, tên, mutation, namestock...", key=f"sell_search_q_{_sv()}")
 
             if not active.empty:
                 if q.strip():
@@ -1485,7 +1487,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
         "🔍 Tìm kiếm",
         placeholder="STT, tên pet, mutation, title...",
         label_visibility="collapsed",
-        key="inv_table_search",
+        key=f"inv_table_search_{_sv()}",
     )
 
     # ── Quick filter Mutation chips ──
@@ -1631,7 +1633,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
     _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
     if not _copy_src.empty:
         with st.expander("📋 Copy Auto Title nhanh", expanded=False):
-            _cp_q = st.text_input("🔍 Tìm pet", placeholder="Tên, STT, mutation...", key="copy_title_search", label_visibility="collapsed")
+            _cp_q = st.text_input("🔍 Tìm pet", placeholder="Tên, STT, mutation...", key=f"copy_title_search_{_sv()}", label_visibility="collapsed")
 
             _cp_base = _copy_src.copy()
 
@@ -1696,7 +1698,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
             st.caption("🔍 Tìm pet → ➕ Thêm vào giỏ → Nhập giá → Xác nhận")
             _bs_search = st.text_input(
                 "Tìm pet cần bán", placeholder="Tên, mutation, STT...",
-                key="bulk_sell_search", label_visibility="collapsed",
+                key=f"bulk_sell_search_{_sv()}", label_visibility="collapsed",
             )
             _bs_df = _bulk_src.copy()
             if _bs_search.strip():
@@ -2613,7 +2615,7 @@ with tab_pack:
         "🔍 Tìm lô",
         placeholder="Tên lô, auto title...",
         label_visibility="collapsed",
-        key="bulk_table_search",
+        key=f"bulk_table_search_{_sv()}",
     )
 
     view_bulk_base = bulk_df[[c for c in bulk_cols_display2 if c in bulk_df.columns]].copy()

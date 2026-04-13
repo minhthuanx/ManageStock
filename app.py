@@ -710,8 +710,10 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 /* ─── Buttons ─── */
 .stButton > button {
   border-radius: 8px !important;
+  font-size: 0.84rem !important;
   font-weight: 600 !important;
-  transition: all 0.18s ease !important;
+  letter-spacing: 0.01em !important;
+  transition: all 0.15s ease !important;
   width: 100%;
 }
 .stButton > button[kind="primary"] {
@@ -719,7 +721,11 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   color: #0a0a0f !important;
   border: none !important;
 }
-.stButton > button:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(192,132,252,0.35) !important; }
+.stButton > button[kind="primary"]:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px rgba(192,132,252,0.4) !important;
+  filter: brightness(1.08) !important;
+}
 
 /* ─── Tabs ─── */
 [data-testid="stTabs"] > div:first-child { gap: 0; border-bottom: 1px solid var(--border); }
@@ -763,19 +769,28 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 }
 
 /* ─── DataFrames — material glass ─── */
-.stDataFrame,
-[data-testid="stDataFrameResizable"] {
+.stDataFrame {
   border-radius: var(--radius) !important;
   overflow: hidden !important;
   border: 1px solid var(--border) !important;
-  box-shadow: 0 2px 20px rgba(0,0,0,0.25), 0 0 0 0 transparent !important;
+  border-top: 2px solid rgba(192,132,252,0.5) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3) !important;
   background: var(--surface) !important;
-  transition: box-shadow 0.25s ease !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
 }
-.stDataFrame:hover,
-[data-testid="stDataFrameResizable"]:hover {
-  box-shadow: 0 4px 28px rgba(0,0,0,0.35), 0 0 0 1px rgba(192,132,252,0.18) !important;
+.stDataFrame:hover {
+  border-color: rgba(192,132,252,0.3) !important;
+  border-top-color: var(--accent) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 0 transparent !important;
 }
+/* toolbar icons */
+[data-testid="stElementToolbar"] {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+}
+[data-testid="stElementToolbarButton"] svg { color: var(--muted) !important; }
+[data-testid="stElementToolbarButton"]:hover svg { color: var(--accent) !important; }
 
 /* ─── Status badges ─── */
 .badge-sold   { color: var(--green); font-weight: 600; }
@@ -995,20 +1010,27 @@ div[data-testid="stError"] > div {
 
 /* ─── Secondary / default buttons ─── */
 .stButton > button[kind="secondary"] {
-  background: var(--surface2) !important;
-  color: var(--text) !important;
+  background: transparent !important;
+  color: var(--muted) !important;
   border: 1px solid var(--border) !important;
 }
 .stButton > button[kind="secondary"]:hover {
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
+  background: rgba(192,132,252,0.07) !important;
+  border-color: rgba(192,132,252,0.45) !important;
+  color: var(--text) !important;
+  transform: none !important;
+  box-shadow: none !important;
 }
 .stButton > button[kind="tertiary"] {
   background: transparent !important;
   color: var(--muted) !important;
   border: none !important;
 }
-.stButton > button[kind="tertiary"]:hover { color: var(--accent) !important; }
+.stButton > button[kind="tertiary"]:hover {
+  color: var(--accent) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
 
 /* ─── Form container ─── */
 [data-testid="stForm"] {
@@ -1150,9 +1172,9 @@ with st.sidebar:
     st.markdown("---")
     st.caption(f"🕐 {now_vn().strftime('%d/%m/%Y %H:%M')} (VN)")
     if USE_SUPABASE:
-        st.success("☁️ Supabase: Online", icon="✅")
+        st.success("Kết nối · Supabase Cloud", icon="✅")
     else:
-        st.warning("💾 Local CSV mode")
+        st.warning("Offline · Chế độ CSV cục bộ")
 
     # ── Tồn kho real-time ──
     _con_hang = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
@@ -1161,10 +1183,10 @@ with st.sidebar:
         bulk_df[bulk_df["Trạng Thái"].astype(str)=="Available"]["Giá Nhập Tổng"], errors="coerce"
     ).fillna(0).sum())
     st.markdown('<span class="sidebar-heading">Tồn kho hiện tại</span>', unsafe_allow_html=True)
-    st.metric("Pet lẻ còn hàng", f"{len(_con_hang):,} con", delta=None)
-    st.metric("Vốn lẻ đang tồn", fmt_vnd(_von_le))
-    st.metric("Vốn lô đang tồn", fmt_vnd(_von_lo))
-    st.caption(f"Tổng vốn kẹt: **{fmt_vnd(_von_le+_von_lo)}**")
+    st.metric("Có thể bán", f"{len(_con_hang):,} đơn vị", delta=None)
+    st.metric("Vốn tồn — lẻ", fmt_vnd(_von_le))
+    st.metric("Vốn tồn — lô", fmt_vnd(_von_lo))
+    st.caption(f"Tổng vốn lưu động: **{fmt_vnd(_von_le+_von_lo)}**")
     st.markdown("---")
 
     # ── Dashboard hôm nay ──
@@ -1184,13 +1206,13 @@ with st.sidebar:
     _today_profit = float(pd.to_numeric(_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
     st.markdown('<span class="sidebar-heading">Hôm nay</span>', unsafe_allow_html=True)
     _td1, _td2 = st.columns(2)
-    _td1.metric("Đã bán", f"{_today_count} con")
-    _td2.metric("Lãi", fmt_vnd(_today_profit))
+    _td1.metric("Giao dịch", f"{_today_count}")
+    _td2.metric("Lợi nhuận", fmt_vnd(_today_profit))
 
     # ── #22 Mục tiêu lãi ngày ──
     if "daily_profit_target" not in st.session_state:
         st.session_state["daily_profit_target"] = 5_000_000
-    st.number_input("🎯 Mục tiêu lãi hôm nay (VNĐ)", min_value=0, step=500_000,
+    st.number_input("Mục tiêu lợi nhuận (₫)", min_value=0, step=500_000,
                     key="daily_profit_target", format="%d")
     _daily_target_val = st.session_state["daily_profit_target"]
     if _daily_target_val > 0:
@@ -1229,7 +1251,7 @@ Secure. Professional. Ghostly. 👻⚡"""
     st.session_state["_shop_desc"] = _SHOP_DESC
     st.markdown("---")
 
-    if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
+    if st.button("Đồng Bộ Dữ Liệu", use_container_width=True):
         st.cache_data.clear()
         del st.session_state["initialized"]
         st.rerun()
@@ -1241,14 +1263,14 @@ Secure. Professional. Ghostly. 👻⚡"""
         '(function(){'
         '  setTimeout(function(){'
         '    var btns = window.parent.document.querySelectorAll("button[kind=\'secondary\']");'
-        '    var found = Array.from(btns).find(function(b){return b.innerText.includes("T\u1ea3i l\u1ea1i d\u1eef li\u1ec7u");});'
+        '    var found = Array.from(btns).find(function(b){return b.innerText.includes("D\u1eef Li\u1ec7u");});'
         '    if(found){found.click();} else {window.parent.location.reload();}'
         '  }, 300000);'
         '})();'
         '</script>',
         height=0,
     )
-    st.caption("🟢 Tự động tải lại sau **5 phút**")
+    st.caption("Tự động đồng bộ · mỗi 5 phút")
 
 # =============================================================================
 # MAIN TABS
@@ -1271,7 +1293,7 @@ with tab_kho:
             # =========================================================
             # AI VISION – Key setup + multi-image + dialog preview
             # =========================================================
-            with st.expander("✨ Nhập hàng loạt bằng AI Vision", expanded=st.session_state.get("ai_expander", False)):
+            with st.expander("AI Vision — Nhập tự động", expanded=st.session_state.get("ai_expander", False)):
 
                 # ── STEP 1: API KEY ──
                 ai_key = st.session_state.get("groq_key", "")
@@ -1279,8 +1301,8 @@ with tab_kho:
                     # Key đã được cấu hình — hiển thị masked + nút cập nhật
                     _masked = ai_key[:6] + "*" * (len(ai_key) - 10) + ai_key[-4:] if len(ai_key) > 10 else "****"
                     _kc1, _kc2 = st.columns([3, 1])
-                    _kc1.success(f"✅ Groq Key: `{_masked}` — Kết nối sẵn sàng")
-                    if _kc2.button("🔄 Đổi key", use_container_width=True, key="btn_change_groq"):
+                    _kc1.success(f"API đã kết nối · {_masked}")
+                    if _kc2.button("Thay đổi", use_container_width=True, key="btn_change_groq"):
                         st.session_state.groq_key = ""
                         st.rerun()
                 else:
@@ -1296,12 +1318,12 @@ with tab_kho:
                         _save_groq_key_to_supabase(ai_key_input.strip())
                         st.toast("✅ Đã lưu Groq Key vĩnh viễn!", icon="🔑")
                         st.rerun()
-                    st.info("🔐 Nhập Groq API Key ở trên để bắt đầu dùng AI Llama 3.2 90B Vision miễn phí.")
+                    st.info("Nhập Groq API Key để bật nhận dạng hình ảnh AI (Llama 3.2 90B Vision · miễn phí).")
                     ai_key = ""
 
                 # ── STEP 2: MULTI-IMAGE UPLOAD ── (hiện khi đã có Groq key)
                 if ai_key:
-                    st.markdown("**📷 Upload nhiều ảnh Pet (hỗ trợ phân tích hàng loạt)**")
+                    st.markdown("**Tải lên ảnh sản phẩm**")
                     if "ai_uploader_key" not in st.session_state:
                         st.session_state.ai_uploader_key = 0
                         
@@ -1321,10 +1343,10 @@ with tab_kho:
                             with thumb_cols[i]:
                                 st.image(img_f, use_container_width=True, caption=img_f.name[:12])
                         if len(batch_imgs) > 5:
-                            st.caption(f"+ {len(batch_imgs)-5} ảnh khác...")
+                            st.caption(f"+ {len(batch_imgs)-5} ảnh khác")
 
                         scan_btn = st.button(
-                            f"🚀 Quét {len(batch_imgs)} ảnh bằng AI",
+                            f"Phân tích {len(batch_imgs)} ảnh",
                             type="primary",
                             use_container_width=True,
                             key="btn_ai_scan_batch",
@@ -1336,7 +1358,7 @@ with tab_kho:
                             import time
                             
                             results = []
-                            progress = st.progress(0, text="Đang khởi tạo Groq AI...")
+                            progress = st.progress(0, text="Đang khởi tạo...")
                             
                             prompt = """This is a screenshot from the Roblox game "Steal a Brainrot". Each brainrot (pet) has an info panel above it showing: its name, speed ($/s), optional mutation indicator, and optional trait icons.
 
@@ -1371,7 +1393,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                 st.error(f"❌ Không tìm thấy Model Đọc Ảnh nào khả dụng cho Key của bạn! Danh sách model Groq trả về hiện tại: {', '.join(all_models)}")
                                 st.stop()
                                 
-                            st.toast(f"Đang dùng AI Model: {target_model} (Groq)", icon="🦙")
+                            st.toast(f"Model: {target_model}", icon="🦙")
 
                             for idx, img_f in enumerate(batch_imgs):
                                 progress.progress(
@@ -1458,14 +1480,14 @@ Extract and return VALID JSON only (no markdown, no extra text):
             if st.session_state.get("ai_show_dialog") and st.session_state.get("ai_batch_results"):
                 results = st.session_state.ai_batch_results
 
-                @st.dialog("🤖 Xem trước kết quả AI — Chỉnh sửa trước khi lưu", width="large")
+                @st.dialog("Kết Quả AI — Xem trước & Chỉnh sửa", width="large")
                 def ai_preview_dialog():
                     global pet_db
                     pet_opts_dlg   = get_name_options(pet_db)
                     trait_opts_dlg = ["None"] + get_name_options(trait_db)
                     ns_opts_dlg    = [""] + get_name_options(ns_db, fallback="")
 
-                    st.caption(f"🖼️ {len(results)} ảnh đã quét — Kiểm tra và chỉnh sửa rồi bấm Lưu tất cả")
+                    st.caption(f"**{len(results)}** ảnh đã phân tích · Xem lại và xác nhận trước khi lưu")
 
                     edited_rows = []
                     all_valid = True
@@ -1479,7 +1501,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             expanded=True,
                         ):
                             if not is_ok:
-                                st.warning(f"⚠️ AI không đọc được ảnh này: {res.get('_error','')} — Bạn có thể điền thủ công bên dưới.")
+                                st.warning(f"Không thể đọc ảnh này · {res.get('_error','')} · Có thể nhập thủ công.")
 
                             # Chia layout: 1 cột nhỏ hiển thị ảnh, 1 cột lớn nhập liệu
                             img_col, form_col = st.columns([1, 3.5])
@@ -1527,7 +1549,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             if not r_ns.strip(): err_row.append("NameStock")
                             if parse_vnd(r_cost) <= 0: err_row.append("Giá nhập")
                             if err_row:
-                                st.info(f"ℹ️ Còn thiếu: {', '.join(err_row)}. Vui lòng điền nốt để lưu.")
+                                st.info(f"Thiếu thông tin: {', '.join(err_row)}")
                                 all_valid = False
 
                             edited_rows.append({
@@ -1543,14 +1565,14 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     st.markdown("---")
                     col_cancel, col_save = st.columns([1, 2])
                     with col_cancel:
-                        if st.button("❌ Hủy", use_container_width=True):
+                        if st.button("Huỷ bỏ", use_container_width=True):
                             st.session_state.ai_show_dialog = False
                             st.session_state.ai_batch_results = []
                             st.rerun()
 
                     with col_save:
                         valid_count = sum(1 for r in edited_rows if r["_valid"])
-                        save_label = f"💾 Lưu {valid_count}/{len(edited_rows)} pet hợp lệ"
+                        save_label = f"Lưu {valid_count} / {len(edited_rows)} mục hợp lệ"
                         if st.button(save_label, type="primary", use_container_width=True, disabled=valid_count == 0):
                             saved = 0
                             current_df = st.session_state.df
@@ -1616,7 +1638,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                 st.session_state.ai_batch_results = []
                                 st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1
                                 st.session_state.ai_expander = False
-                                st.toast(f"✅ Đã lưu {saved} pet AI thành công!", icon="🎉")
+                                st.toast(f"Đã lưu {saved} mục thành công", icon="✅")
                                 import time
                                 time.sleep(1.5) # Để kịp hiển thị toast/error
                                 st.rerun()
@@ -1626,7 +1648,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
             # =========================================================
             # NHẬP THỦ CÔNG (Always visible)
             # =========================================================
-            st.markdown("**📝 Nhập thủ công**")
+            st.markdown("**Nhập Thủ Công**")
             pet_opts   = get_name_options(pet_db)
             trait_opts = ["None"] + get_name_options(trait_db)
             ns_opts    = [""] + get_name_options(ns_db, fallback="")
@@ -1634,7 +1656,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
             # ── #12 Clone button ──
             _last_pet = st.session_state.get("last_saved_pet")
             if _last_pet:
-                if st.button(f"📋 Nhập con tương tự: {_last_pet.get('p_name','')}", use_container_width=True, key="btn_clone_pet"):
+                if st.button(f"Nhập tương tự: {_last_pet.get('p_name','')}", use_container_width=True, key="btn_clone_pet"):
                     st.session_state.nhap_prefill = _last_pet.copy()
                     st.rerun()
             _prefill = st.session_state.get("nhap_prefill", {})
@@ -1652,7 +1674,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                 _pi_ns = next((i for i, n in enumerate(ns_opts) if n == _prefill.get("p_ns", "")), 0)
                 p_ns       = c4.selectbox("NameStock", ns_opts, index=_pi_ns)
                 p_cost_raw = c5.text_input("Giá nhập (VNĐ)", placeholder="150000")
-                submitted = st.form_submit_button("💾 Lưu Pet Lẻ", type="primary", use_container_width=True)
+                submitted = st.form_submit_button("Lưu Hàng", type="primary", use_container_width=True)
 
             if submitted:
                 ms = parse_usd(ms_raw)
@@ -1668,7 +1690,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     # Guard chống double-submit: kiểm tra xem dữ liệu y hệt đã lưu chưa
                     submit_key = f"nhap_le_{p_name}_{ms}_{cost}_{p_ns}"
                     if st.session_state.get("last_nhap_key") == submit_key:
-                        st.warning("⚠️ Dữ liệu này đã được lưu. Vui lòng tải lại nếu cần.")
+                        st.warning("Mục này đã được lưu. Tải lại trang nếu cần.")
                         st.stop()
                     st.session_state.last_nhap_key = submit_key
                     st.session_state.pop("nhap_prefill", None)  # Xóa prefill sau khi submit hợp lệ
@@ -1709,8 +1731,8 @@ Extract and return VALID JSON only (no markdown, no extra text):
                         "p_name": p_name, "ms_raw": ms_raw,
                         "p_mut": p_mut, "p_trait": p_trait, "p_ns": p_ns,
                     }
-                    st.toast("✅ Đã lưu pet lẻ!", icon="💾")
-                    st.info("📋 Copy title nhanh:")
+                    st.toast("Đã lưu thành công", icon="✅")
+                    st.caption("Sao chép tiêu đề:")
                     st.code(row["Auto Title"], language="text")
                     _clear_searches()
                     st.rerun()
@@ -1721,7 +1743,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
             st.markdown('<div class="sec-heading">Bán Pet Lẻ</div>', unsafe_allow_html=True)
 
             active = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
-            q = st.text_input("🔍 Tìm pet", placeholder="STT, tên, mutation, namestock...", key=f"sell_search_q_{_sv()}")
+            q = st.text_input("Tìm kiếm", placeholder="STT, tên, mutation, namestock...", key=f"sell_search_q_{_sv()}")
 
             if not active.empty:
                 if q.strip():
@@ -1746,18 +1768,18 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     sel_stt = int(sel.split(" — ")[0])
                     sel_row = filt[filt["STT"] == sel_stt].iloc[0]
 
-                    st.caption(f"🔍 Tìm được **{len(filt)}** kết quả khớp")
+                    st.caption(f"**{len(filt)}** kết quả phù hợp")
 
                     with st.form("form_ban_le", clear_on_submit=True):
                         c1, c2 = st.columns([1.2, 1])
-                        s_price_raw = c1.text_input("Giá bán ($)", placeholder="VD: 5.5")
-                        s_place     = c2.text_input("Place (tuỳ chọn)", placeholder="Note anything...")
-                        sell_btn    = st.form_submit_button("✅ Xác nhận bán", type="primary", use_container_width=True)
+                        s_price_raw = c1.text_input("Đơn giá ($)", placeholder="VD: 5.5")
+                        s_place     = c2.text_input("Kênh bán (tuỳ chọn)", placeholder="Eldorado...")
+                        sell_btn    = st.form_submit_button("Xác Nhận Giao Dịch", type="primary", use_container_width=True)
 
                     if sell_btn:
                         s_price = parse_usd(s_price_raw)
                         if s_price <= 0:
-                            st.error("❌ Giá bán phải > 0")
+                            st.error("Đơn giá phải lớn hơn 0")
                         else:
                             ts_ban = now_iso()
                             rev_vnd = s_price * EXCHANGE_RATE
@@ -1790,13 +1812,13 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                         "ngay_ton":   int(recs[iloc_pos]["Ngày Tồn"]),
                                     }, _update_col, _update_val)
                                     st.cache_data.clear()
-                                st.toast("💸 Bán thành công!", icon="✅")
+                                st.toast("Giao dịch hoàn tất", icon="✅")
                                 _clear_searches()
                                 st.rerun()
                 else:
-                    st.info("Không có kết quả phù hợp.")
+                    st.info("Không tìm thấy kết quả phù hợp.")
             else:
-                st.info("Không có pet lẻ nào đang còn hàng.")
+                st.info("Kho trống — chưa có mặt hàng khả dụng.")
 
     # ── BẢNG TỒN KHO ──
     st.markdown('<div class="sec-heading">Tồn Kho Lẻ</div>', unsafe_allow_html=True)
@@ -1805,7 +1827,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
     _tb1, _tb2, _tb3 = st.columns([2, 2.5, 1])
     view_mode = _tb1.radio(
         "Lọc trạng thái",
-        ["📦 Còn hàng", "✅ Đã bán", "🗂 Tất cả"],
+        ["Đang bán", "Đã bán", "Tất cả"],
         horizontal=True,
         label_visibility="collapsed",
     )
@@ -1828,10 +1850,10 @@ Extract and return VALID JSON only (no markdown, no extra text):
         key="inv_mut_filter",
     )
 
-    if view_mode == "📦 Còn hàng":
+    if view_mode == "Đang bán":
         view_df = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
         show_all = False
-    elif view_mode == "✅ Đã bán":
+    elif view_mode == "Đã bán":
         view_df = df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)]
         show_all = True
     else:
@@ -1897,7 +1919,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
         )
 
         # Chỉ reindex STT khi xem "Tất cả" + không tìm kiếm → tránh STT conflict khi merge-back
-        _can_reindex = (view_mode == "🗂 Tất cả") and not _is_searching
+        _can_reindex = (view_mode == "Tất cả") and not _is_searching
         after_reindexed  = reindex(normalize_df(edited.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT") if _can_reindex \
             else normalize_df(edited.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols})
         before_reindexed = reindex(normalize_df(before_edit.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT") if _can_reindex \
@@ -1926,9 +1948,9 @@ Extract and return VALID JSON only (no markdown, no extra text):
                 hidden_rows = full_df[~pd.to_numeric(full_df["id"], errors="coerce").fillna(0).astype(int).astype(str).isin(visible_ids)]
                 merged = pd.concat([after_reindexed, hidden_rows], ignore_index=True)
                 full_updated = apply_ngay_ton(normalize_df(merged, MAIN_SCHEMA))
-            elif view_mode == "🗂 Tất cả":
+            elif view_mode == "Tất cả":
                 full_updated = apply_ngay_ton(normalize_df(after_reindexed, MAIN_SCHEMA))
-            elif view_mode == "✅ Đã bán":
+            elif view_mode == "Đã bán":
                 # Chỉ cập nhật hàng đã bán, giữ nguyên hàng còn hàng
                 con_hang_df = full_df[full_df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
                 merged = pd.concat([con_hang_df, after_reindexed], ignore_index=True)
@@ -1982,7 +2004,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
     # ── COPY AUTO TITLE NHANH ──
     _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
     if not _copy_src.empty:
-        with st.expander("📋 Copy Auto Title nhanh", expanded=False):
+        with st.expander("Sao chép Auto Title", expanded=False):
             _cp_q = st.text_input("🔍 Tìm pet", placeholder="Tên, STT, mutation...", key=f"copy_title_search_{_sv()}", label_visibility="collapsed")
 
             _cp_base = _copy_src.copy()
@@ -2061,13 +2083,13 @@ Extract and return VALID JSON only (no markdown, no extra text):
     # ── BULK SELL ──
     _bulk_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
     if not _bulk_src.empty:
-        with st.expander("💸 Bán nhiều pet cùng lúc", expanded=False):
+        with st.expander("Giao dịch hàng loạt", expanded=False):
             # Giỏ bán tích lũy — tồn tại qua nhiều lần tìm kiếm
             if "bulk_cart" not in st.session_state:
                 st.session_state.bulk_cart = {}  # str(id_or_stt) → row dict
 
             # ── BƯỚC 1: Tìm & thêm vào giỏ ──
-            st.caption("🔍 Tìm pet → ➕ Thêm vào giỏ → Nhập giá → Xác nhận")
+            st.caption("Tìm kiếm · Thêm vào giỏ · Nhập giá · Xác nhận")
             _bs_search = st.text_input(
                 "Tìm pet cần bán", placeholder="Tên, mutation, STT...",
                 key=f"bulk_sell_search_{_sv()}", label_visibility="collapsed",
@@ -2109,7 +2131,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             st.session_state.bulk_cart[_bid] = _br.to_dict()
                             st.rerun()
                 if len(_bs_df) > 15:
-                    st.caption(f"Hiển thị 15/{len(_bs_df)} — tìm cụ thể hơn để thu hẹp.")
+                    st.caption(f"Đang hiển thị 15 / {len(_bs_df)} kết quả — thu hẹp tìm kiếm để xem thêm.")
 
             # ── BƯỚC 2: Giỏ bán ──
             if st.session_state.bulk_cart:
@@ -2156,10 +2178,10 @@ Extract and return VALID JSON only (no markdown, no extra text):
                 _valid_sell   = _cart_edited[_cart_edited["Giá bán ($)"] > 0]
                 _invalid_sell = _cart_edited[_cart_edited["Giá bán ($)"] <= 0]
                 if not _invalid_sell.empty:
-                    st.caption(f"⚠️ {len(_invalid_sell)} pet chưa nhập giá sẽ bị bỏ qua")
+                    st.caption(f"{len(_invalid_sell)} mục chưa có giá — sẽ được bỏ qua.")
                 if not _valid_sell.empty:
-                    st.info(f"✅ Sẵn sàng bán **{len(_valid_sell)}** pet · Doanh thu ước tính: **{fmt_vnd(float((_valid_sell['Giá bán ($)'] * EXCHANGE_RATE).sum()))}**")
-                    if st.button(f"✅ Xác nhận bán {len(_valid_sell)} pet", type="primary", key="confirm_bulk_sell", use_container_width=True):
+                    st.info(f"Sẵn sàng xử lý **{len(_valid_sell)}** giao dịch · Ước tính doanh thu: **{fmt_vnd(float((_valid_sell['Giá bán ($)'] * EXCHANGE_RATE).sum()))}**")
+                    if st.button(f"Xác Nhận {len(_valid_sell)} Giao Dịch", type="primary", key="confirm_bulk_sell", use_container_width=True):
                         ts_ban_bulk = now_iso()
                         _full_df = st.session_state.df.copy()
                         _updated = 0
@@ -2209,7 +2231,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             st.session_state.df = apply_ngay_ton(load_inventory())
                         st.session_state.bulk_cart = {}
                         st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
-                        st.toast(f"💸 Đã bán {_updated} pet thành công!", icon="✅")
+                        st.toast(f"Hoàn tất {_updated} giao dịch", icon="✅")
                         _clear_searches()
                         st.rerun()
 
@@ -2358,7 +2380,7 @@ with tab_chart:
             c2.metric(f"Tổng {period_label} đã có",  f"{len(agg):,}")
             c3.metric(f"Trung bình/{period_label}",  fmt_vnd(agg['Lợi Nhuận'].mean()))
     else:
-        st.info("Chưa có dữ liệu bán để vẽ biểu đồ.")
+        st.info("Chưa có dữ liệu giao dịch để hiển thị.")
 
     st.markdown("---")
     # ── Revenue channel split ──
@@ -2427,7 +2449,7 @@ with tab_chart:
             )
             st.plotly_chart(fig_bar, use_container_width=True)
         else:
-            st.info("Chưa có pet lẻ đã bán.")
+            st.info("Chưa có dữ liệu.")
 
     # ── Weekly / Monthly summary table ──
     if has_data and not pbd.empty:
@@ -2454,7 +2476,7 @@ with tab_chart:
     _perf_c1, _perf_c2 = st.columns(2)
 
     with _perf_c1:
-        st.markdown("**⏱ Tốc độ vòng quay (Ngày tồn trung bình trước khi bán)**")
+    st.markdown("**Vòng Quay Hàng — Thời gian tồn kho TB trước khi bán**")
         if not sold_df.empty:
             _sold_speed = sold_df.copy()
             _sold_speed["Ngày Tồn"] = pd.to_numeric(_sold_speed["Ngày Tồn"], errors="coerce").fillna(0)
@@ -2494,7 +2516,7 @@ with tab_chart:
             st.info("Chưa có dữ liệu bán.")
 
     with _perf_c2:
-        st.markdown("**🏆 Top Mutation hiệu quả nhất (Lợi nhuận TB / con)**")
+    st.markdown("**Hiệu Suất Theo Mutation**")
         if not sold_df.empty:
             _mut_perf = (
                 sold_df.copy()
@@ -2607,7 +2629,7 @@ with tab_chart:
                 height=340,
             )
             st.plotly_chart(fig_hour, use_container_width=True)
-            st.caption(f"🔥 Khung giờ bán nhiều nhất: **{_peak_hour:02d}:00 – {_peak_hour:02d}:59** ({int(_hour_count.loc[_hour_count['Giờ']==_peak_hour,'Đơn'].values[0])} đơn)")
+    st.caption(f"Cao điểm: **{_peak_hour:02d}:00 – {_peak_hour:02d}:59** · {int(_hour_count.loc[_hour_count['Giờ']==_peak_hour,'Đơn'].values[0])} giao dịch")
         else:
             st.info("Chưa có dữ liệu thời gian bán hàng.")
     else:
@@ -2717,14 +2739,14 @@ with tab_chart:
     _streak_icon_ch = "🔥" if _streak_ch >= 3 else ("✨" if _streak_ch >= 1 else "💤")
 
     _ach_c1, _ach_c2, _ach_c3 = st.columns(3)
-    _ach_c1.metric("Streak", f"{_streak_icon_ch} {_streak_ch} ngày")
-    _ach_c2.metric("Tổng đã bán", f"{_total_sold_ch} con")
-    _ach_c3.metric("Danh hiệu", _badge_ch or "—")
+    _ach_c1.metric("Chuỗi ngày", f"{_streak_icon_ch} {_streak_ch} ngày")
+    _ach_c2.metric("Tổng giao dịch", f"{_total_sold_ch}")
+    _ach_c3.metric("Cấp độ", _badge_ch or "—")
     if _next_sell_ms:
-        st.caption(f"🎯 Đến **{_next_sell_ms[1]}**: còn **{_next_sell_ms[0] - _total_sold_ch}** con nữa")
+        st.caption(f"Cột mốc tiếp theo · **{_next_sell_ms[1]}**: còn **{_next_sell_ms[0] - _total_sold_ch}** giao dịch")
 
     # ── AK: Personal Records ──
-    st.markdown("**🌟 Kỷ lục cá nhân**")
+    st.markdown("**Kỷ Lục**")
     if not _all_sold_ch.empty:
         _ln_col_ch = pd.to_numeric(_all_sold_ch["Lợi Nhuận"], errors="coerce").fillna(0)
         _ton_col_ch = pd.to_numeric(_all_sold_ch["Ngày Tồn"], errors="coerce").fillna(999)
@@ -2743,23 +2765,23 @@ with tab_chart:
         _best_day_val_ch = float(_day_profit_ch.max()) if not _day_profit_ch.empty else 0.0
 
         _rec_c1, _rec_c2, _rec_c3 = st.columns(3)
-        _rec_c1.metric("💰 Deal lãi nhất", fmt_vnd(_best_ln_val_ch),
+        _rec_c1.metric("Giao dịch tốt nhất", fmt_vnd(_best_ln_val_ch),
                        help=str(_best_ln_row_ch.get('Tên Pet','?')))
-        _rec_c2.metric("⚡ Bán nhanh nhất", f"{_fast_days_ch} ngày",
+        _rec_c2.metric("Chốt nhanh nhất", f"{_fast_days_ch} ngày",
                        help=str(_fast_row_ch.get('Tên Pet','?')) if _fast_row_ch is not None else "")
-        _rec_c3.metric("📅 Ngày khủng", fmt_vnd(_best_day_val_ch),
+        _rec_c3.metric("Ngày đỉnh cao", fmt_vnd(_best_day_val_ch),
                        help=str(_best_day_ch) if _best_day_ch else "")
     else:
         st.info("Chưa có dữ liệu bán.")
 
     # ── Mốc lợi nhuận tích lũy ──
-    st.markdown("**💹 Mốc lợi nhuận tích lũy**")
+    st.markdown("**Cột Mốc Lợi Nhuận**")
     _total_ln_ch = float(_ln_col_ch.sum()) if not _all_sold_ch.empty else 0.0
     _ln_m_ch = _total_ln_ch / 1_000_000
     _LN_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
     _nxt_ln_ms = next((m for m in _LN_MS if _ln_m_ch < m), None)
     _lst_ln_ms = next((m for m in reversed(_LN_MS) if _ln_m_ch >= m), None)
-    st.caption(f"Tổng lãi tích lũy: **{fmt_vnd(_total_ln_ch)}**")
+    st.caption(f"Lợi nhuận tích lũy: **{fmt_vnd(_total_ln_ch)}**")
     if _nxt_ln_ms:
         _base_ch = (_lst_ln_ms or 0) * 1_000_000
         _tgt_ch = _nxt_ln_ms * 1_000_000
@@ -2831,9 +2853,9 @@ with tab_chart:
             height=420,
         )
         st.plotly_chart(fig_sk, use_container_width=True)
-        st.caption("Độ rộng mỗi dải = tổng vốn nhập (VNĐ). Màu xanh lá = Đã bán, cam = Còn tồn.")
+        st.caption("Chiều rộng luồng = giá trị vốn nhập (₫)")
     else:
-        st.info("Chưa đủ dữ liệu để vẽ Sankey.")
+        st.info("Chưa đủ dữ liệu.")
 
     # ── CALENDAR HEATMAP: GitHub-style lợi nhuận ──
     st.markdown("---")
@@ -2921,11 +2943,11 @@ with tab_chart:
         _cal_active = sum(1 for v in _day_map.values() if v > 0)
         _cal_max_d  = max(_day_map, key=_day_map.get) if _day_map else None
         _calcc1, _calcc2 = st.columns(2)
-        _calcc1.caption(f"📆 Ngày có doanh thu (365 ngày): **{_cal_active}** ngày")
+        _calcc1.caption(f"Ngày có giao dịch: **{_cal_active}** / 365 ngày")
         if _cal_max_d:
-            _calcc2.caption(f"🌟 Ngày đỉnh: **{_cal_max_d.strftime('%d/%m/%Y')}** — {fmt_vnd(_day_map[_cal_max_d])}")
+            _calcc2.caption(f"Ngày đỉnh cao: **{_cal_max_d.strftime('%d/%m/%Y')}** · {fmt_vnd(_day_map[_cal_max_d])}")")
     else:
-        st.info("Chưa có dữ liệu bán để vẽ calendar.")
+        st.info("Chưa có dữ liệu.")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 3: TỒN LÂU
@@ -2934,7 +2956,7 @@ with tab_ton:
     st.markdown('<div class="sec-heading">Hàng Tồn Lâu</div>', unsafe_allow_html=True)
 
     c_thresh, c_sort = st.columns([1, 2])
-    age_thresh = c_thresh.slider("Số ngày tồn tối thiểu", 1, 120, 7)
+    age_thresh = c_thresh.slider("Ngưỡng tồn kho (ngày)", 1, 120, 7)
     sort_by    = c_sort.selectbox("Sắp xếp theo", ["Ngày Tồn (giảm)", "Giá trị vốn (giảm)", "Tên Pet"])
 
     # Pet lẻ tồn
@@ -2963,7 +2985,7 @@ with tab_ton:
 
     old_items = pd.concat([sv, pv], ignore_index=True)
     if old_items.empty:
-        st.info(f"✅ Không có item nào tồn trên {age_thresh} ngày.")
+        st.info(f"Không có mục nào tồn quá {age_thresh} ngày — kho luân chuyển tốt.")
     else:
         if sort_by == "Ngày Tồn (giảm)":
             old_items = old_items.sort_values("Ngày Tồn", ascending=False)
@@ -2975,9 +2997,9 @@ with tab_ton:
         # Summary metrics
         total_stuck_val = old_items["Giá trị vốn (VNĐ)"].sum()
         m1, m2, m3 = st.columns(3)
-        m1.metric("Số items tồn lâu", f"{len(old_items):,}")
-        m2.metric("Giá trị vốn đang kẹt", fmt_vnd(total_stuck_val))
-        m3.metric("Tồn lâu nhất", f"{int(old_items['Ngày Tồn'].max())} ngày")
+        m1.metric("Mục tồn lâu", f"{len(old_items):,}")
+        m2.metric("Vốn bị giữ", fmt_vnd(total_stuck_val))
+        m3.metric("Thời hạn tồn kho", f"{int(old_items['Ngày Tồn'].max())} ngày")
 
         old_items["Giá trị vốn"] = old_items["Giá trị vốn (VNĐ)"].apply(fmt_vnd)
         st.dataframe(
@@ -3001,7 +3023,7 @@ with tab_pack:
 
     with pack_in:
         with st.container(border=True):
-            st.markdown("**📥 Nhập Lô mới**")
+            st.markdown("**Nhập Lô Mới**")
             with st.form("form_nhap_lo2", clear_on_submit=True):
                 b_pet2 = st.selectbox("Tên Pet", get_name_options(pet_db), key="bp1t2")
                 b1t, b2t, b3t = st.columns(3)
@@ -3009,8 +3031,8 @@ with tab_pack:
                 b_ms_raw2 = b2t.text_input("M/s", placeholder="975", key="bp2t2")
                 b_mut2    = b3t.selectbox("Mutation", MUTATION_OPTIONS, key="bp3t2")
                 b_ns2     = st.selectbox("NameStock", [""]+get_name_options(ns_db,""), key="bp5t2")
-                b_cost_raw2 = st.text_input("Tổng giá nhập (VNĐ)", placeholder="2.000.000", key="bp4t2")
-                pack_ok2  = st.form_submit_button("💾 Lưu Lô", type="primary", use_container_width=True)
+                b_cost_raw2 = st.text_input("Tổng vốn nhập (₫)", placeholder="2.000.000", key="bp4t2")
+                pack_ok2  = st.form_submit_button("Lưu Lô Hàng", type="primary", use_container_width=True)
             if pack_ok2:
                 b_cost2 = parse_vnd(b_cost_raw2)
                 b_ms2   = parse_usd(b_ms_raw2)
@@ -3020,12 +3042,12 @@ with tab_pack:
                 if b_cost2 <= 0:      errs2.append("Giá nhập phải > 0")
                 if not b_ns2.strip(): errs2.append("Chọn NameStock")
                 if errs2:
-                    for e in errs2: st.error(f"❌ {e}")
+                    for e in errs2: st.error(f"{e}")
                 else:
                     # Guard chống double-submit lô pack
                     lo_submit_key = f"nhap_lo_{b_pet2}_{b_qty2}_{b_cost2}_{b_ns2}"
                     if st.session_state.get("last_lo_key") == lo_submit_key:
-                        st.warning("⚠️ Lô này đã được lưu. Vui lòng tải lại nếu cần.")
+                        st.warning("Lô này đã được lưu. Tải lại trang nếu cần.")
                         st.stop()
                     st.session_state.last_lo_key = lo_submit_key
                     bid2 = next_id(bulk_df, "ID")
@@ -3051,12 +3073,12 @@ with tab_pack:
                         # Tải lại để update ID từ database cho bản ghi mới thêm
                         st.cache_data.clear()
                         st.session_state.bulk_df = load_bulk()
-                    st.toast("✅ Đã lưu lô pack!", icon="💾")
+                    st.toast("Lô hàng đã được lưu", icon="✅")
                     st.rerun()
 
     with pack_sell:
         with st.container(border=True):
-            st.markdown("**💰 Bán từ Lô**")
+            st.markdown("**Bán Từ Lô**")
             avail2 = bulk_df[bulk_df["Trạng Thái"].astype(str)=="Available"]
             if not avail2.empty:
                 sel_b2 = st.selectbox(
@@ -3065,23 +3087,23 @@ with tab_pack:
                 )
                 target_id2 = int(sel_b2.split(" — ")[0])
                 target2 = avail2[avail2["ID"]==target_id2].iloc[0]
-                st.caption(f"🏷 **{target2['Tên Lô']}** | Còn lại: **{int(target2['Còn Lại'])}** | Vốn: **{fmt_vnd(float(target2['Giá Nhập Tổng']))}**")
+                st.caption(f"**{target2['Tên Lô']}** · Còn: **{int(target2['Còn Lại'])}** · Vốn: **{fmt_vnd(float(target2['Giá Nhập Tổng']))}**")
 
                 with st.form("form_ban_lo2", clear_on_submit=True):
                     s1t, s2t = st.columns(2)
-                    s_qty2     = s1t.number_input("Số lượng bán", min_value=1, max_value=int(target2["Còn Lại"]), key="sqty2")
-                    s_prc_raw2 = s2t.text_input("Giá bán ($/pet)", placeholder="3.5", key="sprc2")
-                    sell_ok2   = st.form_submit_button("✅ Bán Lô", type="primary", use_container_width=True)
+                    s_qty2     = s1t.number_input("Số lượng", min_value=1, max_value=int(target2["Còn Lại"]), key="sqty2")
+                    s_prc_raw2 = s2t.text_input("Đơn giá ($/unit)", placeholder="3.5", key="sprc2")
+                    sell_ok2   = st.form_submit_button("Xác Nhận Giao Dịch", type="primary", use_container_width=True)
 
                 if sell_ok2:
                     s_prc2 = parse_usd(s_prc_raw2)
                     if s_prc2 <= 0:
-                        st.error("❌ Giá bán phải > 0")
+                        st.error("Đơn giá phải lớn hơn 0")
                     else:
                         # Guard chống double-submit bán lô
                         ban_lo_key = f"ban_lo_{int(target2['ID'])}_{s_qty2}_{s_prc2}"
                         if st.session_state.get("last_ban_lo_key") == ban_lo_key:
-                            st.warning("⚠️ Giao dịch này đã được ghi. Vui lòng tải lại nếu cần.")
+                            st.warning("Giao dịch đã được ghi. Tải lại trang nếu cần.")
                             st.stop()
                         st.session_state.last_ban_lo_key = ban_lo_key
                         idx2 = bulk_df[bulk_df["ID"]==target2["ID"]].index[0]
@@ -3119,13 +3141,13 @@ with tab_pack:
                             st.cache_data.clear()
                             st.session_state.bulk_df      = load_bulk()
                             st.session_state.bulk_history = load_bulk_history()
-                        st.toast("💸 Đã bán lô pack!", icon="✅")
+                        st.toast("Giao dịch hoàn tất", icon="✅")
                         st.rerun()
             else:
-                st.info("Không có lô nào đang Available.")
+                st.info("Hiện không có lô hàng khả dụng.")
 
     st.markdown("---")
-    st.markdown("**📋 Danh sách lô pack**")
+    st.markdown("**Danh Sách Lô Hàng**")
     bulk_cols_display2 = ["ID","Tên Lô","Số Lượng Gốc","Còn Lại","Ngày Nhập",
                           "Giá Nhập Tổng","Doanh Thu Tích Lũy","Lợi Nhuận","Trạng Thái","Auto Title"]
 
@@ -3133,22 +3155,22 @@ with tab_pack:
     _bk1, _bk2, _bk3 = st.columns([2, 2, 1])
     bulk_status_filter = _bk1.radio(
         "Lọc lô",
-        ["🟢 Available", "⛔ Sold Out", "🗂 Tất cả"],
+        ["Available", "Sold Out", "Tất cả"],
         horizontal=True,
         label_visibility="collapsed",
         key="bulk_status_radio",
     )
     bulk_search = _bk2.text_input(
-        "🔍 Tìm lô",
+        "Tìm kiếm",
         placeholder="Tên lô, auto title...",
         label_visibility="collapsed",
         key=f"bulk_table_search_{_sv()}",
     )
 
     view_bulk_base = bulk_df[[c for c in bulk_cols_display2 if c in bulk_df.columns]].copy()
-    if bulk_status_filter == "🟢 Available":
+    if bulk_status_filter == "Available":
         view_bulk_base = view_bulk_base[view_bulk_base["Trạng Thái"].astype(str) == "Available"]
-    elif bulk_status_filter == "⛔ Sold Out":
+    elif bulk_status_filter == "Sold Out":
         view_bulk_base = view_bulk_base[view_bulk_base["Trạng Thái"].astype(str) == "Sold Out"]
     if bulk_search.strip():
         _tokens_bk = re.split(r'[\s\-]+', bulk_search.strip().lower())
@@ -3175,7 +3197,7 @@ with tab_pack:
         )
 
     view_bulk2 = view_bulk_base
-    _is_bulk_searching = bool(bulk_search.strip()) or bulk_status_filter != "🗂 Tất cả"
+    _is_bulk_searching = bool(bulk_search.strip()) or bulk_status_filter != "Tất cả"
     if not view_bulk2.empty:
         before_bulk2x = view_bulk2.copy()
         edited_bulk2 = st.data_editor(
@@ -3213,10 +3235,10 @@ with tab_pack:
                 st.session_state.bulk_df = normalize_df(full_ab2, BULK_SCHEMA)
             # Bump version key để reset widget state
             st.session_state.editor_bulk_ver = st.session_state.get("editor_bulk_ver", 0) + 1
-            st.toast("✅ Đã lưu thay đổi lô pack.", icon="💾")
+            st.toast("Đã lưu thay đổi", icon="✅")
             st.rerun()
     else:
-        st.info("Chưa có lô pack nào.")
+        st.info("Chưa có lô hàng nào.")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 5: CÀI ĐẶT (Chỉ danh mục)
@@ -3237,13 +3259,13 @@ with tab_settings:
                 if add_ok:
                     v = new_val.strip()
                     if not v:
-                        st.warning("Tên trống!")
+                        st.warning("Vui lòng nhập tên.")
                     elif v.lower() in [x.lower() for x in db["Name"].astype(str).tolist()]:
-                        st.info("Đã tồn tại.")
+                        st.info("Mục này đã tồn tại.")
                     else:
                         db = append_row(db, {"Name": v}, LIST_SCHEMA)
                         save_csv(db, file)
-                        st.toast(f"✅ Đã thêm {label}: {v}", icon="✅")
+                        st.toast(f"Đã thêm: {v}", icon="✅")
                         st.rerun()
 
                 st.dataframe(db, use_container_width=True, hide_index=True, height=140)
@@ -3268,23 +3290,23 @@ with tab_settings:
         st.markdown("### 🔍 Kiểm tra trùng lặp Database")
         st.caption("⚠️ Hệ thống chỉ phát hiện và báo cáo — việc xóa do bạn quyết định trực tiếp trong bảng.")
         c_m1, c_m2 = st.columns(2)
-        run_inv  = c_m1.button("🔍 Kiểm tra Kho Lẻ",  use_container_width=True)
-        run_bulk = c_m2.button("🔍 Kiểm tra Lô/Pack", use_container_width=True)
+        run_inv  = c_m1.button("Kiểm Tra Hàng Lẻ",  use_container_width=True)
+        run_bulk = c_m2.button("Kiểm Tra Lô Hàng", use_container_width=True)
 
         if run_inv:
             dup_inv = find_duplicates("inventory")
             if dup_inv.empty:
-                st.success("✨ Kho Lẻ: không có dòng trùng lặp.")
+                st.success("Hàng lẻ — không phát hiện trùng lặp.")
             else:
-                st.warning(f"⚠️ Tìm thấy **{len(dup_inv)} dòng** có nội dung trùng nhau (theo Database ID):")
+                st.warning(f"Phát hiện **{len(dup_inv)} bản ghi** trùng lặp:")
                 st.dataframe(dup_inv[["id"] + [c for c in dup_inv.columns if c != "id"]], use_container_width=True, hide_index=True)
-                st.caption("💡 Vào Supabase Dashboard → Table Editor → inventory → xóa thủ công các ID cần bỏ.")
+                st.caption("Truy cập Supabase Dashboard → Table Editor → inventory → xoá thủ công theo ID.")
 
         if run_bulk:
             dup_bulk = find_duplicates("bulk_inventory")
             if dup_bulk.empty:
-                st.success("✨ Lô/Pack: không có dòng trùng lặp.")
+                st.success("Lô hàng — không phát hiện trùng lặp.")
             else:
-                st.warning(f"⚠️ Tìm thấy **{len(dup_bulk)} dòng** có nội dung trùng nhau (theo Database ID):")
+                st.warning(f"Phát hiện **{len(dup_bulk)} bản ghi** trùng lặp:")
                 st.dataframe(dup_bulk[["id"] + [c for c in dup_bulk.columns if c != "id"]], use_container_width=True, hide_index=True)
-                st.caption("💡 Vào Supabase Dashboard → Table Editor → bulk_inventory → xóa thủ công các ID cần bỏ.")
+                st.caption("Truy cập Supabase Dashboard → Table Editor → bulk_inventory → xoá thủ công theo ID.")

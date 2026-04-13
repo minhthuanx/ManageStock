@@ -2441,16 +2441,13 @@ with tab_chart:
             measure=_wf_m,
             x=_wf_x,
             y=_wf_y,
-            text=[("" if v >= 0 else "") + fmt_short(v) for v in _wf_y],
+            text=[fmt_short(v) for v in _wf_y],
             textposition="outside",
             textfont=dict(color="#e2e8f0", size=11, family="Inter"),
             connector=dict(line=dict(color="#2d2040", width=1.5, dash="dot")),
-            increasing=dict(marker=dict(color="#34d399", opacity=0.85, line=dict(color="#0a0a0f", width=1))),
-            decreasing=dict(marker=dict(color="#f87171", opacity=0.85, line=dict(color="#0a0a0f", width=1))),
-            totals=dict(marker=dict(
-                color="#a78bfa" if net_profit >= 0 else "#f87171",
-                opacity=0.9, line=dict(color="#0a0a0f", width=1)
-            )),
+            increasing=dict(marker_color="#34d399"),
+            decreasing=dict(marker_color="#f87171"),
+            totals=dict(marker_color="#a78bfa" if net_profit >= 0 else "#f87171"),
             hovertemplate="<b>%{x}</b><br>%{y:,.0f}₫<extra></extra>",
         ))
         _fig_wf.update_layout(

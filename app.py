@@ -658,6 +658,13 @@ def init_session():
                 if _stored_key:
                     st.session_state.groq_key = _stored_key
         st.session_state.initialized = True
+    else:
+        # Migrate: đảm bảo bulk_df luôn có đủ cột từ BULK_SCHEMA (sau khi thêm cột mới)
+        _bdf = st.session_state.get("bulk_df", pd.DataFrame())
+        for _col, _default in BULK_SCHEMA.items():
+            if _col not in _bdf.columns:
+                _bdf[_col] = _default
+                st.session_state.bulk_df = _bdf
 
 init_session()
 

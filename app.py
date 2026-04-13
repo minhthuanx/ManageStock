@@ -2386,7 +2386,8 @@ with tab_chart:
             delta = None
             if prev_row is not None:
                 delta_val = last_row["Lợi Nhuận"] - prev_row["Lợi Nhuận"]
-                delta = fmt_vnd(delta_val)
+                # Streamlit detects sign from string prefix — must put "-" before "₫"
+                delta = ("-" if delta_val < 0 else "") + f"₫{abs(delta_val):,.0f}"
             c1.metric(f"Lợi nhuận {period_label} gần nhất ({last_row['Period']})",
                       fmt_vnd(last_row["Lợi Nhuận"]), delta=delta)
             c2.metric(f"Tổng {period_label} đã có",  f"{len(agg):,}")

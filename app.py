@@ -1717,8 +1717,9 @@ Extract and return VALID JSON only (no markdown, no extra text):
     # ── COPY MÔ TẢ SHOP ──
     _shop_desc = st.session_state.get("_shop_desc", "")
     if _shop_desc:
-        with st.expander("👻 Copy mô tả Shop", expanded=False):
-            st.code(_shop_desc, language=None)
+        import streamlit.components.v1 as components
+        _esc = _shop_desc.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+        components.html(f"""<button onclick="navigator.clipboard.writeText(`{_esc}`).then(()=>{{this.innerText='✅ Đã copy!';setTimeout(()=>this.innerText='👻 Copy mô tả Shop',1500)}}).catch(()=>this.innerText='❌ Lỗi')" style="width:100%;padding:10px 16px;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-weight:600;font-size:14px;">👻 Copy mô tả Shop</button>""", height=48)
 
     # ── COPY AUTO TITLE NHANH ──
     _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]

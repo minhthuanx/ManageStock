@@ -4156,11 +4156,27 @@ with tab_pack:
 
                 avail2 = bulk_df[bulk_df["Trạng Thái"].astype(str)=="Available"]
                 if not avail2.empty:
+                    _bid_map = {int(r["ID"]): r for _, r in avail2.iterrows()}
+                    def _bulk_fmt(bid):
+                        r = _bid_map[bid]
+                        auto_t = str(r.get("Auto Title", "") or "")
+                        # Lấy phần trước boilerplate "🌸Cheapest..."
+                        short = auto_t.split("🌸Cheapest")[0].lstrip("🌸").strip()
+                        if not short:
+                            short = str(r.get("Tên Lô", ""))
+                        ns = str(r.get("NameStock", "") or "").strip()
+                        con_lai = int(float(r["Còn Lại"]))
+                        gia_tong = float(r["Giá Nhập Tổng"])
+                        orig = max(float(r["Số Lượng Gốc"]), 1)
+                        don_gia = gia_tong / orig
+                        ns_part = f" · {ns}" if ns else ""
+                        return f"#{bid}  {short}{ns_part}  ·  còn {con_lai}  ·  ~{fmt_short(don_gia)}/con"
                     sel_b2 = st.selectbox(
-                        "Chọn lô", avail2["ID"].astype(str)+" — "+avail2["Tên Lô"],
+                        "Chọn lô", list(_bid_map.keys()),
+                        format_func=_bulk_fmt,
                         label_visibility="collapsed", key="sel_b2",
                     )
-                    target_id2 = int(sel_b2.split(" — ")[0])
+                    target_id2 = sel_b2
                     target2 = avail2[avail2["ID"]==target_id2].iloc[0]
                     st.caption(f"**{target2['Tên Lô']}** · Còn: **{int(target2['Còn Lại'])}** · Vốn: **{fmt_vnd(float(target2['Giá Nhập Tổng']))}**")
 

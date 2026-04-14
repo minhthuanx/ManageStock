@@ -1758,7 +1758,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             f"❌ {fname} — Lỗi nhận dạng" if not is_ok
                             else f"✅ {fname} — {str(res.get('Tên Pet','?'))} · {str(res.get('Mutation','Normal'))} · {str(res.get('M/s','?'))}M/s"
                         )
-                        with st.expander(_expander_label, expanded=not is_ok):
+                        with st.expander(_expander_label, expanded=True):
                             if not is_ok:
                                 st.warning(f"Không thể đọc ảnh này · {res.get('_error','')} · Có thể nhập thủ công.")
 

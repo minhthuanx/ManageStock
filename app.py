@@ -3973,7 +3973,7 @@ with tab_ton:
             _gb_ton.configure_column("Auto Title", minWidth=220, flex=2)
             _gb_ton.configure_column("Item",       minWidth=140, flex=1)
             _gb_ton.configure_column("Loại",       width=100, filter="agSetColumnFilter")
-            _gb_ton.configure_column("Ngày Tồn",   width=110, type=["numericColumn","numberColumnFilter"])
+            _gb_ton.configure_column("Tồn",        width=110)
             _gb_ton.configure_column("Số lượng còn", width=120, type=["numericColumn"])
             _gb_ton.configure_column("Giá trị vốn", minWidth=140)
             _gb_ton.configure_column("Ngày Nhập",  width=110)
@@ -4001,7 +4001,7 @@ with tab_ton:
                 _ton_disp, use_container_width=True, hide_index=True, height=420,
                 column_config={
                     "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
-                    "Ngày Tồn":   st.column_config.NumberColumn("Ngày Tồn", format="%d ngày"),
+                    "Tồn": st.column_config.TextColumn("Tồn"),
                 },
             )
 

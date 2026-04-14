@@ -431,11 +431,12 @@ def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> s
 # =============================================================================
 # NGÀY TỒN CALCULATION
 # =============================================================================
-def calc_ngay_ton(row) -> int:
+def calc_ngay_ton(row) -> float:
     """
     - Nếu status = 'Đã bán' và có time_ban + time_nhap: chốt = time_ban - time_nhap
     - Ngược lại: now_vn() - time_nhap
     - Fallback: dùng Ngày Nhập (text) nếu time_nhap rỗng
+    - Trả về float (ngày thập phân) để hiển thị giờ/phút chính xác
     """
     def _parse_ts(ts_str) -> datetime | None:
         if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
@@ -463,14 +464,35 @@ def calc_ngay_ton(row) -> int:
     status = str(row.get("Trạng Thái", ""))
     t_nhap = _parse_ts(row.get("time_nhap", "")) or _parse_text_date(row.get("Ngày Nhập", ""))
     if t_nhap is None:
-        return 0
+        return 0.0
 
     if "Đã bán" in status:
         t_ban = _parse_ts(row.get("time_ban", "")) or _parse_text_date(row.get("Ngày Bán", ""))
         if t_ban:
-            return max(0, (t_ban - t_nhap).days)
+            return max(0.0, (t_ban - t_nhap).total_seconds() / 86400)
 
-    return max(0, (now_vn() - t_nhap).days)
+    return max(0.0, (now_vn() - t_nhap).total_seconds() / 86400)
+
+
+def fmt_ngay_ton(v) -> str:
+    """Hiển thị thời gian tồn: phút / giờ / ngày."""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return "-"
+    total_sec = v * 86400
+    if total_sec < 60:
+        return "vừa nhập"
+    total_min = int(total_sec // 60)
+    if total_min < 60:
+        return f"{total_min}p"
+    total_h = total_min // 60
+    rem_min = total_min % 60
+    if total_h < 24:
+        return f"{total_h}g{rem_min}p" if rem_min else f"{total_h}g"
+    days = int(v)
+    rem_h = int((v - days) * 24)
+    return f"{days} ngày {rem_h}g" if rem_h else f"{days} ngày"
 
 
 def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
@@ -1302,7 +1324,17 @@ def _hb_is_today(ts):
         return dt.astimezone(VN_TZ).date() == _hb_today
     except: return False
 _hb_sold_today  = df[df["time_ban"].apply(_hb_is_today)]
-_hb_profit_today = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
+_hb_profit_le   = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
+# Cộng lợi nhuận lô pack hôm nay (Ngày Bán dạng dd/mm/yyyy HH:MM)
+def _hb_bulk_is_today(d_str):
+    if not d_str or str(d_str).strip() in ("","nan","None","-"): return False
+    try:
+        dt = datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M")
+        return dt.date() == _hb_today
+    except: return False
+_hb_bulk_today  = bulk_history[bulk_history["Ngày Bán"].apply(_hb_bulk_is_today)] if not bulk_history.empty else pd.DataFrame()
+_hb_profit_bulk = float(pd.to_numeric(_hb_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if not _hb_bulk_today.empty else 0.0
+_hb_profit_today = _hb_profit_le + _hb_profit_bulk
 _badge_html = f'<span class="badge-warn">&#9888; {_badge_count} tồn lâu</span>' if _badge_count > 0 else ""
 st.markdown(f"""
 <div class="hero-banner" style="flex-wrap:wrap;gap:0.9rem;">
@@ -1329,31 +1361,6 @@ st.markdown(f"""
   </div>
 </div>
 """, unsafe_allow_html=True)
-# Button loading JS
-import streamlit.components.v1 as _jsv1
-_jsv1.html(
-    '<style>@keyframes _bspin{to{transform:rotate(360deg)}}</style>'
-    '<script>(function(){'  
-    'function _attach(){'  
-    '  var btns=window.parent.document.querySelectorAll("button:not([data-bl])");'
-    '  btns.forEach(function(b){'  
-    '    b.setAttribute("data-bl","1");'
-    '    b.addEventListener("click",function(){'  
-    '      var orig=b.innerHTML;var origW=b.style.minWidth;'
-    '      b.style.minWidth=b.offsetWidth+"px";'
-    '      b.disabled=true;b.style.opacity="0.55";'
-    '      b.innerHTML=orig+"<svg width=\'14\' height=\'14\' viewBox=\'0 0 24 24\' fill=\'none\' style=\'margin-left:8px;vertical-align:middle;animation:_bspin 0.75s linear infinite;\'><circle cx=\'12\' cy=\'12\' r=\'9\' stroke=\'currentColor\' stroke-width=\'2.5\' stroke-dasharray=\'28\' stroke-dashoffset=\'8\'/></svg>";'
-    '      setTimeout(function(){b.disabled=false;b.style.opacity="";b.innerHTML=orig;b.style.minWidth=origW;},7000);'
-    '    });'
-    '  });'
-    '}'
-    'var _mo=new MutationObserver(_attach);'
-    '_mo.observe(window.parent.document.body,{childList:true,subtree:true});'
-    '_attach();'
-    '})();</script>',
-    height=0,
-)
-
 # =============================================================================
 # SIDEBAR
 # =============================================================================
@@ -1390,9 +1397,17 @@ with st.sidebar:
             return dt.astimezone(VN_TZ).date() == _today_date
         except Exception:
             return False
-    _sold_today = df[df["time_ban"].apply(_is_today_ban)]
+    _sold_today   = df[df["time_ban"].apply(_is_today_ban)]
     _today_count  = len(_sold_today)
-    _today_profit = float(pd.to_numeric(_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
+    _profit_le    = float(pd.to_numeric(_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
+    # Cộng lợi nhuận lô pack hôm nay
+    def _is_today_bulk(d_str):
+        if not d_str or str(d_str).strip() in ("", "nan", "None", "-"): return False
+        try: return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date() == _today_date
+        except: return False
+    _bulk_today   = bulk_history[bulk_history["Ngày Bán"].apply(_is_today_bulk)] if not bulk_history.empty else pd.DataFrame()
+    _profit_bulk  = float(pd.to_numeric(_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if not _bulk_today.empty else 0.0
+    _today_profit = _profit_le + _profit_bulk
     st.markdown('<span class="sidebar-heading">Hôm nay</span>', unsafe_allow_html=True)
     _td1, _td2 = st.columns(2)
     _td1.metric("Giao dịch", f"{_today_count}")
@@ -2160,9 +2175,13 @@ Extract and return VALID JSON only (no markdown, no extra text):
                 mask &= _combined.str.contains(_tok, regex=False, na=False)
             view_df = view_df[mask]
 
+        # Thêm cột hiển thị "Tồn" (text) từ Ngày Tồn (float ngày)
+        view_df = view_df.copy()
+        view_df["Tồn"] = view_df["Ngày Tồn"].apply(fmt_ngay_ton)
+
         display_cols = ["id","STT","Tên Pet","M/s","Mutation","Số Trait","NameStock",
                         "Giá Nhập","Giá Bán","Lợi Nhuận","Ngày Nhập","Ngày Bán",
-                        "Ngày Tồn","Trạng Thái","Auto Title","Place"]
+                        "Tồn","Trạng Thái","Auto Title","Place"]
         view_cols = [c for c in display_cols if c in view_df.columns]
 
         # Nút xuất CSV + đếm kết quả
@@ -2192,7 +2211,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                 disabled=["id"],
                 column_config={
                     "id": st.column_config.NumberColumn("Database ID", help="Mã định danh gốc từ Supabase (Read-only)", format="%d"),
-                    "Ngày Tồn": st.column_config.NumberColumn("Ngày Tồn", disabled=True),
+                    "Tồn": st.column_config.TextColumn("Tồn", disabled=True),
                     "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
                     "Giá Nhập": st.column_config.NumberColumn("Giá Nhập (VNĐ)", format="%d"),
                     "Giá Bán": st.column_config.NumberColumn("Giá Bán ($)"),
@@ -3939,10 +3958,11 @@ with tab_ton:
         m1, m2, m3 = st.columns(3)
         m1.metric("Mục tồn lâu", f"{len(old_items):,}")
         m2.metric("Vốn bị giữ", fmt_vnd(total_stuck_val))
-        m3.metric("Thời hạn tồn kho", f"{int(old_items['Ngày Tồn'].max())} ngày")
+        m3.metric("Thời hạn tồn kho", fmt_ngay_ton(old_items['Ngày Tồn'].max()))
 
         old_items["Giá trị vốn"] = old_items["Giá trị vốn (VNĐ)"].apply(fmt_vnd)
-        _ton_disp = old_items[["Loại","Item","Số lượng còn","Ngày Nhập","Ngày Tồn","Giá trị vốn","Auto Title"]].copy()
+        old_items["Tồn"] = old_items["Ngày Tồn"].apply(fmt_ngay_ton)
+        _ton_disp = old_items[["Loại","Item","Số lượng còn","Ngày Nhập","Tồn","Giá trị vốn","Auto Title"]].copy()
 
         if _HAS_AGGRID:
             _gb_ton = GridOptionsBuilder.from_dataframe(_ton_disp)

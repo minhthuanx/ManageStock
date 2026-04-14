@@ -2093,30 +2093,6 @@ Extract and return VALID JSON only (no markdown, no extra text):
         else:
             st.info("Không có dữ liệu để hiển thị.")
 
-    # ── COPY MÔ TẢ SHOP ──
-    _shop_desc = st.session_state.get("_shop_desc", "")
-    import base64 as _b64
-    import streamlit.components.v1 as _cmp
-    _b64_desc = _b64.b64encode(_shop_desc.encode("utf-8")).decode("ascii") if _shop_desc else ""
-    if _b64_desc:
-        _cmp.html(
-            '<button id="cpShopTop" style="width:100%;padding:9px 14px;border:none;'
-            'border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#c084fc,#e879f9);'
-            'color:#0a0a0f;font-weight:600;font-size:13px;">&#x1F47B; Copy m&#xF4; t&#x1EA3; Shop</button>'
-            '<script>(function(){'
-            'var btn=document.getElementById("cpShopTop");'
-            'var b64="' + _b64_desc + '";'
-            'btn.addEventListener("click",function(){'
-            'var b=this;var bytes=Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0)});'
-            'var txt=new TextDecoder("utf-8").decode(bytes);'
-            'navigator.clipboard.writeText(txt)'
-            '.then(function(){b.innerHTML="&#x2705; Copied!";'
-            'setTimeout(function(){b.innerHTML="&#x1F47B; Copy m&#xF4; t&#x1EA3; Shop";},1500);})'
-            '.catch(function(){b.innerHTML="&#x274C; Error";});'
-            '});})();</script>',
-            height=45,
-        )
-
     # ── COPY AUTO TITLE NHANH ──
     _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
     if not _copy_src.empty:

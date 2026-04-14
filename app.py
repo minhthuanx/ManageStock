@@ -867,14 +867,19 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 
 /* ─── Containers — purple tint frames ─── */
 [data-testid="stVerticalBlockBorderWrapper"] {
-  background: linear-gradient(160deg, rgba(192,132,252,0.1) 0%, rgba(26,21,40,0.98) 60%) !important;
-  border: 1px solid rgba(192,132,252,0.28) !important;
+  background: linear-gradient(160deg, rgba(192,132,252,0.08) 0%, rgba(17,15,26,0.97) 55%) !important;
+  border: 1px solid rgba(192,132,252,0.45) !important;
+  border-top: 2px solid rgba(192,132,252,0.6) !important;
   border-radius: var(--radius) !important;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(192,132,252,0.1) !important;
+  box-shadow: 0 4px 28px rgba(0,0,0,0.35), 0 0 0 0 transparent,
+              inset 0 1px 0 rgba(192,132,252,0.12) !important;
+  outline: none !important;
 }
 /* Force inner block transparent so wrapper purple shows through */
 [data-testid="stVerticalBlockBorderWrapper"] > [data-testid="stVerticalBlock"] {
   background: transparent !important;
+  border: none !important;
+  outline: none !important;
 }
 
 /* ─── Tab content — clean panel ─── */

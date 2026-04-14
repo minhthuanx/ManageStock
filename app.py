@@ -946,29 +946,42 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 .stat-card .val  { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
 .stat-card .lbl  { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; letter-spacing: 0.04em; }
 
-/* ─── Section headings — Material overline ─── */
+/* ─── Section headings — card header style ─── */
 .sec-heading {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--accent);
-  margin: 1.2rem 0 0.7rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(192,132,252,0.2);
+  margin: 1.6rem 0 0 !important;
+  padding: 0.55rem 1rem 0.55rem 0.75rem;
+  background: linear-gradient(90deg, rgba(192,132,252,0.13) 0%, rgba(232,121,249,0.04) 100%);
+  border-left: 3px solid var(--accent);
+  border-top: 1px solid rgba(192,132,252,0.22);
+  border-right: 1px solid rgba(192,132,252,0.1);
+  border-radius: 8px 8px 0 0;
   width: 100%;
+  box-shadow: 0 -2px 12px rgba(192,132,252,0.06);
 }
 .sec-heading::before {
   content: '';
   display: inline-block;
   width: 3px;
-  height: 12px;
+  height: 11px;
   border-radius: 2px;
   background: linear-gradient(180deg, var(--accent), var(--accent2));
   flex-shrink: 0;
+}
+/* The stMarkdown block that immediately follows a sec-heading stMarkdown gets a card bottom */
+[data-testid="stMarkdownContainer"]:has(.sec-heading) {
+  margin-bottom: 0 !important;
+}
+/* Card body wrapper: stVerticalBlock sections in tab content */
+[data-testid="stTabContent"] > [data-testid="stVerticalBlock"] > div > [data-testid="stVerticalBlock"] > div {
+  background: rgba(192,132,252,0.04);
 }
 
 /* ─── Metric cards — left stripe style ─── */
@@ -2581,15 +2594,15 @@ with tab_chart:
     total_stock = stock_count_single + stock_count_bulk
 
     # ── KPI Row ──
-    st.markdown('<div class="sec-heading">Tổng Quan</div>', unsafe_allow_html=True)
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("💰 Lợi nhuận ròng",   fmt_vnd(net_profit))
-    k2.metric("📈 Tổng doanh thu",   fmt_vnd(total_rev))
-    k3.metric("📥 Tổng vốn nhập",    fmt_vnd(total_cost))
-    k4.metric("📦 Pet đang tồn",     f"{total_stock:,}")
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">Tổng Quan</div>', unsafe_allow_html=True)
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("💰 Lợi nhuận ròng",   fmt_vnd(net_profit))
+        k2.metric("📈 Tổng doanh thu",   fmt_vnd(total_rev))
+        k3.metric("📥 Tổng vốn nhập",    fmt_vnd(total_cost))
+        k4.metric("📦 Pet đang tồn",     f"{total_stock:,}")
 
     # ── Waterfall: Dòng Chảy Tài Chính ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">🌊 Dòng Chảy Tài Chính</div>', unsafe_allow_html=True)
 
     if total_rev > 0 or total_cost > 0:
@@ -3940,37 +3953,53 @@ with tab_chart:
 with tab_ton:
     st.markdown('<div class="sec-heading">Hàng Tồn Lâu</div>', unsafe_allow_html=True)
 
-    c_thresh, c_sort = st.columns([1, 2])
-    age_thresh = c_thresh.slider("Ngưỡng tồn kho (ngày)", 1, 120, 7)
-    sort_by    = c_sort.selectbox("Sắp xếp theo", ["Ngày Tồn (giảm)", "Giá trị vốn (giảm)", "Tên Pet"])
+    with st.form("form_ton_lau"):
+        _fc1, _fc2, _fc3, _fc4 = st.columns([1, 1, 1.2, 1])
+        age_thresh  = _fc1.number_input("Tồn từ (ngày)", min_value=0, max_value=365, value=0, step=1)
+        age_max     = _fc2.number_input("Tối đa (ngày, 0=∞)", min_value=0, max_value=3650, value=0, step=1)
+        loai_filter = _fc3.selectbox("Loại hàng", ["Tất cả", "Pet Lẻ", "Lô (Pack)"])
+        sort_by     = _fc4.selectbox("Sắp xếp theo", ["Ngày Tồn (giảm)", "Giá trị vốn (giảm)", "Tên Pet"])
+        st.form_submit_button("🔍 Lọc", use_container_width=False)
 
-    # Pet lẻ tồn
+    # Pet lẻ — dùng Ngày Tồn đã tính sẵn trong df (tránh recalc lỗi khi time_nhap rỗng)
     single_old = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)].copy()
-    single_old = apply_ngay_ton(single_old)
+    if "Ngày Tồn" not in single_old.columns or single_old["Ngày Tồn"].isna().all():
+        single_old = apply_ngay_ton(single_old)
+    single_old["Ngày Tồn"] = pd.to_numeric(single_old["Ngày Tồn"], errors="coerce").fillna(0)
     single_old = single_old[single_old["Ngày Tồn"] >= age_thresh]
-    single_old["Loại"]            = "Pet Lẻ"
-    single_old["Item"]            = single_old["Tên Pet"].astype(str)
-    single_old["Số lượng còn"]    = 1
+    if age_max > 0:
+        single_old = single_old[single_old["Ngày Tồn"] <= age_max]
+    single_old["Loại"]               = "Pet Lẻ"
+    single_old["Item"]               = single_old["Tên Pet"].astype(str)
+    single_old["Số lượng còn"]       = 1
     single_old["Giá trị vốn (VNĐ)"] = pd.to_numeric(single_old["Giá Nhập"], errors="coerce").fillna(0)
     sv = single_old[["Loại","Item","Số lượng còn","Ngày Nhập","Ngày Tồn","Giá trị vốn (VNĐ)","Auto Title"]] if not single_old.empty else pd.DataFrame(columns=["Loại","Item","Số lượng còn","Ngày Nhập","Ngày Tồn","Giá trị vốn (VNĐ)","Auto Title"])
 
     # Pack tồn
     pack_old = bulk_df[bulk_df["Trạng Thái"].astype(str)=="Available"].copy()
     if not pack_old.empty:
-        pack_old["Ngày DT"] = pd.to_datetime(pack_old["Ngày Nhập"], dayfirst=True, errors="coerce")
-        pack_old["Ngày Tồn"] = (now_vn().replace(tzinfo=None) - pack_old["Ngày DT"].dt.tz_localize(None)).dt.days.fillna(0).astype(int)
+        pack_old["Ngày DT"]  = pd.to_datetime(pack_old["Ngày Nhập"], dayfirst=True, errors="coerce")
+        pack_old["Ngày Tồn"] = (now_vn().replace(tzinfo=None) - pack_old["Ngày DT"].dt.tz_localize(None)).dt.days.fillna(0).astype(float)
         pack_old = pack_old[pack_old["Ngày Tồn"] >= age_thresh]
-        pack_old["Loại"]            = "Lô (Pack)"
-        pack_old["Item"]            = pack_old["Tên Lô"].astype(str)
-        pack_old["Số lượng còn"]    = pd.to_numeric(pack_old["Còn Lại"], errors="coerce").fillna(0).astype(int)
+        if age_max > 0:
+            pack_old = pack_old[pack_old["Ngày Tồn"] <= age_max]
+        pack_old["Loại"]               = "Lô (Pack)"
+        pack_old["Item"]               = pack_old["Tên Lô"].astype(str)
+        pack_old["Số lượng còn"]       = pd.to_numeric(pack_old["Còn Lại"], errors="coerce").fillna(0).astype(int)
         pack_old["Giá trị vốn (VNĐ)"] = pd.to_numeric(pack_old["Giá Nhập Tổng"], errors="coerce").fillna(0)
         pv = pack_old[["Loại","Item","Số lượng còn","Ngày Nhập","Ngày Tồn","Giá trị vốn (VNĐ)","Auto Title"]]
     else:
         pv = pd.DataFrame(columns=["Loại","Item","Số lượng còn","Ngày Nhập","Ngày Tồn","Giá trị vốn (VNĐ)","Auto Title"])
 
     old_items = pd.concat([sv, pv], ignore_index=True)
+
+    # Lọc theo loại
+    if loai_filter != "Tất cả" and not old_items.empty:
+        old_items = old_items[old_items["Loại"] == loai_filter]
+
     if old_items.empty:
-        st.info(f"Không có mục nào tồn quá {age_thresh} ngày — kho luân chuyển tốt.")
+        _age_label = f"{age_thresh}–{age_max} ngày" if age_max > 0 else (f"≥ {age_thresh} ngày" if age_thresh > 0 else "toàn bộ")
+        st.info(f"Không có mục nào tồn {_age_label} — kho luân chuyển tốt.")
     else:
         if sort_by == "Ngày Tồn (giảm)":
             old_items = old_items.sort_values("Ngày Tồn", ascending=False)
@@ -3979,24 +4008,24 @@ with tab_ton:
         else:
             old_items = old_items.sort_values("Item")
 
-        # Summary metrics
         total_stuck_val = old_items["Giá trị vốn (VNĐ)"].sum()
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Mục tồn lâu", f"{len(old_items):,}")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Mục tồn", f"{len(old_items):,}")
         m2.metric("Vốn bị giữ", fmt_vnd(total_stuck_val))
-        m3.metric("Thời hạn tồn kho", fmt_ngay_ton(old_items['Ngày Tồn'].max()))
+        m3.metric("Tồn lâu nhất", fmt_ngay_ton(old_items['Ngày Tồn'].max()))
+        m4.metric("Trung bình tồn", fmt_ngay_ton(old_items['Ngày Tồn'].mean()))
 
         old_items["Giá trị vốn"] = old_items["Giá trị vốn (VNĐ)"].apply(fmt_vnd)
-        old_items["Tồn"] = old_items["Ngày Tồn"].apply(fmt_ngay_ton)
+        old_items["Tồn"]         = old_items["Ngày Tồn"].apply(fmt_ngay_ton)
         _ton_disp = old_items[["Loại","Item","Số lượng còn","Ngày Nhập","Tồn","Giá trị vốn","Auto Title"]].copy()
 
         st.dataframe(
             _ton_disp, use_container_width=True, hide_index=True, height=420,
             column_config={
-                "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
-                "Tồn":        st.column_config.TextColumn("Tồn"),
-                "Item":       st.column_config.TextColumn("Item"),
-                "Loại":       st.column_config.TextColumn("Loại"),
+                "Auto Title":   st.column_config.TextColumn("Auto Title", width="large"),
+                "Tồn":          st.column_config.TextColumn("Tồn"),
+                "Item":         st.column_config.TextColumn("Item"),
+                "Loại":         st.column_config.TextColumn("Loại"),
                 "Số lượng còn": st.column_config.NumberColumn("Số lượng còn"),
                 "Giá trị vốn":  st.column_config.TextColumn("Giá trị vốn"),
                 "Ngày Nhập":    st.column_config.TextColumn("Ngày Nhập"),

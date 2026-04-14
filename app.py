@@ -867,15 +867,19 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 
 /* ─── Containers — purple tint frames ─── */
 [data-testid="stVerticalBlockBorderWrapper"] {
-  background: linear-gradient(135deg, rgba(192,132,252,0.07) 0%, var(--surface) 60%) !important;
-  border: 1px solid rgba(192,132,252,0.25) !important;
+  background: rgba(192,132,252,0.09) !important;
+  border: 1px solid rgba(192,132,252,0.3) !important;
   border-radius: var(--radius) !important;
-  box-shadow: 0 2px 20px rgba(192,132,252,0.08) !important;
+  box-shadow: 0 2px 20px rgba(192,132,252,0.1) !important;
+}
+/* Force inner block transparent so wrapper purple shows through */
+[data-testid="stVerticalBlockBorderWrapper"] > [data-testid="stVerticalBlock"] {
+  background: transparent !important;
 }
 
 /* ─── Tab content area — ánh tím nhẹ ─── */
 [data-testid="stTabContent"] {
-  background: rgba(192,132,252,0.03) !important;
+  background: rgba(192,132,252,0.04) !important;
   border-radius: 0 0 var(--radius) var(--radius) !important;
 }
 
@@ -1144,10 +1148,11 @@ div[data-testid="stError"] > div {
 
 /* ─── Form container ─── */
 [data-testid="stForm"] {
-  background: var(--surface) !important;
-  border: 1px solid var(--border) !important;
+  background: rgba(192,132,252,0.08) !important;
+  border: 1px solid rgba(192,132,252,0.28) !important;
   border-radius: var(--radius) !important;
   padding: 1rem !important;
+  box-shadow: 0 2px 16px rgba(192,132,252,0.08) !important;
 }
 
 /* ─── Selectbox / multiselect styled ─── */

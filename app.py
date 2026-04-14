@@ -867,20 +867,23 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 
 /* ─── Containers — purple tint frames ─── */
 [data-testid="stVerticalBlockBorderWrapper"] {
-  background: rgba(192,132,252,0.09) !important;
-  border: 1px solid rgba(192,132,252,0.3) !important;
+  background: linear-gradient(160deg, rgba(192,132,252,0.1) 0%, rgba(26,21,40,0.98) 60%) !important;
+  border: 1px solid rgba(192,132,252,0.28) !important;
   border-radius: var(--radius) !important;
-  box-shadow: 0 2px 20px rgba(192,132,252,0.1) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(192,132,252,0.1) !important;
 }
 /* Force inner block transparent so wrapper purple shows through */
 [data-testid="stVerticalBlockBorderWrapper"] > [data-testid="stVerticalBlock"] {
   background: transparent !important;
 }
 
-/* ─── Tab content area — ánh tím nhẹ ─── */
+/* ─── Tab content — clean panel ─── */
 [data-testid="stTabContent"] {
-  background: rgba(192,132,252,0.04) !important;
+  background: rgba(17,15,26,0.6) !important;
+  border: 1px solid rgba(192,132,252,0.12) !important;
+  border-top: none !important;
   border-radius: 0 0 var(--radius) var(--radius) !important;
+  padding: 1rem !important;
 }
 
 /* ─── DataFrames — material glass ─── */
@@ -946,42 +949,46 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 .stat-card .val  { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
 .stat-card .lbl  { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; letter-spacing: 0.04em; }
 
-/* ─── Section headings — card header style ─── */
+/* ─── Section headings ─── */
 .sec-heading {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.7rem;
+  gap: 0.6rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--accent);
-  margin: 1.6rem 0 0 !important;
-  padding: 0.55rem 1rem 0.55rem 0.75rem;
-  background: linear-gradient(90deg, rgba(192,132,252,0.13) 0%, rgba(232,121,249,0.04) 100%);
-  border-left: 3px solid var(--accent);
-  border-top: 1px solid rgba(192,132,252,0.22);
-  border-right: 1px solid rgba(192,132,252,0.1);
-  border-radius: 8px 8px 0 0;
+  margin: 2rem 0 1rem !important;
+  padding: 0;
   width: 100%;
-  box-shadow: 0 -2px 12px rgba(192,132,252,0.06);
+  position: relative;
 }
 .sec-heading::before {
   content: '';
   display: inline-block;
-  width: 3px;
-  height: 11px;
+  width: 4px;
+  height: 16px;
   border-radius: 2px;
   background: linear-gradient(180deg, var(--accent), var(--accent2));
   flex-shrink: 0;
 }
-/* The stMarkdown block that immediately follows a sec-heading stMarkdown gets a card bottom */
-[data-testid="stMarkdownContainer"]:has(.sec-heading) {
-  margin-bottom: 0 !important;
+.sec-heading::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(192,132,252,0.3) 0%, transparent 100%);
+  margin-left: 0.4rem;
 }
-/* Card body wrapper: stVerticalBlock sections in tab content */
-[data-testid="stTabContent"] > [data-testid="stVerticalBlock"] > div > [data-testid="stVerticalBlock"] > div {
-  background: rgba(192,132,252,0.04);
+
+/* ─── Section card panels — wrap stat content ─── */
+.stat-panel {
+  background: linear-gradient(145deg, rgba(192,132,252,0.07) 0%, rgba(17,15,26,0.95) 100%);
+  border: 1px solid rgba(192,132,252,0.2);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.2rem 0.8rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(192,132,252,0.08);
 }
 
 /* ─── Metric cards — left stripe style ─── */

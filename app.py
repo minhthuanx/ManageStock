@@ -1725,11 +1725,13 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                     })
                                 
                                 if idx < len(batch_imgs) - 1:
-                                    progress.progress(
-                                        int(((idx + 1) / len(batch_imgs)) * 100),
-                                        text=f"Xử lý xong ảnh {idx+1}. (Nghỉ 4s để tránh limit 15 RPM của Groq...)"
-                                    )
-                                    time.sleep(4.1)
+                                    _pct_done = int(((idx + 1) / len(batch_imgs)) * 100)
+                                    for _cd in range(4, 0, -1):
+                                        progress.progress(
+                                            _pct_done,
+                                            text=f"✅ Xong ảnh {idx+1}/{len(batch_imgs)} · Chờ {_cd}s (Groq giới hạn 15 ảnh/phút)..."
+                                        )
+                                        time.sleep(1)
                             
                             progress.progress(100, text="Hoàn thành phân tích!")
                             st.session_state.ai_batch_results = results
@@ -1758,10 +1760,12 @@ Extract and return VALID JSON only (no markdown, no extra text):
                         fname = res.get("_filename", f"Image {i+1}")
                         is_ok = res.get("_ok", False)
 
-                        with st.expander(
-                            f"🖼️ {fname}" + (" — ❌ Lỗi nhận dạng" if not is_ok else ""),
-                            expanded=True,
-                        ):
+                        # Chỉ auto-expand ảnh bị lỗi; ảnh OK thu gọn mặc định
+                        _expander_label = (
+                            f"❌ {fname} — Lỗi nhận dạng" if not is_ok
+                            else f"✅ {fname} — {str(res.get('Tên Pet','?'))} · {str(res.get('Mutation','Normal'))} · {str(res.get('M/s','?'))}M/s"
+                        )
+                        with st.expander(_expander_label, expanded=not is_ok):
                             if not is_ok:
                                 st.warning(f"Không thể đọc ảnh này · {res.get('_error','')} · Có thể nhập thủ công.")
 
@@ -2058,13 +2062,32 @@ Extract and return VALID JSON only (no markdown, no extra text):
                 else:
                     filt = active
                 if not filt.empty:
+                    _stt_map = {int(r["STT"]): r for _, r in filt.iterrows()}
+                    def _pet_fmt(stt):
+                        r = _stt_map[stt]
+                        auto_t = str(r.get("Auto Title", "") or "")
+                        # Lấy phần trước boilerplate
+                        short = auto_t.split("🌸Cheapest")[0].lstrip("🌸").strip()
+                        if not short:
+                            short = str(r.get("Tên Pet", ""))
+                        ns = str(r.get("NameStock", "") or "").strip()
+                        gia_nhap = float(r.get("Giá Nhập", 0) or 0)
+                        ngay_ton = int(float(r.get("Ngày Tồn", 0) or 0))
+                        ns_part  = f" · {ns}" if ns else ""
+                        ton_part = f" · tồn {ngay_ton}d" if ngay_ton > 0 else ""
+                        return f"#{stt}  {short}{ns_part}  ·  {fmt_short(gia_nhap)}{ton_part}"
                     sel = st.selectbox(
                         "Chọn Pet",
-                        filt["STT"].astype(str) + " — " + filt["Auto Title"],
+                        list(_stt_map.keys()),
+                        format_func=_pet_fmt,
                         label_visibility="collapsed",
                     )
-                    sel_stt = int(sel.split(" — ")[0])
+                    sel_stt = sel
                     sel_row = filt[filt["STT"] == sel_stt].iloc[0]
+                    # Hiển thị Auto Title đầy đủ để copy
+                    _at_le = str(sel_row.get("Auto Title", "") or "")
+                    if _at_le:
+                        st.code(_at_le, language="text")
 
                     st.caption(f"**{len(filt)}** kết quả phù hợp")
 
@@ -4178,7 +4201,18 @@ with tab_pack:
                     )
                     target_id2 = sel_b2
                     target2 = avail2[avail2["ID"]==target_id2].iloc[0]
-                    st.caption(f"**{target2['Tên Lô']}** · Còn: **{int(target2['Còn Lại'])}** · Vốn: **{fmt_vnd(float(target2['Giá Nhập Tổng']))}**")
+                    # ── Hiển thị đầy đủ Auto Title để copy ──
+                    _at_full = str(target2.get("Auto Title", "") or "")
+                    if _at_full:
+                        st.code(_at_full, language="text")
+                    _don_gia2 = float(target2["Giá Nhập Tổng"]) / max(float(target2["Số Lượng Gốc"]), 1)
+                    _ngay_nhap2 = str(target2.get("Ngày Nhập", ""))[:10]
+                    st.caption(
+                        f"📦 Còn: **{int(target2['Còn Lại'])}** / {int(float(target2['Số Lượng Gốc']))} con"
+                        f" · Vốn tổng: **{fmt_vnd(float(target2['Giá Nhập Tổng']))}**"
+                        f" · Giá/con: **{fmt_vnd(_don_gia2)}**"
+                        f" · Nhập: {_ngay_nhap2}"
+                    )
 
                     with st.form("form_ban_lo2", clear_on_submit=False):
                         s1t, s2t = st.columns(2)

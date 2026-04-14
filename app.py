@@ -2668,7 +2668,6 @@ with tab_chart:
     else:
         st.info("Chưa có dữ liệu tài chính.")
 
-    st.markdown("---")
 
     # ── Build unified profit-by-date dataframe ──
     frames = []
@@ -2805,7 +2804,6 @@ with tab_chart:
         st.info("Chưa có dữ liệu giao dịch để hiển thị.")
 
     # ── Cumulative Profit Line ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">📈 Lợi Nhuận Tích Lũy</div>', unsafe_allow_html=True)
 
     if has_data and not pbd.empty:
@@ -2894,7 +2892,6 @@ with tab_chart:
     else:
         st.info("Chưa có dữ liệu giao dịch để hiển thị.")
 
-    st.markdown("---")
     # ── Revenue channel split ──
     st.markdown('<div class="sec-heading">Phân Tích Kênh & Sản Phẩm</div>', unsafe_allow_html=True)
     c_left, c_right = st.columns(2)
@@ -2964,7 +2961,6 @@ with tab_chart:
             st.info("Chưa có dữ liệu.")
 
     # ── Bubble Scatter: Volume vs Margin per Mutation ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">🫧 Hiệu Quả Theo Mutation — Volume vs Margin</div>', unsafe_allow_html=True)
 
     if not sold_df.empty and "Mutation" in sold_df.columns:
@@ -3075,7 +3071,6 @@ with tab_chart:
         st.info("Chưa có dữ liệu.")
 
     # ── Pet Performance Scatter ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">🔵 Hiệu Quả Theo Tên Pet — Giá vs Lợi Nhuận</div>', unsafe_allow_html=True)
 
     if not sold_df.empty:
@@ -3166,31 +3161,30 @@ with tab_chart:
 
     # ── Weekly / Monthly summary table ──
     if has_data and not pbd.empty:
-        st.markdown("---")
-        st.markdown('<div class="sec-heading">Bảng Thống Kê Theo Tháng</div>', unsafe_allow_html=True)
-        monthly = (
-            pbd.assign(
-                Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y"),
-                SortKey=pbd["Ngày DT"].dt.strftime("%Y-%m"),
+        with st.container(border=True):
+            st.markdown('<div class="sec-heading">Bảng Thống Kê Theo Tháng</div>', unsafe_allow_html=True)
+            monthly = (
+                pbd.assign(
+                    Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y"),
+                    SortKey=pbd["Ngày DT"].dt.strftime("%Y-%m"),
+                )
+                .groupby(["Tháng","SortKey"], as_index=False)["Lợi Nhuận"].sum()
+                .sort_values("SortKey", ascending=False)
+                .drop(columns=["SortKey"])
             )
-            .groupby(["Tháng","SortKey"], as_index=False)["Lợi Nhuận"].sum()
-            .sort_values("SortKey", ascending=False)
-            .drop(columns=["SortKey"])
-        )
-        monthly_display = monthly[["Tháng","Lợi Nhuận"]].copy()
-        monthly_display["Lợi Nhuận VNĐ"] = monthly_display["Lợi Nhuận"].apply(fmt_vnd)
-        # Keep raw number for aggrid sorting, display formatted string separately
-        monthly_display["Tổng Giao Dịch"] = monthly_display["Tháng"].map(
-            pbd.assign(Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y")).groupby("Tháng")["Lợi Nhuận"].count()
-        ).fillna(0).astype(int)
+            monthly_display = monthly[["Tháng","Lợi Nhuận"]].copy()
+            monthly_display["Lợi Nhuận VNĐ"] = monthly_display["Lợi Nhuận"].apply(fmt_vnd)
+            # Keep raw number for aggrid sorting, display formatted string separately
+            monthly_display["Tổng Giao Dịch"] = monthly_display["Tháng"].map(
+                pbd.assign(Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y")).groupby("Tháng")["Lợi Nhuận"].count()
+            ).fillna(0).astype(int)
 
-        st.dataframe(
-            monthly_display[["Tháng","Lợi Nhuận VNĐ","Tổng Giao Dịch"]],
-            use_container_width=True, hide_index=True
-        )
+            st.dataframe(
+                monthly_display[["Tháng","Lợi Nhuận VNĐ","Tổng Giao Dịch"]],
+                use_container_width=True, hide_index=True
+            )
 
     # ── Avg days to sell + Top mutation ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">Hiệu Suất Bán Hàng</div>', unsafe_allow_html=True)
     _perf_c1, _perf_c2 = st.columns(2)
 
@@ -3276,28 +3270,27 @@ with tab_chart:
             st.info("Chưa có dữ liệu bán.")
 
     # ── Phân tích theo NameStock ──
-    st.markdown("---")
-    st.markdown('<div class="sec-heading">Phân Tích Theo NameStock</div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">Phân Tích Theo NameStock</div>', unsafe_allow_html=True)
 
-    if not sold_df.empty and "NameStock" in sold_df.columns:
-        _ns_grp = sold_df.copy()
-        _ns_grp["LN"] = pd.to_numeric(_ns_grp["Lợi Nhuận"], errors="coerce").fillna(0)
-        _ns_grp["DT"] = pd.to_numeric(_ns_grp["Doanh Thu"], errors="coerce").fillna(0)
-        _ns_grp["NS"] = _ns_grp["NameStock"].astype(str).str.strip().replace("", "(trống)")
-        _ns_perf = (
-            _ns_grp.groupby("NS", as_index=False)
-            .agg(LN_total=("LN","sum"), DT_total=("DT","sum"), Count=("LN","count"))
-            .sort_values("LN_total", ascending=False)
-        )
-        _ns_disp = _ns_perf.rename(columns={"NS":"NameStock","Count":"Số con"}).copy()
-        _ns_disp["Lợi nhuận"] = _ns_disp["LN_total"].apply(fmt_vnd)
-        _ns_disp["Doanh thu"] = _ns_disp["DT_total"].apply(fmt_vnd)
-        st.dataframe(_ns_disp[["NameStock","Số con","Lợi nhuận","Doanh thu"]], use_container_width=True, hide_index=True)
-    else:
-        st.info("Chưa có dữ liệu bán.")
+        if not sold_df.empty and "NameStock" in sold_df.columns:
+            _ns_grp = sold_df.copy()
+            _ns_grp["LN"] = pd.to_numeric(_ns_grp["Lợi Nhuận"], errors="coerce").fillna(0)
+            _ns_grp["DT"] = pd.to_numeric(_ns_grp["Doanh Thu"], errors="coerce").fillna(0)
+            _ns_grp["NS"] = _ns_grp["NameStock"].astype(str).str.strip().replace("", "(trống)")
+            _ns_perf = (
+                _ns_grp.groupby("NS", as_index=False)
+                .agg(LN_total=("LN","sum"), DT_total=("DT","sum"), Count=("LN","count"))
+                .sort_values("LN_total", ascending=False)
+            )
+            _ns_disp = _ns_perf.rename(columns={"NS":"NameStock","Count":"Số con"}).copy()
+            _ns_disp["Lợi nhuận"] = _ns_disp["LN_total"].apply(fmt_vnd)
+            _ns_disp["Doanh thu"] = _ns_disp["DT_total"].apply(fmt_vnd)
+            st.dataframe(_ns_disp[["NameStock","Số con","Lợi nhuận","Doanh thu"]], use_container_width=True, hide_index=True)
+        else:
+            st.info("Chưa có dữ liệu bán.")
 
     # ── Phân tích khung giờ bán hàng ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">Phân Tích Khung Giờ Bán Hàng</div>', unsafe_allow_html=True)
 
     if not sold_df.empty:
@@ -3355,7 +3348,6 @@ with tab_chart:
         st.info("Chưa có dữ liệu bán.")
 
     # ── #27 Heatmap ngày × giờ ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">Heatmap: Thứ × Giờ</div>', unsafe_allow_html=True)
 
     if not sold_df.empty:
@@ -3415,7 +3407,6 @@ with tab_chart:
         st.info("Chưa có dữ liệu bán.")
 
     # ── AJ: Streak & Thành tích ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">Thành Tích & Kỷ Lục</div>', unsafe_allow_html=True)
 
     _all_sold_ch = sold_df.copy()
@@ -3517,7 +3508,6 @@ with tab_chart:
         )
 
     # ── SANKEY: Dòng chảy vốn theo Mutation ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">Sankey — Dòng Chảy Vốn Theo Mutation</div>', unsafe_allow_html=True)
 
     _sk_src, _sk_tgt, _sk_val, _sk_labels, _sk_muts = [], [], [], [], []
@@ -3577,7 +3567,6 @@ with tab_chart:
         st.info("Chưa đủ dữ liệu.")
 
     # ── CALENDAR HEATMAP: GitHub-style lợi nhuận ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">📅 Lịch Lợi Nhuận — 1 Năm Gần Nhất</div>', unsafe_allow_html=True)
 
     if has_data and not pbd.empty:
@@ -3669,7 +3658,6 @@ with tab_chart:
         st.info("Chưa có dữ liệu.")
 
     # ── ⚡ Xu Hướng Bán Theo Tuần ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">⚡ Xu Hướng Bán Theo Tuần</div>', unsafe_allow_html=True)
 
     if has_data and not pbd.empty:
@@ -3783,7 +3771,6 @@ with tab_chart:
         st.info("Chưa có dữ liệu.")
 
     # ── 🧬 Phân Tích Trait ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">🧬 Phân Tích Theo Trait</div>', unsafe_allow_html=True)
 
     if not sold_df.empty and "Số Trait" in sold_df.columns:
@@ -3851,7 +3838,6 @@ with tab_chart:
         st.info("Chưa có dữ liệu bán.")
 
     # ── 🏦 Hiệu Suất Vốn ──
-    st.markdown("---")
     st.markdown('<div class="sec-heading">🏦 Hiệu Suất Vốn</div>', unsafe_allow_html=True)
 
     # Capital inputs

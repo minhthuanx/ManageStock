@@ -867,23 +867,24 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 
 /* ─── Containers — purple tint frames ─── */
 [data-testid="stVerticalBlockBorderWrapper"] {
-  background: linear-gradient(160deg, rgba(192,132,252,0.08) 0%, rgba(17,15,26,0.97) 55%) !important;
-  /* Dùng box-shadow thay border để bypass Streamlit CSS variable */
-  border: none !important;
+  /* Override CSS variable Streamlit uses to draw the border */
+  --border-color-default: rgba(192,132,252,0.55) !important;
+  border-color: rgba(192,132,252,0.55) !important;
+  background: linear-gradient(160deg, rgba(192,132,252,0.07) 0%, rgba(17,15,26,0.97) 55%) !important;
   border-radius: var(--radius) !important;
   box-shadow:
-    0 0 0 1px rgba(192,132,252,0.45),
-    0 0 0 2px rgba(192,132,252,0.12),
     inset 0 1px 0 rgba(192,132,252,0.15),
     0 6px 32px rgba(0,0,0,0.35) !important;
-  outline: none !important;
+}
+/* Target the intermediate div Streamlit sometimes inserts */
+[data-testid="stVerticalBlockBorderWrapper"] > div {
+  --border-color-default: rgba(192,132,252,0.55) !important;
+  border-color: rgba(192,132,252,0.55) !important;
 }
 /* Force inner block transparent so wrapper purple shows through */
 [data-testid="stVerticalBlockBorderWrapper"] > [data-testid="stVerticalBlock"] {
   background: transparent !important;
-  border: none !important;
   box-shadow: none !important;
-  outline: none !important;
 }
 
 /* ─── Tab content — clean panel ─── */
@@ -2612,7 +2613,7 @@ with tab_chart:
 
     # ── KPI Row ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">Tổng Quan</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">📊 Tổng Quan</div>', unsafe_allow_html=True)
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("💰 Lợi nhuận ròng",   fmt_vnd(net_profit))
         k2.metric("📈 Tổng doanh thu",   fmt_vnd(total_rev))
@@ -2713,7 +2714,7 @@ with tab_chart:
 
         # ── Period selector ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">Biểu Đồ Lợi Nhuận</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">📉 Biểu Đồ Lợi Nhuận</div>', unsafe_allow_html=True)
         period_col, _ = st.columns([2, 3])
         period = period_col.radio(
             "Xem theo",
@@ -2914,7 +2915,7 @@ with tab_chart:
 
         # ── Revenue channel split ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">Phân Tích Kênh & Sản Phẩm</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">🔀 Phân Tích Kênh & Sản Phẩm</div>', unsafe_allow_html=True)
         c_left, c_right = st.columns(2)
 
         with c_left:
@@ -3186,7 +3187,7 @@ with tab_chart:
     # ── Weekly / Monthly summary table ──
     if has_data and not pbd.empty:
         with st.container(border=True):
-            st.markdown('<div class="sec-heading">Bảng Thống Kê Theo Tháng</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sec-heading">📋 Bảng Thống Kê Theo Tháng</div>', unsafe_allow_html=True)
             monthly = (
                 pbd.assign(
                     Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y"),
@@ -3208,7 +3209,7 @@ with tab_chart:
             )
 
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">Hiệu Suất Bán Hàng</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">🚀 Hiệu Suất Bán Hàng</div>', unsafe_allow_html=True)
         _perf_c1, _perf_c2 = st.columns(2)
 
         with _perf_c1:
@@ -3294,7 +3295,7 @@ with tab_chart:
 
         # ── Phân tích theo NameStock ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">Phân Tích Theo NameStock</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">🏷️ Phân Tích Theo NameStock</div>', unsafe_allow_html=True)
 
         if not sold_df.empty and "NameStock" in sold_df.columns:
             _ns_grp = sold_df.copy()
@@ -3315,7 +3316,7 @@ with tab_chart:
 
     # ── Phân tích khung giờ bán hàng ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">Phân Tích Khung Giờ Bán Hàng</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">🕐 Phân Tích Khung Giờ Bán Hàng</div>', unsafe_allow_html=True)
 
         if not sold_df.empty:
             def _extract_hour(ts_str):
@@ -3373,7 +3374,7 @@ with tab_chart:
 
         # ── #27 Heatmap ngày × giờ ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">Heatmap: Thứ × Giờ</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">🗓️ Heatmap: Thứ × Giờ</div>', unsafe_allow_html=True)
 
         if not sold_df.empty:
             def _extract_dt_parts(ts_str):
@@ -3433,7 +3434,7 @@ with tab_chart:
 
         # ── AJ: Streak & Thành tích ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">Thành Tích & Kỷ Lục</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">🏆 Thành Tích & Kỷ Lục</div>', unsafe_allow_html=True)
 
         _all_sold_ch = sold_df.copy()
 
@@ -3535,7 +3536,7 @@ with tab_chart:
 
         # ── SANKEY: Dòng chảy vốn theo Mutation ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">Sankey — Dòng Chảy Vốn Theo Mutation</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">💰 Sankey — Dòng Chảy Vốn Theo Mutation</div>', unsafe_allow_html=True)
 
         _sk_src, _sk_tgt, _sk_val, _sk_labels, _sk_muts = [], [], [], [], []
         if not df.empty and "Mutation" in df.columns:

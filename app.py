@@ -859,9 +859,16 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 
 /* ─── Containers ─── */
 [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlockBorderWrapper"] {
-  background: var(--surface) !important;
-  border: 1px solid var(--border) !important;
+  background: linear-gradient(135deg, rgba(192,132,252,0.07) 0%, var(--surface) 60%) !important;
+  border: 1px solid rgba(192,132,252,0.18) !important;
   border-radius: var(--radius) !important;
+  box-shadow: 0 2px 16px rgba(192,132,252,0.06) !important;
+}
+
+/* ─── Tab content area — ánh tím nhẹ ─── */
+[data-testid="stTabContent"] {
+  background: rgba(192,132,252,0.04) !important;
+  border-radius: 0 0 var(--radius) var(--radius) !important;
 }
 
 /* ─── DataFrames — material glass ─── */
@@ -1245,7 +1252,7 @@ body::before {
   position: fixed;
   top: -200px; left: -200px;
   width: 700px; height: 700px;
-  background: radial-gradient(circle, rgba(192,132,252,0.18) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(192,132,252,0.07) 0%, transparent 65%);
   pointer-events: none; z-index: 0;
 }
 body::after {
@@ -1253,7 +1260,7 @@ body::after {
   position: fixed;
   bottom: -180px; right: -180px;
   width: 650px; height: 650px;
-  background: radial-gradient(circle, rgba(232,121,249,0.14) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(232,121,249,0.05) 0%, transparent 65%);
   pointer-events: none; z-index: 0;
 }
 

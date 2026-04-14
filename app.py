@@ -2,6 +2,7 @@ import json
 import os
 import re
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 
 import pandas as pd
@@ -48,8 +49,9 @@ def now_iso() -> str:
 supabase_client: Client | None = None
 USE_SUPABASE = False
 
-def _init_supabase():
-    global supabase_client, USE_SUPABASE
+@st.cache_resource(show_spinner=False)
+def _get_supabase() -> tuple["Client | None", bool]:
+    """Tạo và cache Supabase client – tránh kết nối lại mỗi lần rerun."""
     try:
         if "SUPABASE_URL" in st.secrets and "SUPABASE_KEY" in st.secrets:
             url = st.secrets["SUPABASE_URL"]
@@ -58,11 +60,15 @@ def _init_supabase():
             url = st.secrets["supabase"]["url"]
             key = st.secrets["supabase"]["key"]
         else:
-            return
-        supabase_client = create_client(url, key)
-        USE_SUPABASE = True
+            return None, False
+        return create_client(url, key), True
     except Exception as e:
         st.toast(f"⚠️ Không thể kết nối Supabase: {e}", icon="⚠️")
+        return None, False
+
+def _init_supabase():
+    global supabase_client, USE_SUPABASE
+    supabase_client, USE_SUPABASE = _get_supabase()
 
 _init_supabase()
 
@@ -702,14 +708,22 @@ def init_session():
             '</div>',
             unsafe_allow_html=True,
         )
-        st.session_state.df           = apply_ngay_ton(load_inventory())
-        st.session_state.bulk_df      = load_bulk()
-        st.session_state.bulk_history = load_bulk_history()
+        # Tải song song 4 nguồn dữ liệu để giảm thời gian chờ
+        with ThreadPoolExecutor(max_workers=4) as _ex:
+            _f_inv  = _ex.submit(load_inventory)
+            _f_bulk = _ex.submit(load_bulk)
+            _f_hist = _ex.submit(load_bulk_history)
+            _f_groq = _ex.submit(_load_groq_key_from_supabase)
+            _inv_df = _f_inv.result()
+            _bulk_r = _f_bulk.result()
+            _hist_r = _f_hist.result()
+            _groq_r = _f_groq.result()
+        st.session_state.df           = apply_ngay_ton(_inv_df)
+        st.session_state.bulk_df      = _bulk_r
+        st.session_state.bulk_history = _hist_r
         # Tải Groq key đã lưu (nếu có)
-        if not st.session_state.get("groq_key"):
-            _stored_key = _load_groq_key_from_supabase()
-            if _stored_key:
-                st.session_state.groq_key = _stored_key
+        if not st.session_state.get("groq_key") and _groq_r:
+            st.session_state.groq_key = _groq_r
         _sk_ph.empty()
         st.session_state.initialized = True
     else:

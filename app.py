@@ -2094,6 +2094,11 @@ Extract and return VALID JSON only (no markdown, no extra text):
             st.info("Không có dữ liệu để hiển thị.")
 
     # ── COPY AUTO TITLE NHANH ──
+    _shop_desc = st.session_state.get("_shop_desc", "")
+    import base64 as _b64
+    import streamlit.components.v1 as _cmp
+    _b64_desc = _b64.b64encode(_shop_desc.encode("utf-8")).decode("ascii") if _shop_desc else ""
+
     _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
     if not _copy_src.empty:
         with st.expander("Sao chép Auto Title", expanded=False):

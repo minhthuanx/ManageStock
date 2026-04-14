@@ -752,47 +752,61 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   filter: brightness(1.1) !important;
 }
 
-/* ─── Tabs — bottom glow beam style ─── */
+/* ─── Tabs ─── */
 [data-testid="stTabs"] > div:first-child {
-  gap: 0.3rem !important;
-  border-bottom: 1px solid var(--border) !important;
-  background: var(--surface) !important;
-  padding: 0.55rem 0.6rem 0 !important;
-  border-radius: var(--radius) var(--radius) 0 0 !important;
+  gap: 0 !important;
+  border-bottom: 2px solid var(--border) !important;
+  background: transparent !important;
+  padding: 0 !important;
 }
 /* ẩn thanh gạch mặc định của Streamlit (đỏ/hồng) */
 [data-testid="stTabs"] [role="tablist"] > div[data-baseweb="tab-highlight"],
 [data-testid="stTabs"] [data-baseweb="tab-highlight"] { display: none !important; }
 [data-testid="stTab"] {
-  border-radius: 8px 8px 0 0 !important;
-  padding: 0.5rem 1.05rem !important;
+  border-radius: 0 !important;
+  padding: 0.65rem 1.2rem !important;
   font-weight: 500 !important;
   font-size: 0.78rem !important;
-  letter-spacing: 0.05em !important;
+  letter-spacing: 0.07em !important;
   text-transform: uppercase !important;
   color: var(--muted) !important;
-  border: 1px solid transparent !important;
-  border-bottom: none !important;
+  border: none !important;
   background: transparent !important;
-  transition: all 0.22s ease !important;
+  transition: color 0.15s ease !important;
   position: relative !important;
   outline: none !important;
 }
+/* đường kẻ gradient indicator bằng pseudo-element */
+[data-testid="stTab"]::after {
+  content: '' !important;
+  display: block !important;
+  position: absolute !important;
+  bottom: -2px !important;
+  left: 10% !important;
+  width: 80% !important;
+  height: 3px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(90deg, var(--accent), var(--accent2)) !important;
+  opacity: 0 !important;
+  transform: scaleX(0.4) !important;
+  transition: opacity 0.2s ease, transform 0.2s ease !important;
+}
 [data-testid="stTab"][aria-selected="true"] {
-  color: var(--accent) !important;
+  color: var(--text) !important;
   font-weight: 700 !important;
-  background: linear-gradient(0deg, rgba(192,132,252,0.2) 0%, rgba(192,132,252,0.04) 100%) !important;
-  border-color: rgba(192,132,252,0.18) !important;
-  border-bottom: 1px solid var(--surface) !important;
-  box-shadow:
-    0 6px 28px rgba(192,132,252,0.55),
-    0 2px 0 var(--surface) !important;
-  text-shadow: 0 0 14px rgba(232,121,249,0.75) !important;
+  background: transparent !important;
+}
+[data-testid="stTab"][aria-selected="true"]::after {
+  opacity: 1 !important;
+  transform: scaleX(1) !important;
 }
 [data-testid="stTab"]:hover:not([aria-selected="true"]) {
   color: var(--text) !important;
-  background: rgba(192,132,252,0.06) !important;
-  border-color: rgba(192,132,252,0.15) !important;
+  background: transparent !important;
+}
+[data-testid="stTab"]:hover::after {
+  opacity: 0.35 !important;
+  transform: scaleX(0.7) !important;
 }
 
 /* ─── Inputs ─── */

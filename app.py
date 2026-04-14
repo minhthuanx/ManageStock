@@ -1239,21 +1239,21 @@ hr {
 #MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
 
 /* ─── Ambient background orbs ─── */
-[data-testid="stAppViewContainer"] { position: relative; overflow-x: hidden; }
-[data-testid="stAppViewContainer"]::before {
+[data-testid="stAppViewContainer"] { overflow-x: hidden; }
+body::before {
   content: '';
   position: fixed;
-  top: -220px; left: -220px;
-  width: 600px; height: 600px;
-  background: radial-gradient(circle, rgba(192,132,252,0.08) 0%, transparent 68%);
+  top: -200px; left: -200px;
+  width: 700px; height: 700px;
+  background: radial-gradient(circle, rgba(192,132,252,0.18) 0%, transparent 65%);
   pointer-events: none; z-index: 0;
 }
-[data-testid="stAppViewContainer"]::after {
+body::after {
   content: '';
   position: fixed;
-  bottom: -200px; right: -200px;
-  width: 560px; height: 560px;
-  background: radial-gradient(circle, rgba(232,121,249,0.06) 0%, transparent 68%);
+  bottom: -180px; right: -180px;
+  width: 650px; height: 650px;
+  background: radial-gradient(circle, rgba(232,121,249,0.14) 0%, transparent 65%);
   pointer-events: none; z-index: 0;
 }
 
@@ -3969,55 +3969,18 @@ with tab_ton:
         old_items["Tồn"] = old_items["Ngày Tồn"].apply(fmt_ngay_ton)
         _ton_disp = old_items[["Loại","Item","Số lượng còn","Ngày Nhập","Tồn","Giá trị vốn","Auto Title"]].copy()
 
-        if _HAS_AGGRID:
-            _gb_ton = GridOptionsBuilder.from_dataframe(_ton_disp)
-            _gb_ton.configure_default_column(
-                filter=True, sortable=True, resizable=True,
-                wrapText=False, autoHeight=False,
-            )
-            _gb_ton.configure_column("Auto Title", minWidth=220, flex=2)
-            _gb_ton.configure_column("Item",       minWidth=140, flex=1)
-            _gb_ton.configure_column("Loại",       width=100, filter="agSetColumnFilter")
-            _gb_ton.configure_column("Tồn",        width=110)
-            _gb_ton.configure_column("Số lượng còn", width=120, type=["numericColumn"])
-            _gb_ton.configure_column("Giá trị vốn", minWidth=140)
-            _gb_ton.configure_column("Ngày Nhập",  width=110)
-            _gb_ton.configure_pagination(enabled=True, paginationAutoPageSize=False, paginationPageSize=20)
-            _gb_ton.configure_grid_options(
-                domLayout="normal",
-                suppressMovableColumns=False,
-                headerHeight=36,
-                rowHeight=34,
-            )
-            _gb_ton.configure_selection("single", use_checkbox=False)
-            _grid_ton = _gb_ton.build()
-            try:
-                AgGrid(
-                    _ton_disp,
-                    gridOptions=_grid_ton,
-                    theme="balham-dark",
-                    update_mode=GridUpdateMode.NO_UPDATE,
-                    columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
-                    use_container_width=True,
-                    height=420,
-                    allow_unsafe_jscode=False,
-                )
-            except Exception:
-                st.dataframe(
-                    _ton_disp, use_container_width=True, hide_index=True, height=420,
-                    column_config={
-                        "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
-                        "Tồn": st.column_config.TextColumn("Tồn"),
-                    },
-                )
-        else:
-            st.dataframe(
-                _ton_disp, use_container_width=True, hide_index=True, height=420,
-                column_config={
-                    "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
-                    "Tồn": st.column_config.TextColumn("Tồn"),
-                },
-            )
+        st.dataframe(
+            _ton_disp, use_container_width=True, hide_index=True, height=420,
+            column_config={
+                "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
+                "Tồn":        st.column_config.TextColumn("Tồn"),
+                "Item":       st.column_config.TextColumn("Item"),
+                "Loại":       st.column_config.TextColumn("Loại"),
+                "Số lượng còn": st.column_config.NumberColumn("Số lượng còn"),
+                "Giá trị vốn":  st.column_config.TextColumn("Giá trị vốn"),
+                "Ngày Nhập":    st.column_config.TextColumn("Ngày Nhập"),
+            },
+        )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 4: LÔ PACK

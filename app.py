@@ -766,6 +766,14 @@ html, body, [data-testid="stAppViewContainer"] {
 [data-testid="stSidebar"] { background: var(--surface) !important; border-right: 1px solid var(--border); }
 .block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; }
 
+/* ─── Main content area — nền tím trung tâm ─── */
+[data-testid="stAppViewContainer"] > section.main > div.block-container {
+  background: var(--surface2) !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(192,132,252,0.15) !important;
+  box-shadow: 0 0 60px rgba(192,132,252,0.07) inset !important;
+}
+
 div[data-testid="stMetricValue"] { font-size: clamp(1rem, 2.5vw, 1.4rem) !important; font-weight: 700 !important; color: var(--text) !important; }
 div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--muted) !important; letter-spacing: 0.03em; text-transform: uppercase; }
 

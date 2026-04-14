@@ -752,27 +752,41 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   filter: brightness(1.1) !important;
 }
 
-/* ─── Tabs ─── */
-[data-testid="stTabs"] > div:first-child { gap: 0; border-bottom: 1px solid var(--border); }
+/* ─── Tabs — card style ─── */
+[data-testid="stTabs"] > div:first-child {
+  gap: 0.3rem !important;
+  border-bottom: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  padding: 0.55rem 0.6rem 0 !important;
+  border-radius: var(--radius) var(--radius) 0 0 !important;
+}
 [data-testid="stTab"] {
-  border-radius: 0 !important;
-  padding: 0.6rem 1.1rem !important;
+  border-radius: 8px 8px 0 0 !important;
+  padding: 0.5rem 1.05rem !important;
   font-weight: 500 !important;
   font-size: 0.78rem !important;
-  letter-spacing: 0.07em !important;
+  letter-spacing: 0.05em !important;
   text-transform: uppercase !important;
   color: var(--muted) !important;
-  border: none !important;
+  border: 1px solid transparent !important;
+  border-bottom: none !important;
   background: transparent !important;
-  transition: color 0.2s ease !important;
+  transition: all 0.18s ease !important;
+  position: relative !important;
 }
 [data-testid="stTab"][aria-selected="true"] {
   color: var(--accent) !important;
   font-weight: 700 !important;
-  border-bottom: 2px solid var(--accent) !important;
-  background: transparent !important;
+  background: linear-gradient(180deg, rgba(192,132,252,0.13) 0%, rgba(192,132,252,0.03) 100%) !important;
+  border-color: var(--border) !important;
+  border-bottom-color: var(--bg) !important;
+  box-shadow: inset 0 2px 0 var(--accent), 0 -2px 12px rgba(192,132,252,0.18) !important;
 }
-[data-testid="stTab"]:hover { color: var(--text) !important; background: rgba(192,132,252,0.04) !important; }
+[data-testid="stTab"]:hover:not([aria-selected="true"]) {
+  color: var(--text) !important;
+  background: rgba(192,132,252,0.06) !important;
+  border-color: rgba(192,132,252,0.15) !important;
+}
 
 /* ─── Inputs ─── */
 .stTextInput input, .stNumberInput input, .stSelectbox select {
@@ -937,7 +951,7 @@ div[data-testid="stMetric"]:hover {
   div[data-testid="stMetricValue"] { font-size: 0.95rem !important; }
   div[data-testid="stMetricLabel"] { font-size: 0.68rem !important; }
   .stat-card .val { font-size: 0.95rem; }
-  [data-testid="stTab"] { padding: 0.3rem 0.45rem !important; font-size: 0.72rem !important; }
+  [data-testid="stTab"] { padding: 0.3rem 0.5rem !important; font-size: 0.7rem !important; letter-spacing: 0.02em !important; }
   .hero-banner { padding: 0.6rem 0.8rem; gap: 0.5rem; }
   .hero-banner .logo { font-size: 1.5rem; }
   .hero-banner h1 { font-size: 1rem !important; }
@@ -1299,7 +1313,7 @@ Secure. Professional. Ghostly. 👻⚡"""
 # MAIN TABS
 # =============================================================================
 tab_kho, tab_pack, tab_chart, tab_ton, tab_settings = st.tabs([
-    "Kho Lẻ", "Lô Pack", "Thống Kê", "Tồn Lâu", "Cài Đặt",
+    "📦 Kho Lẻ", "🗃️ Lô Pack", "📊 Thống Kê", "⏳ Tồn Lâu", "⚙️ Cài Đặt",
 ])
 
 # ─────────────────────────────────────────────────────────────────────────────

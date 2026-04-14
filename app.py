@@ -1598,14 +1598,7 @@ with tab_kho:
                     )
 
                     if batch_imgs:
-                        st.caption(f"🖼️ Đã chọn **{len(batch_imgs)}** ảnh")
-                        # Preview thumbnails (luôn chia 5 cột để ảnh nhỏ vừa đủ)
-                        thumb_cols = st.columns(5)
-                        for i, img_f in enumerate(batch_imgs[:5]):
-                            with thumb_cols[i]:
-                                st.image(img_f, use_container_width=True, caption=img_f.name[:12])
-                        if len(batch_imgs) > 5:
-                            st.caption(f"+ {len(batch_imgs)-5} ảnh khác")
+                        st.caption(f"🖼️ Đã chọn **{len(batch_imgs)}** ảnh — {', '.join(f.name[:18] for f in batch_imgs[:3])}{'...' if len(batch_imgs) > 3 else ''}")
 
                         scan_btn = st.button(
                             f"Phân tích {len(batch_imgs)} ảnh",
@@ -2476,11 +2469,21 @@ Extract and return VALID JSON only (no markdown, no extra text):
                         _bid = str(int(float(_br.get("id", 0) or 0))) if int(float(_br.get("id", 0) or 0)) > 0 else f"stt_{int(_br['STT'])}"
                         _in_cart = _bid in st.session_state.bulk_cart
                         _rc1, _rc2 = st.columns([4, 1])
+                        _br_ms     = _br.get("M/s", "")
+                        _br_ns     = str(_br.get("NameStock", "") or "").strip()
+                        _br_trait  = str(_br.get("Số Trait", "") or "").strip()
+                        _br_ton    = int(float(_br.get("Ngày Tồn", 0) or 0))
+                        _br_ms_str = f" · <b>{_br_ms}M/s</b>" if _br_ms else ""
+                        _br_ns_str = f" · <span style='color:#7c6fa0'>{_br_ns}</span>" if _br_ns else ""
+                        _br_trait_str = f" · Trait:{_br_trait}" if _br_trait and _br_trait.lower() != "none" else ""
+                        _br_ton_str = f" · <span style='color:#f87171'>tồn {_br_ton}d</span>" if _br_ton > 0 else ""
                         _rc1.markdown(
                             f'<div style="font-size:0.82rem;padding:2px 0;">'
-                            f'<b style="color:#c084fc">STT {int(_br["STT"])}</b> · '
-                            f'{_br["Tên Pet"]} · <span style="color:#c084fc">{_br["Mutation"]}</span>'
+                            f'<b style="color:#c084fc">#{int(_br["STT"])}</b> · '
+                            f'<b>{_br["Tên Pet"]}</b> · <span style="color:#a78bfa">{_br["Mutation"]}</span>'
+                            f'{_br_ms_str}{_br_ns_str}{_br_trait_str}'
                             f' · <span style="color:#9d8fbf">{fmt_vnd(float(_br["Giá Nhập"]))}</span>'
+                            f'{_br_ton_str}'
                             f'</div>',
                             unsafe_allow_html=True,
                         )
@@ -2512,6 +2515,10 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             "STT":         int(float(_cv.get("STT", 0) or 0)),
                             "Tên Pet":     str(_cv.get("Tên Pet", "")),
                             "Mutation":    str(_cv.get("Mutation", "")),
+                            "M/s":         str(_cv.get("M/s", "") or ""),
+                            "NameStock":   str(_cv.get("NameStock", "") or ""),
+                            "Trait":       str(_cv.get("Số Trait", "") or ""),
+                            "Tồn (ngày)":  int(float(_cv.get("Ngày Tồn", 0) or 0)),
                             "Giá Nhập":    float(pd.to_numeric(_cv.get("Giá Nhập", 0), errors="coerce") or 0),
                             "Giá bán ($)": 0.0,
                             "Place":       "",
@@ -2523,10 +2530,14 @@ Extract and return VALID JSON only (no markdown, no extra text):
                         use_container_width=True,
                         hide_index=True,
                         num_rows="fixed",
-                        disabled=["Tên Pet", "Mutation", "Giá Nhập"],
+                        disabled=["Tên Pet", "Mutation", "M/s", "NameStock", "Trait", "Tồn (ngày)", "Giá Nhập"],
                         column_config={
                             "Tên Pet":     st.column_config.TextColumn("Pet", width="medium"),
                             "Mutation":    st.column_config.TextColumn("Mut.", width="small"),
+                            "M/s":         st.column_config.TextColumn("M/s", width="small"),
+                            "NameStock":   st.column_config.TextColumn("NS", width="small"),
+                            "Trait":       st.column_config.TextColumn("Trait", width="small"),
+                            "Tồn (ngày)":  st.column_config.NumberColumn("Tồn", format="%d", width="small"),
                             "Giá Nhập":    st.column_config.NumberColumn("Vốn (₫)", format="%d", width="small"),
                             "Giá bán ($)": st.column_config.NumberColumn("Giá ($)", min_value=0.0, step=0.01, format="%.2f", width="small"),
                             "Place":       st.column_config.TextColumn("Place", width="small"),

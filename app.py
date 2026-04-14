@@ -752,7 +752,7 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   filter: brightness(1.1) !important;
 }
 
-/* ─── Tabs — card style ─── */
+/* ─── Tabs — bottom glow beam style ─── */
 [data-testid="stTabs"] > div:first-child {
   gap: 0.3rem !important;
   border-bottom: 1px solid var(--border) !important;
@@ -774,18 +774,20 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   border: 1px solid transparent !important;
   border-bottom: none !important;
   background: transparent !important;
-  transition: all 0.18s ease !important;
+  transition: all 0.22s ease !important;
   position: relative !important;
   outline: none !important;
 }
 [data-testid="stTab"][aria-selected="true"] {
   color: var(--accent) !important;
   font-weight: 700 !important;
-  background: linear-gradient(180deg, rgba(192,132,252,0.14) 0%, rgba(192,132,252,0.02) 100%) !important;
-  border-color: rgba(192,132,252,0.25) !important;
+  background: linear-gradient(0deg, rgba(192,132,252,0.2) 0%, rgba(192,132,252,0.04) 100%) !important;
+  border-color: rgba(192,132,252,0.18) !important;
   border-bottom: 1px solid var(--surface) !important;
-  border-top: 2px solid var(--accent2) !important;
-  box-shadow: 0 -4px 18px rgba(232,121,249,0.25), 0 2px 0 var(--surface) !important;
+  box-shadow:
+    0 6px 28px rgba(192,132,252,0.55),
+    0 2px 0 var(--surface) !important;
+  text-shadow: 0 0 14px rgba(232,121,249,0.75) !important;
 }
 [data-testid="stTab"]:hover:not([aria-selected="true"]) {
   color: var(--text) !important;

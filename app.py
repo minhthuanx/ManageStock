@@ -1497,6 +1497,13 @@ with tab_kho:
             # =========================================================
             # AI VISION – Key setup + multi-image + dialog preview
             # =========================================================
+            # Giữ expander mở khi có file đã upload hoặc có kết quả đang hiển thị
+            _ai_ukey = st.session_state.get("ai_uploader_key", 0)
+            _ai_has_files   = bool(st.session_state.get(f"ai_batch_upload_{_ai_ukey}", []))
+            _ai_has_results = bool(st.session_state.get("ai_batch_results", []) or st.session_state.get("ai_show_dialog", False))
+            if _ai_has_files or _ai_has_results:
+                st.session_state.ai_expander = True
+
             with st.expander("AI Vision — Nhập tự động", expanded=st.session_state.get("ai_expander", False)):
 
                 # ── STEP 1: API KEY ──
@@ -1843,8 +1850,6 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                 st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1
                                 st.session_state.ai_expander = False
                                 st.toast(f"Đã lưu {saved} mục thành công", icon="✅")
-                                import time
-                                time.sleep(1.5) # Để kịp hiển thị toast/error
                                 st.rerun()
 
                 ai_preview_dialog()
@@ -3435,7 +3440,7 @@ with tab_chart:
         _best_ln_val_ch = float(_ln_col_ch.max())
         _fast_valid = _ton_col_ch[_ton_col_ch >= 0]
         _fast_row_ch = _all_sold_ch.loc[_fast_valid.idxmin()] if not _fast_valid.empty else None
-        _fast_days_ch = int(_fast_valid.min()) if not _fast_valid.empty else 0
+        _fast_days_ch = float(_fast_valid.min()) if not _fast_valid.empty else 0.0
 
         _day_df_ch = _all_sold_ch.copy()
         _day_df_ch["_bd"] = _day_df_ch["time_ban"].apply(_parse_ban_date_ch)
@@ -3447,7 +3452,7 @@ with tab_chart:
         _rec_c1, _rec_c2, _rec_c3 = st.columns(3)
         _rec_c1.metric("Giao dịch tốt nhất", fmt_vnd(_best_ln_val_ch),
                        help=str(_best_ln_row_ch.get('Tên Pet','?')))
-        _rec_c2.metric("Chốt nhanh nhất", f"{_fast_days_ch} ngày",
+        _rec_c2.metric("Chốt nhanh nhất", fmt_ngay_ton(_fast_days_ch),
                        help=str(_fast_row_ch.get('Tên Pet','?')) if _fast_row_ch is not None else "")
         _rec_c3.metric("Ngày đỉnh cao", fmt_vnd(_best_day_val_ch),
                        help=str(_best_day_ch) if _best_day_ch else "")
@@ -3986,16 +3991,25 @@ with tab_ton:
             )
             _gb_ton.configure_selection("single", use_checkbox=False)
             _grid_ton = _gb_ton.build()
-            AgGrid(
-                _ton_disp,
-                gridOptions=_grid_ton,
-                theme="balham-dark",
-                update_mode=GridUpdateMode.NO_UPDATE,
-                columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
-                use_container_width=True,
-                height=420,
-                allow_unsafe_jscode=False,
-            )
+            try:
+                AgGrid(
+                    _ton_disp,
+                    gridOptions=_grid_ton,
+                    theme="balham-dark",
+                    update_mode=GridUpdateMode.NO_UPDATE,
+                    columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
+                    use_container_width=True,
+                    height=420,
+                    allow_unsafe_jscode=False,
+                )
+            except Exception:
+                st.dataframe(
+                    _ton_disp, use_container_width=True, hide_index=True, height=420,
+                    column_config={
+                        "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
+                        "Tồn": st.column_config.TextColumn("Tồn"),
+                    },
+                )
         else:
             st.dataframe(
                 _ton_disp, use_container_width=True, hide_index=True, height=420,

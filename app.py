@@ -868,17 +868,21 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 /* ─── Containers — purple tint frames ─── */
 [data-testid="stVerticalBlockBorderWrapper"] {
   background: linear-gradient(160deg, rgba(192,132,252,0.08) 0%, rgba(17,15,26,0.97) 55%) !important;
-  border: 1px solid rgba(192,132,252,0.45) !important;
-  border-top: 2px solid rgba(192,132,252,0.6) !important;
+  /* Dùng box-shadow thay border để bypass Streamlit CSS variable */
+  border: none !important;
   border-radius: var(--radius) !important;
-  box-shadow: 0 4px 28px rgba(0,0,0,0.35), 0 0 0 0 transparent,
-              inset 0 1px 0 rgba(192,132,252,0.12) !important;
+  box-shadow:
+    0 0 0 1px rgba(192,132,252,0.45),
+    0 0 0 2px rgba(192,132,252,0.12),
+    inset 0 1px 0 rgba(192,132,252,0.15),
+    0 6px 32px rgba(0,0,0,0.35) !important;
   outline: none !important;
 }
 /* Force inner block transparent so wrapper purple shows through */
 [data-testid="stVerticalBlockBorderWrapper"] > [data-testid="stVerticalBlock"] {
   background: transparent !important;
   border: none !important;
+  box-shadow: none !important;
   outline: none !important;
 }
 
@@ -3178,32 +3182,31 @@ with tab_chart:
         else:
             st.info("Chưa có dữ liệu bán.")
 
-        # ── Weekly / Monthly summary table ──
-        if has_data and not pbd.empty:
-            with st.container(border=True):
-                st.markdown('<div class="sec-heading">Bảng Thống Kê Theo Tháng</div>', unsafe_allow_html=True)
-                monthly = (
-                    pbd.assign(
-                        Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y"),
-                        SortKey=pbd["Ngày DT"].dt.strftime("%Y-%m"),
-                    )
-                    .groupby(["Tháng","SortKey"], as_index=False)["Lợi Nhuận"].sum()
-                    .sort_values("SortKey", ascending=False)
-                    .drop(columns=["SortKey"])
-                )
-                monthly_display = monthly[["Tháng","Lợi Nhuận"]].copy()
-                monthly_display["Lợi Nhuận VNĐ"] = monthly_display["Lợi Nhuận"].apply(fmt_vnd)
-                # Keep raw number for aggrid sorting, display formatted string separately
-                monthly_display["Tổng Giao Dịch"] = monthly_display["Tháng"].map(
-                    pbd.assign(Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y")).groupby("Tháng")["Lợi Nhuận"].count()
-                ).fillna(0).astype(int)
-
-                st.dataframe(
-                    monthly_display[["Tháng","Lợi Nhuận VNĐ","Tổng Giao Dịch"]],
-                    use_container_width=True, hide_index=True
-                )
-
         # ── Avg days to sell + Top mutation ──
+    # ── Weekly / Monthly summary table ──
+    if has_data and not pbd.empty:
+        with st.container(border=True):
+            st.markdown('<div class="sec-heading">Bảng Thống Kê Theo Tháng</div>', unsafe_allow_html=True)
+            monthly = (
+                pbd.assign(
+                    Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y"),
+                    SortKey=pbd["Ngày DT"].dt.strftime("%Y-%m"),
+                )
+                .groupby(["Tháng","SortKey"], as_index=False)["Lợi Nhuận"].sum()
+                .sort_values("SortKey", ascending=False)
+                .drop(columns=["SortKey"])
+            )
+            monthly_display = monthly[["Tháng","Lợi Nhuận"]].copy()
+            monthly_display["Lợi Nhuận VNĐ"] = monthly_display["Lợi Nhuận"].apply(fmt_vnd)
+            monthly_display["Tổng Giao Dịch"] = monthly_display["Tháng"].map(
+                pbd.assign(Tháng=pbd["Ngày DT"].dt.strftime("%m/%Y")).groupby("Tháng")["Lợi Nhuận"].count()
+            ).fillna(0).astype(int)
+
+            st.dataframe(
+                monthly_display[["Tháng","Lợi Nhuận VNĐ","Tổng Giao Dịch"]],
+                use_container_width=True, hide_index=True
+            )
+
     with st.container(border=True):
         st.markdown('<div class="sec-heading">Hiệu Suất Bán Hàng</div>', unsafe_allow_html=True)
         _perf_c1, _perf_c2 = st.columns(2)

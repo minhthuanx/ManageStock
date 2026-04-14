@@ -760,6 +760,9 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   padding: 0.55rem 0.6rem 0 !important;
   border-radius: var(--radius) var(--radius) 0 0 !important;
 }
+/* ẩn thanh gạch mặc định của Streamlit (đỏ/hồng) */
+[data-testid="stTabs"] [role="tablist"] > div[data-baseweb="tab-highlight"],
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] { display: none !important; }
 [data-testid="stTab"] {
   border-radius: 8px 8px 0 0 !important;
   padding: 0.5rem 1.05rem !important;
@@ -773,14 +776,16 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   background: transparent !important;
   transition: all 0.18s ease !important;
   position: relative !important;
+  outline: none !important;
 }
 [data-testid="stTab"][aria-selected="true"] {
   color: var(--accent) !important;
   font-weight: 700 !important;
-  background: linear-gradient(180deg, rgba(192,132,252,0.13) 0%, rgba(192,132,252,0.03) 100%) !important;
-  border-color: var(--border) !important;
-  border-bottom-color: var(--bg) !important;
-  box-shadow: inset 0 2px 0 var(--accent), 0 -2px 12px rgba(192,132,252,0.18) !important;
+  background: linear-gradient(180deg, rgba(192,132,252,0.14) 0%, rgba(192,132,252,0.02) 100%) !important;
+  border-color: rgba(192,132,252,0.25) !important;
+  border-bottom: 1px solid var(--surface) !important;
+  border-top: 2px solid var(--accent2) !important;
+  box-shadow: 0 -4px 18px rgba(232,121,249,0.25), 0 2px 0 var(--surface) !important;
 }
 [data-testid="stTab"]:hover:not([aria-selected="true"]) {
   color: var(--text) !important;

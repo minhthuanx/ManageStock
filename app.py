@@ -666,15 +666,29 @@ def _save_groq_key_to_supabase(api_key: str):
 
 def init_session():
     if "initialized" not in st.session_state:
-        with st.spinner("Đang tải dữ liệu từ Supabase..."):
-            st.session_state.df           = apply_ngay_ton(load_inventory())
-            st.session_state.bulk_df      = load_bulk()
-            st.session_state.bulk_history = load_bulk_history()
-            # Tải Groq key đã lưu (nếu có)
-            if not st.session_state.get("groq_key"):
-                _stored_key = _load_groq_key_from_supabase()
-                if _stored_key:
-                    st.session_state.groq_key = _stored_key
+        _sk_ph = st.empty()
+        _sk_ph.markdown(
+            '<style>@keyframes _sk{0%{background-position:200% 0}100%{background-position:-200% 0}}</style>'
+            '<div style="padding:1.2rem 0;display:flex;flex-direction:column;gap:0.65rem;">'
+            '<div style="height:22px;width:38%;border-radius:6px;background:linear-gradient(90deg,#110f1a 25%,#1a1528 50%,#110f1a 75%);background-size:200% 100%;animation:_sk 1.4s infinite;"></div>'
+            '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.55rem;margin:0.3rem 0;">'
+            + ('<div style="height:68px;border-radius:10px;background:linear-gradient(90deg,#110f1a 25%,#1a1528 50%,#110f1a 75%);background-size:200% 100%;animation:_sk 1.4s infinite;"></div>' * 4) +
+            '</div>'
+            '<div style="height:130px;border-radius:10px;background:linear-gradient(90deg,#110f1a 25%,#1a1528 50%,#110f1a 75%);background-size:200% 100%;animation:_sk 1.4s infinite;"></div>'
+            '<div style="height:13px;width:55%;border-radius:6px;background:linear-gradient(90deg,#110f1a 25%,#1a1528 50%,#110f1a 75%);background-size:200% 100%;animation:_sk 1.4s infinite;"></div>'
+            '<div style="height:13px;width:75%;border-radius:6px;background:linear-gradient(90deg,#110f1a 25%,#1a1528 50%,#110f1a 75%);background-size:200% 100%;animation:_sk 1.4s infinite;"></div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        st.session_state.df           = apply_ngay_ton(load_inventory())
+        st.session_state.bulk_df      = load_bulk()
+        st.session_state.bulk_history = load_bulk_history()
+        # Tải Groq key đã lưu (nếu có)
+        if not st.session_state.get("groq_key"):
+            _stored_key = _load_groq_key_from_supabase()
+            if _stored_key:
+                st.session_state.groq_key = _stored_key
+        _sk_ph.empty()
         st.session_state.initialized = True
     else:
         # Migrate: đảm bảo bulk_df luôn có đủ cột từ BULK_SCHEMA (sau khi thêm cột mới)
@@ -1201,27 +1215,144 @@ hr {
 
 /* ─── Hide Streamlit branding ─── */
 #MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
+
+/* ─── Ambient background orbs ─── */
+[data-testid="stAppViewContainer"] { position: relative; overflow-x: hidden; }
+[data-testid="stAppViewContainer"]::before {
+  content: '';
+  position: fixed;
+  top: -220px; left: -220px;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(192,132,252,0.08) 0%, transparent 68%);
+  pointer-events: none; z-index: 0;
+}
+[data-testid="stAppViewContainer"]::after {
+  content: '';
+  position: fixed;
+  bottom: -200px; right: -200px;
+  width: 560px; height: 560px;
+  background: radial-gradient(circle, rgba(232,121,249,0.06) 0%, transparent 68%);
+  pointer-events: none; z-index: 0;
+}
+
+/* ─── Skeleton shimmer ─── */
+.sk-line {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s infinite;
+}
+@keyframes sk-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Toast enhanced ─── */
+[data-testid="stToast"] {
+  background: var(--surface2) !important;
+  border: 1px solid rgba(192,132,252,0.22) !important;
+  border-radius: 12px !important;
+  font-size: 0.85rem !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(192,132,252,0.08) !important;
+  backdrop-filter: blur(16px) !important;
+  color: var(--text) !important;
+}
+[data-testid="stToastContainer"] {
+  bottom: 2rem !important;
+  right: 1.5rem !important;
+}
+
+/* ─── Empty state ─── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  gap: 0.45rem;
+  text-align: center;
+}
+.empty-state .es-icon { font-size: 2.4rem; opacity: 0.45; }
+.empty-state .es-title { font-size: 0.95rem; font-weight: 600; color: var(--muted); }
+.empty-state .es-sub { font-size: 0.78rem; color: var(--muted); opacity: 0.65; }
+
+/* ─── Button loading spinner ─── */
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+.btn-busy {
+  opacity: 0.65 !important;
+  pointer-events: none !important;
+  cursor: wait !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# Hero banner – tính badge tồn lâu (>7 ngày)
-_badge_count = int(df[
-    df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False) &
-    (pd.to_numeric(df["Ngày Tồn"], errors="coerce").fillna(0) >= 7)
-].shape[0])
-_badge_html = (
-    f'<span class="badge-warn">&#9888; {_badge_count} tồn lâu</span>'
-    if _badge_count > 0 else ""
-)
+# Hero banner – tính stats nhanh
+_hb_con_hang = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
+_badge_count  = int(_hb_con_hang[pd.to_numeric(_hb_con_hang["Ngày Tồn"], errors="coerce").fillna(0) >= 7].shape[0])
+_hb_con_hang_count = len(_hb_con_hang)
+_hb_da_ban = int(df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False).sum())
+_hb_today  = now_vn().date()
+def _hb_is_today(ts):
+    if not ts or str(ts).strip() in ("","nan","None","-"): return False
+    try:
+        dt = datetime.fromisoformat(str(ts))
+        if dt.tzinfo is None: dt = dt.replace(tzinfo=VN_TZ)
+        return dt.astimezone(VN_TZ).date() == _hb_today
+    except: return False
+_hb_sold_today  = df[df["time_ban"].apply(_hb_is_today)]
+_hb_profit_today = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
+_badge_html = f'<span class="badge-warn">&#9888; {_badge_count} tồn lâu</span>' if _badge_count > 0 else ""
 st.markdown(f"""
-<div class="hero-banner">
-  <div class="logo">👻</div>
-  <div>
-    <h1>Management Dashboard{_badge_html}</h1>
-    <p>Copyright © 2026 MINHTHUAN. All rights reserved.</p>
+<div class="hero-banner" style="flex-wrap:wrap;gap:0.9rem;">
+  <div style="display:flex;align-items:center;gap:0.75rem;flex:1;min-width:180px;">
+    <div class="logo">👻</div>
+    <div>
+      <h1 style="margin:0;">Management Dashboard{_badge_html}</h1>
+      <p style="margin:0;">Copyright &copy; 2026 MINHTHUAN. All rights reserved.</p>
+    </div>
+  </div>
+  <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+    <div style="background:rgba(134,239,172,0.08);border:1px solid rgba(134,239,172,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
+      <div style="font-size:1.15rem;font-weight:700;color:#86efac;line-height:1.2;">{_hb_con_hang_count}</div>
+      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Còn hàng</div>
+    </div>
+    <div style="background:rgba(192,132,252,0.08);border:1px solid rgba(192,132,252,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
+      <div style="font-size:1.15rem;font-weight:700;color:#c084fc;line-height:1.2;">{_hb_da_ban}</div>
+      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Đã bán</div>
+    </div>
+    <div style="background:rgba(232,121,249,0.08);border:1px solid rgba(232,121,249,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
+      <div style="font-size:1.1rem;font-weight:700;color:#e879f9;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
+      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Hôm nay</div>
+    </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
+# Button loading JS
+import streamlit.components.v1 as _jsv1
+_jsv1.html(
+    '<style>@keyframes _bspin{to{transform:rotate(360deg)}}</style>'
+    '<script>(function(){'  
+    'function _attach(){'  
+    '  var btns=window.parent.document.querySelectorAll("button:not([data-bl])");'
+    '  btns.forEach(function(b){'  
+    '    b.setAttribute("data-bl","1");'
+    '    b.addEventListener("click",function(){'  
+    '      var orig=b.innerHTML;var origW=b.style.minWidth;'
+    '      b.style.minWidth=b.offsetWidth+"px";'
+    '      b.disabled=true;b.style.opacity="0.55";'
+    '      b.innerHTML=orig+"<svg width=\'14\' height=\'14\' viewBox=\'0 0 24 24\' fill=\'none\' style=\'margin-left:8px;vertical-align:middle;animation:_bspin 0.75s linear infinite;\'><circle cx=\'12\' cy=\'12\' r=\'9\' stroke=\'currentColor\' stroke-width=\'2.5\' stroke-dasharray=\'28\' stroke-dashoffset=\'8\'/></svg>";'
+    '      setTimeout(function(){b.disabled=false;b.style.opacity="";b.innerHTML=orig;b.style.minWidth=origW;},7000);'
+    '    });'
+    '  });'
+    '}'
+    'var _mo=new MutationObserver(_attach);'
+    '_mo.observe(window.parent.document.body,{childList:true,subtree:true});'
+    '_attach();'
+    '})();</script>',
+    height=0,
+)
 
 # =============================================================================
 # SIDEBAR
@@ -1869,7 +2000,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     with st.form("form_ban_le", clear_on_submit=False):
                         c1, c2 = st.columns([1.2, 1])
                         s_price_raw = c1.text_input("Đơn giá ($)", placeholder="VD: 5.5")
-                        s_place     = c2.text_input("Kênh bán (tuỳ chọn)", placeholder="Eldorado...")
+                        s_place     = c2.text_input("Kênh bán (tuỳ chọn)", placeholder="Note anything...")
                         sell_btn    = st.form_submit_button("Xác Nhận Giao Dịch", type="primary", use_container_width=True)
 
                     # ── Step 1: save pending on first click ──
@@ -1966,9 +2097,9 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                 _clear_searches()
                                 st.rerun()
                 else:
-                    st.info("Không tìm thấy kết quả phù hợp.")
+                    st.markdown('<div class="empty-state"><div class="es-icon">🔍</div><div class="es-title">Không tìm thấy kết quả</div><div class="es-sub">Thử điều chỉnh từ khoá tìm kiếm</div></div>', unsafe_allow_html=True)
             else:
-                st.info("Kho trống — chưa có mặt hàng khả dụng.")
+                st.markdown('<div class="empty-state"><div class="es-icon">📦</div><div class="es-title">Kho trống</div><div class="es-sub">Nhấn "Nhập Kho" bên trái để thêm hàng</div></div>', unsafe_allow_html=True)
 
     # ── BẢNG TỒN KHO ──
     st.markdown('<div class="sec-heading">Tồn Kho Lẻ</div>', unsafe_allow_html=True)

@@ -1548,6 +1548,43 @@ tab_kho, tab_pack, tab_chart, tab_ton, tab_settings = st.tabs([
     "📦 Kho Lẻ", "🗃️ Lô Pack", "📊 Thống Kê", "⏳ Tồn Lâu", "⚙️ Cài Đặt",
 ])
 
+# ─── Spring scroll: cuộn mượt có nẩy nhẹ khi dùng màn hình lớn ────────────────
+_cmp_ar.html("""
+<script>
+(function(){
+  var pd=window.parent;
+  if(pd.__gs_spring)return;
+  pd.__gs_spring=true;
+  var pos=pd.scrollY,tgt=pd.scrollY,vel=0,raf=null;
+  var K=0.09,D=0.72; /* spring stiffness / damping — D<0.8 = slight overshoot */
+  var mxD=120;       /* max delta per wheel tick */
+  pd.addEventListener('wheel',function(e){
+    if(e.ctrlKey)return; /* pinch-zoom: đừng can thiệp */
+    e.preventDefault();
+    var delta=e.deltaY;
+    if(e.deltaMode===1)delta*=20; /* line mode */
+    if(e.deltaMode===2)delta*=pd.innerHeight*0.8; /* page mode */
+    delta=Math.max(-mxD,Math.min(mxD,delta));
+    var maxS=pd.document.body.scrollHeight-pd.innerHeight;
+    tgt=Math.max(0,Math.min(tgt+delta,maxS));
+    if(!raf)raf=requestAnimationFrame(step);
+  },{passive:false});
+  function step(){
+    var f=(tgt-pos)*K;
+    vel=(vel+f)*D;
+    pos+=vel;
+    pd.scrollTo(0,pos);
+    if(Math.abs(vel)>0.15||Math.abs(tgt-pos)>0.15){
+      raf=requestAnimationFrame(step);
+    }else{
+      pos=tgt;pd.scrollTo(0,pos);raf=null;
+    }
+  }
+  pos=pd.scrollY;tgt=pd.scrollY;
+})();
+</script>
+""",height=0)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 1: KHO (Nhập + Bán + Bảng tồn kho)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2098,7 +2135,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
 
                     st.caption(f"**{len(filt)}** kết quả phù hợp")
 
-                    with st.form("form_ban_le", clear_on_submit=False):
+                    with st.form(f"form_ban_le_{_sv()}", clear_on_submit=False):
                         c1, c2 = st.columns([1.2, 1])
                         s_price_raw = c1.text_input("Đơn giá ($)", placeholder="VD: 5.5")
                         s_place     = c2.text_input("Kênh bán (tuỳ chọn)", placeholder="Note anything...")
@@ -2179,7 +2216,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                         "place":      _s_place2,
                                         "ngay_ton":   int(_recs[_iloc_pos]["Ngày Tồn"]),
                                     }, _update_col, _update_val)
-                                    st.cache_data.clear()
+                                    load_inventory.clear()  # chỉ xóa cache inventory, giữ bulk cache
                                 st.session_state["last_sale_undo"] = {
                                     "type":          "single",
                                     "label":         f"{_pnd['auto_title']} @ ${_pnd['s_price']}",
@@ -4239,10 +4276,10 @@ with tab_pack:
                         f" · Nhập: {_ngay_nhap2}"
                     )
 
-                    with st.form("form_ban_lo2", clear_on_submit=False):
+                    with st.form(f"form_ban_lo2_{_sv()}", clear_on_submit=False):
                         s1t, s2t = st.columns(2)
-                        s_qty2     = s1t.number_input("Số lượng", min_value=1, max_value=int(target2["Còn Lại"]), key="sqty2")
-                        s_prc_raw2 = s2t.text_input("Đơn giá ($/unit)", placeholder="3.5", key="sprc2")
+                        s_qty2     = s1t.number_input("Số lượng", min_value=1, max_value=int(target2["Còn Lại"]), key=f"sqty2_{_sv()}")
+                        s_prc_raw2 = s2t.text_input("Đơn giá ($/unit)", placeholder="3.5", key=f"sprc2_{_sv()}")
                         sell_ok2   = st.form_submit_button("Xác Nhận Giao Dịch", type="primary", use_container_width=True)
 
                     # ── Step 1: save pending on first click ──
@@ -4324,7 +4361,8 @@ with tab_pack:
                                 }, "id", _pnd_b["bulk_id"])
                                 _write_ok = bool(_inserted) and _write_ok2
                                 if _write_ok:
-                                    st.cache_data.clear()
+                                    load_bulk.clear()          # chỉ xóa 2 cache cần thiết
+                                    load_bulk_history.clear()
                                     st.session_state.bulk_df      = load_bulk()
                                     st.session_state.bulk_history = load_bulk_history()
                                 else:
@@ -4342,6 +4380,7 @@ with tab_pack:
                                     "old_trang_thai":_pnd_b["old_trang_thai"],
                                 }
                                 st.toast("✅ Giao dịch hoàn tất · Nhấn Hoàn Tác nếu bán nhầm", icon="✅")
+                                _clear_searches()  # reset form key → xóa trắng giá bán
                                 st.rerun()
                             else:
                                 st.error("Ghi dữ liệu thất bại, vui lòng thử lại.")

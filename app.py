@@ -768,6 +768,13 @@ st.markdown("""
 
 /* ─── Base ─── */
 *, *::before, *::after { box-sizing: border-box; }
+html {
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+}
+body {
+  overflow-anchor: none;
+}
 html, body, [data-testid="stAppViewContainer"] {
   font-family: 'Inter', sans-serif !important;
   background: var(--bg) !important;
@@ -908,6 +915,7 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   border-top: none !important;
   border-radius: 0 0 var(--radius) var(--radius) !important;
   padding: 1rem !important;
+  min-height: 100vh !important;
 }
 
 /* ─── DataFrames — material glass ─── */

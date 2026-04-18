@@ -3716,7 +3716,8 @@ with tab_chart:
 
         # ── Mốc lợi nhuận tích lũy ──
         st.markdown("**Cột Mốc Lợi Nhuận**")
-        _total_ln_ch = float(_ln_col_ch.sum()) if not _all_sold_ch.empty else 0.0
+        # Dùng pbd (lẻ + lô) để tính tổng lợi nhuận chính xác
+        _total_ln_ch = float(pbd["Lợi Nhuận"].sum()) if has_data and not pbd.empty else (float(_ln_col_ch.sum()) if not _all_sold_ch.empty else 0.0)
         _ln_m_ch = _total_ln_ch / 1_000_000
         _LN_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
         _nxt_ln_ms = next((m for m in _LN_MS if _ln_m_ch < m), None)

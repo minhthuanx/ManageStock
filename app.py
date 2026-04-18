@@ -1479,12 +1479,12 @@ st.markdown(f"""
   <div style="display:flex;align-items:center;gap:0.75rem;flex:1;min-width:180px;">
     <div class="logo">👻</div>
     <div>
-      <div style="font-size:0.7rem;color:#9d8fbf;margin-bottom:2px;letter-spacing:0.04em;">{_hb_greeting}</div>
+      <div style="font-size:0.85rem;font-weight:600;color:var(--accent);margin-bottom:3px;letter-spacing:0.06em;text-transform:uppercase;">{_hb_greeting}</div>
       <h1 style="margin:0;">Management Dashboard{_badge_html}</h1>
       <p style="margin:0;display:flex;align-items:center;gap:0.45rem;">
         <span id="gs-live-clock" style="font-family:'Inter',monospace;letter-spacing:0.02em;"></span>
         <span style="color:#4a3f6b;">·</span>
-        <span>&copy; 2026 MINHTHUAN</span>
+        <span>Copyright &copy; 2026 MINHTHUAN. All rights reserved.</span>
       </p>
     </div>
   </div>

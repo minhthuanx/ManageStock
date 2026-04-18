@@ -513,7 +513,7 @@ def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
 # =============================================================================
 # LOAD DATA
 # =============================================================================
-@st.cache_data(show_spinner=False, ttl=900)
+@st.cache_data(show_spinner=False, ttl=300)
 def load_inventory() -> pd.DataFrame:
     """Load inventory. Bypass sb_select/from_db để tránh REVERSE_MAP["id"]="ID"
     đổi cột 'id' thành 'ID' → normalize_df tạo id=0 → mọi lần save đều INSERT mới.
@@ -536,7 +536,7 @@ def load_inventory() -> pd.DataFrame:
             st.toast(f"❌ Load inventory: {e}", icon="❌")
     return load_csv(DB_FILE, MAIN_SCHEMA)
 
-@st.cache_data(show_spinner=False, ttl=900)
+@st.cache_data(show_spinner=False, ttl=300)
 def load_bulk() -> pd.DataFrame:
     """Load bulk_inventory. Bypass sb_select/from_db để xử lý đúng 'id'→'ID'.
     REVERSE_MAP["id"]="ID" (từ COL_MAP "ID":"id"), nhưng inventory cũng dùng
@@ -556,7 +556,7 @@ def load_bulk() -> pd.DataFrame:
             st.toast(f"❌ Load bulk_inventory: {e}", icon="❌")
     return load_csv(BULK_FILE, BULK_SCHEMA)
 
-@st.cache_data(show_spinner=False, ttl=900)
+@st.cache_data(show_spinner=False, ttl=300)
 def load_bulk_history() -> pd.DataFrame:
     """Load bulk_history. Bypass sb_select/from_db để tránh id→ID rename."""
     if USE_SUPABASE:
@@ -777,9 +777,8 @@ html, body, [data-testid="stAppViewContainer"] {
   text-rendering: optimizeLegibility;
 }
 /* Giữ gutter cho scrollbar – tránh layout shift khi tab cao/thấp khác nhau */
-html { scrollbar-gutter: stable !important; overflow-y: scroll !important; }
-/* KHÔNG override overflow trên section.main – tránh tạo nested scroll context */
-section.main { overflow-y: visible !important; }
+html { scrollbar-gutter: stable !important; }
+section.main { overflow-y: scroll !important; }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] { background: var(--surface) !important; border-right: 1px solid var(--border); }
 .block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; }
@@ -951,7 +950,7 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 .hero-banner {
   background: linear-gradient(135deg, rgba(192,132,252,0.08) 0%, rgba(232,121,249,0.05) 50%, rgba(192,132,252,0.08) 100%);
   border: 1px solid rgba(192,132,252,0.2);
-  /* XÓA backdrop-filter blur – tốn GPU, không đáng */
+  backdrop-filter: blur(12px);
   border-radius: var(--radius);
   padding: 0.9rem 1.2rem;
   margin-bottom: 1rem;
@@ -976,8 +975,7 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   border-radius: var(--radius);
   padding: 0.75rem 0.9rem;
   text-align: center;
-  /* chỉ transition property cần thiết, không dùng 'all' */
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.2s;
 }
 .stat-card:hover { border-color: var(--accent); box-shadow: 0 8px 24px rgba(192,132,252,0.2); }
 .stat-card .val  { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
@@ -1032,8 +1030,7 @@ div[data-testid="stMetric"] {
   border-left: 3px solid var(--accent) !important;
   border-radius: var(--radius) !important;
   padding: 0.7rem 0.9rem !important;
-  /* chỉ transition property cần thiết */
-  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+  transition: all 0.2s;
   box-shadow: 0 2px 12px rgba(192,132,252,0.05) !important;
 }
 div[data-testid="stMetric"]:hover {
@@ -1407,11 +1404,15 @@ body::after {
   animation: fadeUp 0.22s ease both !important;
 }
 
-/* ── block-container: KHAI BO animation – fire mỗi rerun gây mỏi ── */
-/* [data-testid="stAppViewContainer"] > section.main > div.block-container removed */
+/* ── Toàn bộ nội dung block-container: fade khi rerun ── */
+[data-testid="stAppViewContainer"] > section.main > div.block-container {
+  animation: fadeIn 0.25s ease both !important;
+}
 
-/* ── Container / card: XÓA animation – nhiều card fire cùng lúc ── */
-/* [data-testid="stVerticalBlockBorderWrapper"] removed */
+/* ── Container / card: slide lên khi xuất hiện ── */
+[data-testid="stVerticalBlockBorderWrapper"] {
+  animation: fadeUp 0.2s ease both !important;
+}
 
 /* ── Expander khi mở: fade content ── */
 [data-testid="stExpander"] > div:last-child {
@@ -1459,59 +1460,8 @@ div[data-testid="stMetric"] {
 }
 
 /* ── Plotly chart ── */
-/* Không dùng animation riêng – để scroll-reveal CSS xử lý toàn bộ */
-
-/* ── Chart scroll-reveal: ẩn trước, JS sẽ thêm class .chart-visible khi scroll tới ── */
-.chart-reveal {
-  opacity: 0;
-  transform: translateY(20px);
-  will-change: opacity, transform;
-  transition: opacity 0.5s cubic-bezier(0.22,1,0.36,1), transform 0.5s cubic-bezier(0.22,1,0.36,1) !important;
-}
-.chart-reveal.chart-visible {
-  opacity: 1 !important;
-  transform: translateY(0) !important;
-}
-
-/* ── Ripple button ── */
-.stButton > button {
-  overflow: hidden !important;
-  position: relative !important;
-}
-@keyframes ripple-anim {
-  to { transform: scale(4); opacity: 0; }
-}
-.ripple-circle {
-  position: absolute;
-  border-radius: 50%;
-  transform: scale(0);
-  background: rgba(255,255,255,0.25);
-  pointer-events: none;
-  animation: ripple-anim 0.5s linear;
-}
-
-/* ── Tab indicator slide (JS sẽ set --ind-left/--ind-width) ── */
-/* .has-tab-slider được JS gán trực tiếp lên parentElement của các stTab button */
-.has-tab-slider {
-  position: relative !important;
-  overflow: visible !important;
-}
-.tab-slider {
-  position: absolute;
-  bottom: 0;
-  left: var(--ind-left, 0px);
-  width: var(--ind-width, 0px);
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), var(--accent2));
-  transition: left 0.25s cubic-bezier(0.22,1,0.36,1), width 0.25s cubic-bezier(0.22,1,0.36,1);
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* ẩn pseudo-element indicator cũ khi có slider JS */
-.has-tab-slider [data-testid="stTab"]::after {
-  display: none !important;
+.js-plotly-plot {
+  animation: fadeIn 0.3s ease both !important;
 }
 
 /* ── Giảm animation khi user prefer-reduced-motion ── */
@@ -1538,8 +1488,6 @@ def _hb_is_today(ts):
         return dt.astimezone(VN_TZ).date() == _hb_today
     except: return False
 _hb_sold_today  = df[df["time_ban"].apply(_hb_is_today)]
-_hb_sold_today_count = len(_hb_sold_today)
-_hb_nhap_today_count = int(df["time_nhap"].apply(_hb_is_today).sum())
 _hb_profit_le   = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
 # Cộng lợi nhuận lô pack hôm nay (Ngày Bán dạng dd/mm/yyyy HH:MM)
 def _hb_bulk_is_today(d_str):
@@ -1572,15 +1520,7 @@ st.markdown(f"""
     </div>
     <div style="background:rgba(232,121,249,0.08);border:1px solid rgba(232,121,249,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
       <div style="font-size:1.1rem;font-weight:700;color:#e879f9;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
-      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Lãi hôm nay</div>
-    </div>
-    <div style="background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
-      <div style="font-size:1.15rem;font-weight:700;color:#38bdf8;line-height:1.2;">{_hb_nhap_today_count}</div>
-      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Nhập hôm nay</div>
-    </div>
-    <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
-      <div style="font-size:1.15rem;font-weight:700;color:#fbbf24;line-height:1.2;">{_hb_sold_today_count}</div>
-      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Bán hôm nay</div>
+      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Hôm nay</div>
     </div>
   </div>
 </div>
@@ -1706,232 +1646,6 @@ Secure. Professional. Ghostly. 👻⚡"""
 tab_kho, tab_pack, tab_chart, tab_ton, tab_settings = st.tabs([
     "📦 Kho Lẻ", "🗃️ Lô Pack", "📊 Thống Kê", "⏳ Tồn Lâu", "⚙️ Cài Đặt",
 ])
-
-# JS: tất cả effects – tab re-trigger, ripple, sliding indicator, count-up, chart scroll-reveal
-import streamlit.components.v1 as _cmp_tab_js
-_cmp_tab_js.html("""
-<script>
-(function(){
-  var par = window.parent || window;
-  var doc = par.document;
-
-  /* ══════════════════════════════════════════
-     1. TAB ANIMATION RE-TRIGGER khi chuyển tab
-     ══════════════════════════════════════════ */
-  function _retrig(el) {
-    el.style.animationName = 'none';
-    el.getBoundingClientRect();
-    el.style.animationName = '';
-  }
-
-  /* ══════════════════════════════════════════
-     2. SLIDING TAB INDICATOR
-     ══════════════════════════════════════════ */
-  function _updateSlider(tabList, slider) {
-    var active = tabList.querySelector('[data-testid="stTab"][aria-selected="true"]');
-    if (!active) return;
-    var tRect = tabList.getBoundingClientRect();
-    var aRect = active.getBoundingClientRect();
-    var left  = aRect.left - tRect.left + aRect.width * 0.1;
-    var width = aRect.width * 0.8;
-    tabList.style.setProperty('--ind-left',  left  + 'px');
-    tabList.style.setProperty('--ind-width', width + 'px');
-  }
-
-  function _initSlider() {
-    // Tìm ĐÚNG phần tử cha trực tiếp của các nút stTab (không phải wrapper toàn widget)
-    var seen = new WeakSet();
-    doc.querySelectorAll('[data-testid="stTab"]').forEach(function(tab) {
-      var tl = tab.parentElement;
-      if (!tl || seen.has(tl)) return;
-      seen.add(tl);
-      if (tl.querySelector('.tab-slider')) return; // already inited
-      tl.classList.add('has-tab-slider');
-      var slider = doc.createElement('div');
-      slider.className = 'tab-slider';
-      tl.appendChild(slider);
-      _updateSlider(tl, slider);
-    });
-  }
-
-  /* ══════════════════════════════════════════
-     3. RIPPLE EFFECT trên button
-     ══════════════════════════════════════════ */
-  function _addRipple(e) {
-    var btn = e.currentTarget;
-    var circle = doc.createElement('span');
-    var diameter = Math.max(btn.clientWidth, btn.clientHeight);
-    var radius = diameter / 2;
-    var rect = btn.getBoundingClientRect();
-    circle.className = 'ripple-circle';
-    circle.style.cssText = [
-      'width:'  + diameter + 'px',
-      'height:' + diameter + 'px',
-      'left:'   + (e.clientX - rect.left - radius) + 'px',
-      'top:'    + (e.clientY - rect.top  - radius) + 'px',
-    ].join(';');
-    var old = btn.querySelector('.ripple-circle');
-    if (old) old.remove();
-    btn.appendChild(circle);
-    circle.addEventListener('animationend', function(){ circle.remove(); });
-  }
-
-  function _initRipples() {
-    doc.querySelectorAll('.stButton > button:not([data-ripple])').forEach(function(btn) {
-      btn.setAttribute('data-ripple','1');
-      btn.addEventListener('click', _addRipple);
-    });
-  }
-
-  /* ══════════════════════════════════════════
-     4. COUNT-UP cho stMetricValue
-     ══════════════════════════════════════════ */
-  function _parseNum(txt) {
-    // bỏ ký hiệu tiền tệ, dấu phẩy, khoảng trắng
-    var clean = txt.replace(/[₫$,\s]/g, '').replace(/[^0-9.\-]/g,'');
-    var n = parseFloat(clean);
-    return isNaN(n) ? null : n;
-  }
-  function _fmtLike(orig, val) {
-    // giữ format gần giống giá trị gốc (có ký hiệu ₫ hay $, có M/K)
-    var prefix = orig.match(/^[₫$]/) ? orig[0] : '';
-    var suffix = orig.match(/[MKB]$/) ? orig[orig.length-1] : '';
-    if (suffix === 'M') return prefix + (val/1e6).toFixed(2) + 'M';
-    if (suffix === 'K') return prefix + (val/1e3).toFixed(1) + 'K';
-    if (prefix === '₫') return '₫' + Math.round(val).toLocaleString('vi-VN');
-    if (prefix === '$') return '$' + val.toFixed(2);
-    return Math.round(val).toLocaleString();
-  }
-  var _counted = new WeakSet();
-  function _countUp(el) {
-    if (_counted.has(el)) return;
-    var orig = el.textContent.trim();
-    var target = _parseNum(orig);
-    if (target === null || target === 0) return;
-    _counted.add(el);
-    var start = 0, dur = 700, t0 = null;
-    function step(ts) {
-      if (!t0) t0 = ts;
-      var prog = Math.min((ts - t0) / dur, 1);
-      // easeOutQuart
-      var ease = 1 - Math.pow(1 - prog, 4);
-      el.textContent = _fmtLike(orig, start + (target - start) * ease);
-      if (prog < 1) requestAnimationFrame(step);
-      else el.textContent = orig; // restore exact original
-    }
-    requestAnimationFrame(step);
-  }
-  function _initCountUp() {
-    doc.querySelectorAll('[data-testid="stMetricValue"]:not([data-cu])').forEach(function(el) {
-      el.setAttribute('data-cu','1');
-      _countUp(el);
-    });
-  }
-
-  /* ══════════════════════════════════════════
-     5. CHART SCROLL-REVEAL (Intersection Observer)
-     ══════════════════════════════════════════ */
-  var _io = null;
-  function _initChartReveal() {
-    if (!('IntersectionObserver' in par)) return;
-    // Tạo observer 1 lần duy nhất – KHÔNG disconnect để tránh mất observation
-    if (!_io) {
-      _io = new par.IntersectionObserver(function(entries) {
-        entries.forEach(function(entry) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('chart-visible');
-            _io.unobserve(entry.target);
-          }
-        });
-      }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-    }
-    // data-cr đặt trên el (.js-plotly-plot) để :not([data-cr]) hoạt động đúng
-    doc.querySelectorAll('.js-plotly-plot:not([data-cr])').forEach(function(el) {
-      el.setAttribute('data-cr','1');
-      var wrap = el.closest('[data-testid="stPlotlyChart"]') || el;
-      if (!wrap.classList.contains('chart-reveal')) {
-        wrap.classList.add('chart-reveal');
-      }
-      // Delay 2 frames: đảm bảo browser paint opacity:0 TRƯỚC khi observe
-      // (tránh transition không trigger do add class + observe cùng frame)
-      requestAnimationFrame(function() {
-        requestAnimationFrame(function() {
-          _io.observe(wrap);
-        });
-      });
-    });
-  }
-
-  /* ══════════════════════════════════════════
-     6. SEARCH DEBOUNCE (400 ms)
-     Chặn input event ở capture phase (trước React), re-dispatch sau 400ms
-     ══════════════════════════════════════════ */
-  var _dbTimers = new WeakMap();
-  var _nativeSetter = (function() {
-    try {
-      return Object.getOwnPropertyDescriptor(
-        (par.HTMLInputElement || HTMLInputElement).prototype, 'value'
-      ).set;
-    } catch(e) { return null; }
-  })();
-  if (_nativeSetter) {
-    doc.addEventListener('input', function(e) {
-      var t = e.target;
-      if (!t || t.tagName !== 'INPUT' || !t.closest || !t.closest('.stTextInput')) return;
-      if (e._debounced) return;  // cho phép event đã debounce đi qua
-      e.stopPropagation();       // ngăn React thấy event này ngay
-      var val = t.value;
-      if (_dbTimers.has(t)) clearTimeout(_dbTimers.get(t));
-      _dbTimers.set(t, setTimeout(function() {
-        if (!par.document.contains(t)) return; // input đã bị unmount
-        _nativeSetter.call(t, val);
-        var ev = new Event('input', { bubbles: true, cancelable: false });
-        ev._debounced = true;
-        t.dispatchEvent(ev);
-      }, 400));
-    }, true); // capture = true → chạy trước React event delegation
-  }
-
-  /* ══════════════════════════════════════════
-     ORCHESTRATOR: gọi lại khi DOM thay đổi
-     ══════════════════════════════════════════ */
-  function _run() {
-    _initSlider();
-    _initRipples();
-    _initCountUp();
-    _initChartReveal();
-  }
-
-  // Tab click → re-trigger animation + update slider
-  doc.addEventListener('click', function(e) {
-    var t = e.target && e.target.closest && e.target.closest('[data-testid="stTab"]');
-    if (!t) return;
-    setTimeout(function() {
-      doc.querySelectorAll('[data-testid="stTabContent"]').forEach(_retrig);
-      doc.querySelectorAll('.has-tab-slider').forEach(function(tl){
-        var slider = tl.querySelector('.tab-slider');
-        if (slider) _updateSlider(tl, slider);
-      });
-      _run();
-    }, 30);
-  }, true);
-
-  // MutationObserver để auto-init khi Streamlit inject DOM mới
-  var _mo = new MutationObserver(function(muts) {
-    var relevant = muts.some(function(m){ return m.addedNodes.length > 0; });
-    if (relevant) _run();
-  });
-  _mo.observe(doc.body || doc.documentElement, { childList: true, subtree: true });
-
-  // Init lần đầu
-  if (doc.readyState === 'loading') {
-    doc.addEventListener('DOMContentLoaded', _run);
-  } else {
-    setTimeout(_run, 100);
-  }
-})();
-</script>
-""", height=0)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 1: KHO (Nhập + Bán + Bảng tồn kho)
@@ -2673,32 +2387,6 @@ Extract and return VALID JSON only (no markdown, no extra text):
             if not view_df.empty:
                 # Khi search hoặc khi lọc mutation: coi như đang filter → dùng safe merge-back
                 _is_searching = bool(inv_search.strip()) or (_mut_sel != "Tất cả")
-
-                # ── Phân trang ──
-                _PAGE_SIZE = 30
-                _total_rows = len(view_df)
-                _max_page = max(1, (_total_rows + _PAGE_SIZE - 1) // _PAGE_SIZE)
-                if _total_rows > _PAGE_SIZE:
-                    _pg_key = f"inv_page_{view_mode.replace(' ', '_')}"
-                    if st.session_state.get(_pg_key, 1) > _max_page:
-                        st.session_state[_pg_key] = 1
-                    _cur_pg = st.session_state.get(_pg_key, 1)
-                    _pg_c1, _pg_c2, _pg_c3 = st.columns([1, 4, 1])
-                    with _pg_c1:
-                        if st.button("◀ Trước", key="inv_pg_prev", disabled=_cur_pg <= 1, use_container_width=True):
-                            st.session_state[_pg_key] = _cur_pg - 1
-                            st.rerun()
-                    with _pg_c2:
-                        st.caption(f"Trang **{_cur_pg}** / {_max_page} · {_PAGE_SIZE} dòng/trang · {_total_rows} tổng")
-                    with _pg_c3:
-                        if st.button("Tiếp ▶", key="inv_pg_next", disabled=_cur_pg >= _max_page, use_container_width=True):
-                            st.session_state[_pg_key] = _cur_pg + 1
-                            st.rerun()
-                    _cur_pg = st.session_state.get(_pg_key, 1)
-                    _start = (_cur_pg - 1) * _PAGE_SIZE
-                    view_df = view_df.iloc[_start : _start + _PAGE_SIZE]
-                    _is_searching = True  # sliced view → dùng ID-based merge-back
-
                 # Show editable table
                 before_edit = view_df[view_cols].copy()
                 edited = st.data_editor(
@@ -3909,39 +3597,20 @@ with tab_chart:
             except Exception:
                 return None
 
-        def _parse_bulk_date_ch(d_str):
-            """Parse ngày bán dạng 'dd/mm/yyyy HH:MM' từ bulk_history."""
-            if not d_str or str(d_str).strip() in ("", "nan", "None", "-"):
-                return None
-            try:
-                return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date()
-            except Exception:
-                return None
-
         _today_ch = now_vn().date()
-
-        # Gộp ngày bán từ cả kho lẻ lẫn lô pack để tính streak đầy đủ
-        _le_dates_ch = set(_all_sold_ch["time_ban"].apply(_parse_ban_date_ch).dropna())
-        _bulk_dates_ch = set()
-        if not bulk_history.empty and "Ngày Bán" in bulk_history.columns:
-            _bulk_dates_ch = set(bulk_history["Ngày Bán"].apply(_parse_bulk_date_ch).dropna())
-        _unique_days_ch = sorted(_le_dates_ch | _bulk_dates_ch, reverse=True)
-
+        _ban_dates_ch = _all_sold_ch["time_ban"].apply(_parse_ban_date_ch).dropna()
+        _unique_days_ch = sorted(set(_ban_dates_ch), reverse=True)
         _streak_ch = 0
         if _unique_days_ch:
             _chk = _today_ch
             for _d in _unique_days_ch:
                 if _d == _chk:
                     _streak_ch += 1
-                    _chk = _chk - timedelta(days=1)
+                    _chk = _chk - __import__("datetime").timedelta(days=1)
                 elif _d < _chk:
                     break
 
-        # Tổng giao dịch = lẻ + lô pack
-        _total_sold_le  = len(_all_sold_ch)
-        _total_sold_bulk = len(bulk_history) if not bulk_history.empty else 0
-        _total_sold_ch  = _total_sold_le + _total_sold_bulk
-
+        _total_sold_ch = len(_all_sold_ch)
         _SELL_MILESTONES = [
             (500, "🏆 Legend Trader"),
             (200, "💎 Diamond Seller"),
@@ -3956,8 +3625,7 @@ with tab_chart:
 
         _ach_c1, _ach_c2, _ach_c3 = st.columns(3)
         _ach_c1.metric("Chuỗi ngày", f"{_streak_icon_ch} {_streak_ch} ngày")
-        _ach_c2.metric("Tổng giao dịch", f"{_total_sold_ch}",
-                       help=f"Lẻ: {_total_sold_le} · Lô pack: {_total_sold_bulk}")
+        _ach_c2.metric("Tổng giao dịch", f"{_total_sold_ch}")
         _ach_c3.metric("Cấp độ", _badge_ch or "—")
         if _next_sell_ms:
             st.caption(f"Cột mốc tiếp theo · **{_next_sell_ms[1]}**: còn **{_next_sell_ms[0] - _total_sold_ch}** giao dịch")
@@ -3966,52 +3634,39 @@ with tab_chart:
         st.markdown("**Kỷ Lục**")
         if not _all_sold_ch.empty:
             _ln_col_ch = pd.to_numeric(_all_sold_ch["Lợi Nhuận"], errors="coerce").fillna(0)
-            _ton_col_ch = pd.to_numeric(_all_sold_ch["Ngày Tồn"], errors="coerce").fillna(9999)
+            _ton_col_ch = pd.to_numeric(_all_sold_ch["Ngày Tồn"], errors="coerce").fillna(999)
 
             _best_ln_row_ch = _all_sold_ch.loc[_ln_col_ch.idxmax()]
             _best_ln_val_ch = float(_ln_col_ch.max())
-
-            # Loại sentinel 9999 (Ngày Tồn bị thiếu) trước khi tìm min
-            _fast_valid = _ton_col_ch[(0 <= _ton_col_ch) & (_ton_col_ch < 9999)]
+            _fast_valid = _ton_col_ch[_ton_col_ch >= 0]
             _fast_row_ch = _all_sold_ch.loc[_fast_valid.idxmin()] if not _fast_valid.empty else None
-            _fast_days_ch = float(_fast_valid.min()) if not _fast_valid.empty else None
+            _fast_days_ch = float(_fast_valid.min()) if not _fast_valid.empty else 0.0
 
-            # Lợi nhuận tốt nhất theo ngày — gộp lẻ + bulk
             _day_df_ch = _all_sold_ch.copy()
             _day_df_ch["_bd"] = _day_df_ch["time_ban"].apply(_parse_ban_date_ch)
             _day_df_ch["_ln"] = pd.to_numeric(_day_df_ch["Lợi Nhuận"], errors="coerce").fillna(0)
             _day_profit_ch = _day_df_ch.dropna(subset=["_bd"]).groupby("_bd")["_ln"].sum()
-
-            # Cộng bulk history profit vào từng ngày
-            if not bulk_history.empty and "Ngày Bán" in bulk_history.columns:
-                _bh_day = bulk_history.copy()
-                _bh_day["_bd"] = _bh_day["Ngày Bán"].apply(_parse_bulk_date_ch)
-                _bh_day["_ln"] = pd.to_numeric(_bh_day["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0)
-                _bh_profit_by_day = _bh_day.dropna(subset=["_bd"]).groupby("_bd")["_ln"].sum()
-                _day_profit_ch = _day_profit_ch.add(_bh_profit_by_day, fill_value=0)
-
             _best_day_ch = _day_profit_ch.idxmax() if not _day_profit_ch.empty else None
             _best_day_val_ch = float(_day_profit_ch.max()) if not _day_profit_ch.empty else 0.0
 
             _rec_c1, _rec_c2, _rec_c3 = st.columns(3)
             _rec_c1.metric("Giao dịch tốt nhất", fmt_vnd(_best_ln_val_ch),
-                           help=str(_best_ln_row_ch.get('Tên Pet', '?')))
-            _rec_c2.metric("Chốt nhanh nhất",
-                           fmt_ngay_ton(_fast_days_ch) if _fast_days_ch is not None else "—",
-                           help=str(_fast_row_ch.get('Tên Pet', '?')) if _fast_row_ch is not None else "Chưa có dữ liệu Ngày Tồn")
+                           help=str(_best_ln_row_ch.get('Tên Pet','?')))
+            _rec_c2.metric("Chốt nhanh nhất", fmt_ngay_ton(_fast_days_ch),
+                           help=str(_fast_row_ch.get('Tên Pet','?')) if _fast_row_ch is not None else "")
             _rec_c3.metric("Ngày đỉnh cao", fmt_vnd(_best_day_val_ch),
                            help=str(_best_day_ch) if _best_day_ch else "")
         else:
             st.info("Chưa có dữ liệu bán.")
 
-        # ── Mốc lợi nhuận tích lũy — dùng net_profit (lẻ + pack) ──
+        # ── Mốc lợi nhuận tích lũy ──
         st.markdown("**Cột Mốc Lợi Nhuận**")
-        _total_ln_ch = net_profit  # đã tính ở đầu tab_chart: profit_single + profit_bulk
+        _total_ln_ch = float(_ln_col_ch.sum()) if not _all_sold_ch.empty else 0.0
         _ln_m_ch = _total_ln_ch / 1_000_000
         _LN_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
         _nxt_ln_ms = next((m for m in _LN_MS if _ln_m_ch < m), None)
         _lst_ln_ms = next((m for m in reversed(_LN_MS) if _ln_m_ch >= m), None)
-        st.caption(f"Lợi nhuận tích lũy (lẻ + lô pack): **{fmt_vnd(_total_ln_ch)}**")
+        st.caption(f"Lợi nhuận tích lũy: **{fmt_vnd(_total_ln_ch)}**")
         if _nxt_ln_ms:
             _base_ch = (_lst_ln_ms or 0) * 1_000_000
             _tgt_ch = _nxt_ln_ms * 1_000_000

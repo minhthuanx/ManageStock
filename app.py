@@ -776,6 +776,8 @@ html, body, [data-testid="stAppViewContainer"] {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+/* Giữ gutter cho scrollbar – tránh layout shift khi tab cao/thấp khác nhau */
+section.main { scrollbar-gutter: stable !important; }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] { background: var(--surface) !important; border-right: 1px solid var(--border); }
 .block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; }
@@ -908,6 +910,10 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   border-top: none !important;
   border-radius: 0 0 var(--radius) var(--radius) !important;
   padding: 1rem !important;
+  /* bù 1px border trái/phải để nội dung căn đều với tab bar phía trên */
+  margin-left: -1px !important;
+  margin-right: -1px !important;
+  box-sizing: border-box !important;
 }
 
 /* ─── DataFrames — material glass ─── */

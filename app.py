@@ -1900,7 +1900,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             if sb_ok:
                                 if USE_SUPABASE:
                                     # Refresh Cache để lấy ID thật từ DB về tránh dup khi reindex
-                                    st.cache_data.clear()
+                                    load_inventory.clear()
                                     st.session_state.df = apply_ngay_ton(load_inventory())
                                 else:
                                     current_df = apply_ngay_ton(current_df)
@@ -1995,7 +1995,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                         p_payload.pop("id", None)
                         sb_insert("inventory", p_payload)
                         # Sync ID from DB
-                        st.cache_data.clear()
+                        load_inventory.clear()
                         st.session_state.df = apply_ngay_ton(load_inventory())
                         
                     st.session_state.last_saved_pet = {
@@ -2047,7 +2047,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                 "place":      _ud["old_place"] if _ud["old_place"] else None,
                                 "ngay_ton":   _ud["old_ngay_ton"],
                             }, _uid_col, _uid_val)
-                            st.cache_data.clear()
+                            load_inventory.clear()
                     st.toast("Đã hoàn tác giao dịch", icon="↩️")
                     st.rerun()
 
@@ -2098,7 +2098,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
 
                     st.caption(f"**{len(filt)}** kết quả phù hợp")
 
-                    with st.form("form_ban_le", clear_on_submit=False):
+                    with st.form("form_ban_le", clear_on_submit=True):
                         c1, c2 = st.columns([1.2, 1])
                         s_price_raw = c1.text_input("Đơn giá ($)", placeholder="VD: 5.5")
                         s_place     = c2.text_input("Kênh bán (tuỳ chọn)", placeholder="Note anything...")
@@ -2194,6 +2194,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                     "old_place":     _pnd["old_place"],
                                     "old_ngay_ton":  _pnd["old_ngay_ton"],
                                 }
+                                load_inventory.clear()
                                 st.toast("✅ Giao dịch hoàn tất · Nhấn Hoàn Tác nếu bán nhầm", icon="✅")
                                 _clear_searches()
                                 st.rerun()
@@ -2352,7 +2353,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     save_inventory_supabase(full_updated, st.session_state.df)
                     # ── Luôn reload từ Supabase để lấy ID thật, tránh id=0 gây duplicate ──
                     if USE_SUPABASE:
-                        st.cache_data.clear()
+                        load_inventory.clear()
                         st.session_state.df = apply_ngay_ton(load_inventory())
                     else:
                         st.session_state.df = full_updated
@@ -2614,7 +2615,7 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             _full_df = apply_ngay_ton(normalize_df(_full_df, MAIN_SCHEMA))
                             st.session_state.df = _full_df
                             if USE_SUPABASE:
-                                st.cache_data.clear()
+                                load_inventory.clear()
                                 st.session_state.df = apply_ngay_ton(load_inventory())
                             st.session_state.bulk_cart = {}
                             st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
@@ -4159,7 +4160,7 @@ with tab_pack:
                             db_row2.pop("id", None)
                             sb_insert("bulk_inventory", db_row2)
                             # Tải lại để update ID từ database cho bản ghi mới thêm
-                            st.cache_data.clear()
+                            load_bulk.clear()
                             st.session_state.bulk_df = load_bulk()
                         st.toast("Lô hàng đã được lưu", icon="✅")
                         st.rerun()
@@ -4186,7 +4187,8 @@ with tab_pack:
                             # Delete the history record that was just inserted
                             if _ud_bk.get("hist_db_id"):
                                 sb_delete("bulk_history", "id", _ud_bk["hist_db_id"])
-                            st.cache_data.clear()
+                            load_bulk.clear()
+                            load_bulk_history.clear()
                             st.session_state.bulk_df      = load_bulk()
                             st.session_state.bulk_history = load_bulk_history()
                         else:
@@ -4324,7 +4326,8 @@ with tab_pack:
                                 }, "id", _pnd_b["bulk_id"])
                                 _write_ok = bool(_inserted) and _write_ok2
                                 if _write_ok:
-                                    st.cache_data.clear()
+                                    load_bulk.clear()
+                                    load_bulk_history.clear()
                                     st.session_state.bulk_df      = load_bulk()
                                     st.session_state.bulk_history = load_bulk_history()
                                 else:
@@ -4432,7 +4435,7 @@ with tab_pack:
                 save_bulk_supabase(full_ab2, st.session_state.bulk_df)
                 # ── Luôn reload từ Supabase để lấy ID thật, tránh id=0 gây duplicate ──
                 if USE_SUPABASE:
-                    st.cache_data.clear()
+                    load_bulk.clear()
                     st.session_state.bulk_df = load_bulk()
                 else:
                     st.session_state.bulk_df = normalize_df(full_ab2, BULK_SCHEMA)

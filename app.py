@@ -1456,9 +1456,9 @@ _sp_min = min(_hb_daily)
 _sp_max = max(_hb_daily)
 _sp_range = (_sp_max - _sp_min) if _sp_max != _sp_min else 1
 _sp_pts = []
-for _si, _sv in enumerate(_hb_daily):
+for _si, _sp_v in enumerate(_hb_daily):
     _spx = 2 + _si * (_sp_w - 4) / 6
-    _spy = (_sp_h / 2) if _sp_max == _sp_min else ((_sp_h - 5) - (_sv - _sp_min) / _sp_range * (_sp_h - 10) + 3)
+    _spy = (_sp_h / 2) if _sp_max == _sp_min else ((_sp_h - 5) - (_sp_v - _sp_min) / _sp_range * (_sp_h - 10) + 3)
     _sp_pts.append(f"{_spx:.1f},{_spy:.1f}")
 _sp_path = "M " + " L ".join(_sp_pts)
 _sp_avg6 = sum(_hb_daily[:-1]) / 6

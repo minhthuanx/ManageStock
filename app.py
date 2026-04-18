@@ -3256,6 +3256,111 @@ with tab_chart:
                 use_container_width=True, hide_index=True
             )
 
+    # ── Thống kê theo ngày — hôm nay ──
+    with st.container(border=True):
+        _dn_today = now_vn().date()
+        _dn_label = _dn_today.strftime("%d/%m/%Y")
+        st.markdown(f'<div class="sec-heading">📅 Thống Kê Hôm Nay — {_dn_label}</div>', unsafe_allow_html=True)
+
+        _dn_sel = pd.Timestamp(_dn_today)
+
+        # Lọc lẻ hôm nay
+        _dn_le_mask = (
+            pd.to_datetime(sold_df["Ngày Bán"], dayfirst=True, errors="coerce").dt.normalize() == _dn_sel
+            if not sold_df.empty else pd.Series([], dtype=bool)
+        )
+        _dn_sold_le = sold_df[_dn_le_mask].copy() if not sold_df.empty and len(_dn_le_mask) else pd.DataFrame()
+
+        # Lọc lô hôm nay
+        _dn_bk_mask = (
+            pd.to_datetime(bulk_history["Ngày Bán"], dayfirst=True, errors="coerce").dt.normalize() == _dn_sel
+            if not bulk_history.empty else pd.Series([], dtype=bool)
+        )
+        _dn_sold_bk = bulk_history[_dn_bk_mask].copy() if not bulk_history.empty and len(_dn_bk_mask) else pd.DataFrame()
+
+        # KPI
+        _dn_ln  = (float(pd.to_numeric(_dn_sold_le["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if not _dn_sold_le.empty else 0.0) + \
+                  (float(pd.to_numeric(_dn_sold_bk["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if not _dn_sold_bk.empty else 0.0)
+        _dn_rev = (float(pd.to_numeric(_dn_sold_le["Doanh Thu"], errors="coerce").fillna(0).sum()) if not _dn_sold_le.empty else 0.0) + \
+                  (float(pd.to_numeric(_dn_sold_bk["Doanh Thu Giao Dịch"], errors="coerce").fillna(0).sum()) if not _dn_sold_bk.empty else 0.0)
+        _dn_cnt = len(_dn_sold_le) + len(_dn_sold_bk)
+        _dn_cost = float(pd.to_numeric(_dn_sold_le["Giá Nhập"], errors="coerce").fillna(0).sum()) if not _dn_sold_le.empty else 0.0
+        _dn_roi  = (_dn_ln / _dn_cost * 100) if _dn_cost > 0 else 0.0
+
+        # So sánh với TB ngày có giao dịch
+        if has_data and not pbd.empty:
+            _dn_agg_all = pbd.groupby(pbd["Ngày DT"].dt.normalize())["Lợi Nhuận"].sum()
+            _dn_avg = float(_dn_agg_all.mean()) if len(_dn_agg_all) > 0 else 0.0
+        else:
+            _dn_avg = 0.0
+        _dn_delta = _dn_ln - _dn_avg
+
+        _dm1, _dm2, _dm3, _dm4 = st.columns(4)
+        _dm1.metric("🛒 Giao dịch",   f"{_dn_cnt}")
+        _dm2.metric("💰 Lợi nhuận",   fmt_vnd(_dn_ln),
+                    delta=f"{fmt_vnd(_dn_delta)} vs TB", delta_color="normal")
+        _dm3.metric("📈 Doanh thu",   fmt_vnd(_dn_rev))
+        _dm4.metric("📊 ROI ngày",    f"{_dn_roi:.1f}%")
+
+        # Bảng chi tiết — title · giờ bán · tồn · giá nhập · giá bán · lợi nhuận
+        _dn_rows = []
+        if not _dn_sold_le.empty:
+            for _, _r in _dn_sold_le.iterrows():
+                _ts = pd.to_datetime(_r.get("time_ban"), errors="coerce", utc=True)
+                _gio = _ts.tz_convert(VN_TZ).strftime("%H:%M:%S") if pd.notna(_ts) else "—"
+                _dn_rows.append({
+                    "_sort": _ts if pd.notna(_ts) else pd.Timestamp.min.tz_localize("UTC"),
+                    "Title":       str(_r.get("Auto Title") or _r.get("Tên Pet") or "—"),
+                    "Giờ Bán":     _gio,
+                    "Tồn (ngày)":  int(float(_r.get("Ngày Tồn", 0) or 0)),
+                    "Giá Nhập ₫":  float(pd.to_numeric(_r.get("Giá Nhập"),  errors="coerce") or 0),
+                    "Giá Bán $":   float(pd.to_numeric(_r.get("Giá Bán"),   errors="coerce") or 0),
+                    "Lợi Nhuận ₫": float(pd.to_numeric(_r.get("Lợi Nhuận"), errors="coerce") or 0),
+                })
+        if not _dn_sold_bk.empty:
+            for _, _r in _dn_sold_bk.iterrows():
+                _dn_rows.append({
+                    "_sort": pd.Timestamp.min.tz_localize("UTC"),
+                    "Title":       str(_r.get("Tên Lô") or "—"),
+                    "Giờ Bán":     str(_r.get("Ngày Bán", "—")),
+                    "Tồn (ngày)":  "—",
+                    "Giá Nhập ₫":  0.0,
+                    "Giá Bán $":   float(pd.to_numeric(_r.get("Doanh Thu Giao Dịch"), errors="coerce") or 0) / max(EXCHANGE_RATE, 1),
+                    "Lợi Nhuận ₫": float(pd.to_numeric(_r.get("Lợi Nhuận Giao Dịch"), errors="coerce") or 0),
+                })
+
+        if _dn_rows:
+            _dn_tbl = (
+                pd.DataFrame(_dn_rows)
+                .sort_values("_sort", ascending=False)
+                .drop(columns=["_sort"])
+                .reset_index(drop=True)
+            )
+            _dn_tbl.index += 1
+            st.dataframe(
+                _dn_tbl,
+                use_container_width=True,
+                column_config={
+                    "Title":       st.column_config.TextColumn("Title",        width="large"),
+                    "Giờ Bán":     st.column_config.TextColumn("Giờ Bán",     width="small"),
+                    "Tồn (ngày)":  st.column_config.Column("Tồn",             width="small"),
+                    "Giá Nhập ₫":  st.column_config.NumberColumn("Giá Nhập",  format="%,.0f", width="medium"),
+                    "Giá Bán $":   st.column_config.NumberColumn("Giá Bán $", format="%.2f",  width="small"),
+                    "Lợi Nhuận ₫": st.column_config.NumberColumn("Lợi Nhuận", format="%,.0f", width="medium"),
+                },
+            )
+            # Best / worst
+            _dn_le_only = _dn_tbl[_dn_tbl["Tồn (ngày)"] != "—"]
+            if not _dn_le_only.empty:
+                _dn_ln_col = pd.to_numeric(_dn_le_only["Lợi Nhuận ₫"], errors="coerce")
+                _dn_best  = _dn_le_only.loc[_dn_ln_col.idxmax()]
+                _dn_worst = _dn_le_only.loc[_dn_ln_col.idxmin()]
+                _gb, _gw = st.columns(2)
+                _gb.success(f"🏆 **Tốt nhất:** {_dn_best['Title']} → {fmt_vnd(float(_dn_best['Lợi Nhuận ₫']))}")
+                _gw.warning(f"📉 **Thấp nhất:** {_dn_worst['Title']} → {fmt_vnd(float(_dn_worst['Lợi Nhuận ₫']))}")
+        else:
+            st.caption("Chưa có giao dịch nào hôm nay.")
+
     with st.container(border=True):
         st.markdown('<div class="sec-heading">🚀 Hiệu Suất Bán Hàng</div>', unsafe_allow_html=True)
         _perf_c1, _perf_c2 = st.columns(2)

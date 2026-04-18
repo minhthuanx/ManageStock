@@ -1520,7 +1520,7 @@ st.markdown(f"""
     var now = new Date();
     var vn  = new Date(now.getTime() + 7 * 3600 * 1000);
     var pad = function(n) {{ return n.toString().padStart(2,'0'); }};
-    el.textContent = '\ud83d\udd50 '
+    el.textContent = '\U0001F550 '
       + pad(vn.getUTCDate()) + '/' + pad(vn.getUTCMonth()+1) + '/' + vn.getUTCFullYear()
       + ' ' + pad(vn.getUTCHours()) + ':' + pad(vn.getUTCMinutes()) + ':' + pad(vn.getUTCSeconds());
   }}

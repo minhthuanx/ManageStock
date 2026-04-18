@@ -777,8 +777,7 @@ html, body, [data-testid="stAppViewContainer"] {
   text-rendering: optimizeLegibility;
 }
 /* Giữ gutter cho scrollbar – tránh layout shift khi tab cao/thấp khác nhau */
-html { scrollbar-gutter: stable !important; }
-section.main { overflow-y: scroll !important; }
+section.main { scrollbar-gutter: stable !important; }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] { background: var(--surface) !important; border-right: 1px solid var(--border); }
 .block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; }
@@ -826,8 +825,7 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 [data-testid="stTab"] {
   border-radius: 0 !important;
   padding: 0.65rem 1.2rem !important;
-  /* LOCK font-weight – không đổi khi active → tab bên cạnh không bị đẩy dịch */
-  font-weight: 600 !important;
+  font-weight: 500 !important;
   font-size: 0.78rem !important;
   letter-spacing: 0.07em !important;
   text-transform: uppercase !important;
@@ -837,7 +835,6 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   transition: color 0.15s ease !important;
   position: relative !important;
   outline: none !important;
-  white-space: nowrap !important;
 }
 /* đường kẻ gradient indicator bằng pseudo-element */
 [data-testid="stTab"]::after {
@@ -856,7 +853,7 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 }
 [data-testid="stTab"][aria-selected="true"] {
   color: var(--text) !important;
-  /* font-weight giữ nguyên 600 – chỉ đổi màu, không đổi weight */
+  font-weight: 700 !important;
   background: transparent !important;
 }
 [data-testid="stTab"][aria-selected="true"]::after {
@@ -909,12 +906,13 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
 /* ─── Tab content — clean panel ─── */
 [data-testid="stTabContent"] {
   background: rgba(17,15,26,0.6) !important;
-  /* Dùng box-shadow thay border – không ảnh hưởng layout, không cần bù margin */
-  box-shadow: inset 0 0 0 1px rgba(192,132,252,0.12) !important;
+  border: 1px solid rgba(192,132,252,0.12) !important;
   border-top: none !important;
   border-radius: 0 0 var(--radius) var(--radius) !important;
   padding: 1rem !important;
-  width: 100% !important;
+  /* bù 1px border trái/phải để nội dung căn đều với tab bar phía trên */
+  margin-left: -1px !important;
+  margin-right: -1px !important;
   box-sizing: border-box !important;
 }
 
@@ -1379,97 +1377,6 @@ body::after {
   opacity: 0.65 !important;
   pointer-events: none !important;
   cursor: wait !important;
-}
-
-/* ═══════════════════════════════════════════════
-   SMOOTH ANIMATIONS  
-   ═══════════════════════════════════════════════ */
-
-/* ── Keyframes ── */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0);    }
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.97); }
-  to   { opacity: 1; transform: scale(1);    }
-}
-
-/* ── Tab content: fade+slide khi chuyển tab ── */
-[data-testid="stTabContent"] {
-  animation: fadeUp 0.22s ease both !important;
-}
-
-/* ── Toàn bộ nội dung block-container: fade khi rerun ── */
-[data-testid="stAppViewContainer"] > section.main > div.block-container {
-  animation: fadeIn 0.25s ease both !important;
-}
-
-/* ── Container / card: slide lên khi xuất hiện ── */
-[data-testid="stVerticalBlockBorderWrapper"] {
-  animation: fadeUp 0.2s ease both !important;
-}
-
-/* ── Expander khi mở: fade content ── */
-[data-testid="stExpander"] > div:last-child {
-  animation: fadeIn 0.18s ease both !important;
-}
-
-/* ── Alert/warning/success box ── */
-[data-testid="stAlert"],
-div[data-testid="stInfo"] > div,
-div[data-testid="stSuccess"] > div,
-div[data-testid="stWarning"] > div,
-div[data-testid="stError"] > div {
-  animation: scaleIn 0.18s ease both !important;
-}
-
-/* ── Metric card ── */
-div[data-testid="stMetric"] {
-  animation: fadeUp 0.2s ease both !important;
-}
-
-/* ── Button: nhấn xuống nhẹ ── */
-.stButton > button:active {
-  transform: scale(0.97) !important;
-  transition: transform 0.08s ease !important;
-}
-.stButton > button[kind="primary"]:active {
-  filter: brightness(0.93) !important;
-  box-shadow: 0 2px 8px rgba(192,132,252,0.3) !important;
-}
-
-/* ── Input focus: glow transition mượt hơn ── */
-.stTextInput input,
-.stNumberInput input,
-[data-baseweb="select"] > div:first-child {
-  transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
-}
-
-/* ── Toast: slide từ phải vào ── */
-@keyframes toastIn {
-  from { opacity: 0; transform: translateX(20px); }
-  to   { opacity: 1; transform: translateX(0);    }
-}
-[data-testid="stToast"] {
-  animation: toastIn 0.22s cubic-bezier(0.22,1,0.36,1) both !important;
-}
-
-/* ── Plotly chart ── */
-.js-plotly-plot {
-  animation: fadeIn 0.3s ease both !important;
-}
-
-/* ── Giảm animation khi user prefer-reduced-motion ── */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
 }
 </style>
 """, unsafe_allow_html=True)

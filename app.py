@@ -1491,12 +1491,14 @@ div[data-testid="stMetric"] {
 }
 
 /* ── Tab indicator slide (JS sẽ set --ind-left/--ind-width) ── */
-[data-testid="stTabs"] > div:first-child {
+/* .has-tab-slider được JS gán trực tiếp lên parentElement của các stTab button */
+.has-tab-slider {
   position: relative !important;
+  overflow: visible !important;
 }
 .tab-slider {
   position: absolute;
-  bottom: -2px;
+  bottom: 0;
   left: var(--ind-left, 0px);
   width: var(--ind-width, 0px);
   height: 3px;
@@ -1737,8 +1739,12 @@ _cmp_tab_js.html("""
   }
 
   function _initSlider() {
-    var tabLists = doc.querySelectorAll('[data-testid="stTabs"] > div:first-child');
-    tabLists.forEach(function(tl) {
+    // Tìm ĐÚNG phần tử cha trực tiếp của các nút stTab (không phải wrapper toàn widget)
+    var seen = new WeakSet();
+    doc.querySelectorAll('[data-testid="stTab"]').forEach(function(tab) {
+      var tl = tab.parentElement;
+      if (!tl || seen.has(tl)) return;
+      seen.add(tl);
       if (tl.querySelector('.tab-slider')) return; // already inited
       tl.classList.add('has-tab-slider');
       var slider = doc.createElement('div');
@@ -1902,7 +1908,7 @@ _cmp_tab_js.html("""
     if (!t) return;
     setTimeout(function() {
       doc.querySelectorAll('[data-testid="stTabContent"]').forEach(_retrig);
-      doc.querySelectorAll('[data-testid="stTabs"] > div:first-child').forEach(function(tl){
+      doc.querySelectorAll('.has-tab-slider').forEach(function(tl){
         var slider = tl.querySelector('.tab-slider');
         if (slider) _updateSlider(tl, slider);
       });
@@ -3903,20 +3909,39 @@ with tab_chart:
             except Exception:
                 return None
 
+        def _parse_bulk_date_ch(d_str):
+            """Parse ngày bán dạng 'dd/mm/yyyy HH:MM' từ bulk_history."""
+            if not d_str or str(d_str).strip() in ("", "nan", "None", "-"):
+                return None
+            try:
+                return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date()
+            except Exception:
+                return None
+
         _today_ch = now_vn().date()
-        _ban_dates_ch = _all_sold_ch["time_ban"].apply(_parse_ban_date_ch).dropna()
-        _unique_days_ch = sorted(set(_ban_dates_ch), reverse=True)
+
+        # Gộp ngày bán từ cả kho lẻ lẫn lô pack để tính streak đầy đủ
+        _le_dates_ch = set(_all_sold_ch["time_ban"].apply(_parse_ban_date_ch).dropna())
+        _bulk_dates_ch = set()
+        if not bulk_history.empty and "Ngày Bán" in bulk_history.columns:
+            _bulk_dates_ch = set(bulk_history["Ngày Bán"].apply(_parse_bulk_date_ch).dropna())
+        _unique_days_ch = sorted(_le_dates_ch | _bulk_dates_ch, reverse=True)
+
         _streak_ch = 0
         if _unique_days_ch:
             _chk = _today_ch
             for _d in _unique_days_ch:
                 if _d == _chk:
                     _streak_ch += 1
-                    _chk = _chk - __import__("datetime").timedelta(days=1)
+                    _chk = _chk - timedelta(days=1)
                 elif _d < _chk:
                     break
 
-        _total_sold_ch = len(_all_sold_ch)
+        # Tổng giao dịch = lẻ + lô pack
+        _total_sold_le  = len(_all_sold_ch)
+        _total_sold_bulk = len(bulk_history) if not bulk_history.empty else 0
+        _total_sold_ch  = _total_sold_le + _total_sold_bulk
+
         _SELL_MILESTONES = [
             (500, "🏆 Legend Trader"),
             (200, "💎 Diamond Seller"),
@@ -3931,7 +3956,8 @@ with tab_chart:
 
         _ach_c1, _ach_c2, _ach_c3 = st.columns(3)
         _ach_c1.metric("Chuỗi ngày", f"{_streak_icon_ch} {_streak_ch} ngày")
-        _ach_c2.metric("Tổng giao dịch", f"{_total_sold_ch}")
+        _ach_c2.metric("Tổng giao dịch", f"{_total_sold_ch}",
+                       help=f"Lẻ: {_total_sold_le} · Lô pack: {_total_sold_bulk}")
         _ach_c3.metric("Cấp độ", _badge_ch or "—")
         if _next_sell_ms:
             st.caption(f"Cột mốc tiếp theo · **{_next_sell_ms[1]}**: còn **{_next_sell_ms[0] - _total_sold_ch}** giao dịch")
@@ -3940,39 +3966,52 @@ with tab_chart:
         st.markdown("**Kỷ Lục**")
         if not _all_sold_ch.empty:
             _ln_col_ch = pd.to_numeric(_all_sold_ch["Lợi Nhuận"], errors="coerce").fillna(0)
-            _ton_col_ch = pd.to_numeric(_all_sold_ch["Ngày Tồn"], errors="coerce").fillna(999)
+            _ton_col_ch = pd.to_numeric(_all_sold_ch["Ngày Tồn"], errors="coerce").fillna(9999)
 
             _best_ln_row_ch = _all_sold_ch.loc[_ln_col_ch.idxmax()]
             _best_ln_val_ch = float(_ln_col_ch.max())
-            _fast_valid = _ton_col_ch[_ton_col_ch >= 0]
-            _fast_row_ch = _all_sold_ch.loc[_fast_valid.idxmin()] if not _fast_valid.empty else None
-            _fast_days_ch = float(_fast_valid.min()) if not _fast_valid.empty else 0.0
 
+            # Loại sentinel 9999 (Ngày Tồn bị thiếu) trước khi tìm min
+            _fast_valid = _ton_col_ch[(0 <= _ton_col_ch) & (_ton_col_ch < 9999)]
+            _fast_row_ch = _all_sold_ch.loc[_fast_valid.idxmin()] if not _fast_valid.empty else None
+            _fast_days_ch = float(_fast_valid.min()) if not _fast_valid.empty else None
+
+            # Lợi nhuận tốt nhất theo ngày — gộp lẻ + bulk
             _day_df_ch = _all_sold_ch.copy()
             _day_df_ch["_bd"] = _day_df_ch["time_ban"].apply(_parse_ban_date_ch)
             _day_df_ch["_ln"] = pd.to_numeric(_day_df_ch["Lợi Nhuận"], errors="coerce").fillna(0)
             _day_profit_ch = _day_df_ch.dropna(subset=["_bd"]).groupby("_bd")["_ln"].sum()
+
+            # Cộng bulk history profit vào từng ngày
+            if not bulk_history.empty and "Ngày Bán" in bulk_history.columns:
+                _bh_day = bulk_history.copy()
+                _bh_day["_bd"] = _bh_day["Ngày Bán"].apply(_parse_bulk_date_ch)
+                _bh_day["_ln"] = pd.to_numeric(_bh_day["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0)
+                _bh_profit_by_day = _bh_day.dropna(subset=["_bd"]).groupby("_bd")["_ln"].sum()
+                _day_profit_ch = _day_profit_ch.add(_bh_profit_by_day, fill_value=0)
+
             _best_day_ch = _day_profit_ch.idxmax() if not _day_profit_ch.empty else None
             _best_day_val_ch = float(_day_profit_ch.max()) if not _day_profit_ch.empty else 0.0
 
             _rec_c1, _rec_c2, _rec_c3 = st.columns(3)
             _rec_c1.metric("Giao dịch tốt nhất", fmt_vnd(_best_ln_val_ch),
-                           help=str(_best_ln_row_ch.get('Tên Pet','?')))
-            _rec_c2.metric("Chốt nhanh nhất", fmt_ngay_ton(_fast_days_ch),
-                           help=str(_fast_row_ch.get('Tên Pet','?')) if _fast_row_ch is not None else "")
+                           help=str(_best_ln_row_ch.get('Tên Pet', '?')))
+            _rec_c2.metric("Chốt nhanh nhất",
+                           fmt_ngay_ton(_fast_days_ch) if _fast_days_ch is not None else "—",
+                           help=str(_fast_row_ch.get('Tên Pet', '?')) if _fast_row_ch is not None else "Chưa có dữ liệu Ngày Tồn")
             _rec_c3.metric("Ngày đỉnh cao", fmt_vnd(_best_day_val_ch),
                            help=str(_best_day_ch) if _best_day_ch else "")
         else:
             st.info("Chưa có dữ liệu bán.")
 
-        # ── Mốc lợi nhuận tích lũy ──
+        # ── Mốc lợi nhuận tích lũy — dùng net_profit (lẻ + pack) ──
         st.markdown("**Cột Mốc Lợi Nhuận**")
-        _total_ln_ch = float(_ln_col_ch.sum()) if not _all_sold_ch.empty else 0.0
+        _total_ln_ch = net_profit  # đã tính ở đầu tab_chart: profit_single + profit_bulk
         _ln_m_ch = _total_ln_ch / 1_000_000
         _LN_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
         _nxt_ln_ms = next((m for m in _LN_MS if _ln_m_ch < m), None)
         _lst_ln_ms = next((m for m in reversed(_LN_MS) if _ln_m_ch >= m), None)
-        st.caption(f"Lợi nhuận tích lũy: **{fmt_vnd(_total_ln_ch)}**")
+        st.caption(f"Lợi nhuận tích lũy (lẻ + lô pack): **{fmt_vnd(_total_ln_ch)}**")
         if _nxt_ln_ms:
             _base_ch = (_lst_ln_ms or 0) * 1_000_000
             _tgt_ch = _nxt_ln_ms * 1_000_000

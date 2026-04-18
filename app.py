@@ -1548,43 +1548,6 @@ tab_kho, tab_pack, tab_chart, tab_ton, tab_settings = st.tabs([
     "📦 Kho Lẻ", "🗃️ Lô Pack", "📊 Thống Kê", "⏳ Tồn Lâu", "⚙️ Cài Đặt",
 ])
 
-# ─── Spring scroll: cuộn mượt có nẩy nhẹ khi dùng màn hình lớn ────────────────
-_cmp_ar.html("""
-<script>
-(function(){
-  var pd=window.parent;
-  if(pd.__gs_spring)return;
-  pd.__gs_spring=true;
-  var pos=pd.scrollY,tgt=pd.scrollY,vel=0,raf=null;
-  var K=0.09,D=0.72; /* spring stiffness / damping — D<0.8 = slight overshoot */
-  var mxD=120;       /* max delta per wheel tick */
-  pd.addEventListener('wheel',function(e){
-    if(e.ctrlKey)return; /* pinch-zoom: đừng can thiệp */
-    e.preventDefault();
-    var delta=e.deltaY;
-    if(e.deltaMode===1)delta*=20; /* line mode */
-    if(e.deltaMode===2)delta*=pd.innerHeight*0.8; /* page mode */
-    delta=Math.max(-mxD,Math.min(mxD,delta));
-    var maxS=pd.document.body.scrollHeight-pd.innerHeight;
-    tgt=Math.max(0,Math.min(tgt+delta,maxS));
-    if(!raf)raf=requestAnimationFrame(step);
-  },{passive:false});
-  function step(){
-    var f=(tgt-pos)*K;
-    vel=(vel+f)*D;
-    pos+=vel;
-    pd.scrollTo(0,pos);
-    if(Math.abs(vel)>0.15||Math.abs(tgt-pos)>0.15){
-      raf=requestAnimationFrame(step);
-    }else{
-      pos=tgt;pd.scrollTo(0,pos);raf=null;
-    }
-  }
-  pos=pd.scrollY;tgt=pd.scrollY;
-})();
-</script>
-""",height=0)
-
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 1: KHO (Nhập + Bán + Bảng tồn kho)
 # ─────────────────────────────────────────────────────────────────────────────

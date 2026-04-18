@@ -1571,15 +1571,15 @@ st.markdown(f"""
     </div>
     <div style="background:rgba(232,121,249,0.08);border:1px solid rgba(232,121,249,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
       <div style="font-size:1.1rem;font-weight:700;color:#e879f9;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
-      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Lợi nhuận H</div>
+      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Lãi hôm nay</div>
     </div>
     <div style="background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
       <div style="font-size:1.15rem;font-weight:700;color:#38bdf8;line-height:1.2;">{_hb_nhap_today_count}</div>
-      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Nhập H</div>
+      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Nhập hôm nay</div>
     </div>
     <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
       <div style="font-size:1.15rem;font-weight:700;color:#fbbf24;line-height:1.2;">{_hb_sold_today_count}</div>
-      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Bán H</div>
+      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Bán hôm nay</div>
     </div>
   </div>
 </div>
@@ -1829,21 +1829,24 @@ _cmp_tab_js.html("""
   var _io = null;
   function _initChartReveal() {
     if (!('IntersectionObserver' in par)) return;
-    if (_io) _io.disconnect();
-    _io = new par.IntersectionObserver(function(entries) {
-      entries.forEach(function(entry) {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('chart-visible');
-          _io.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-
+    // Tạo observer 1 lần duy nhất – KHÔNG disconnect để tránh mất observation
+    if (!_io) {
+      _io = new par.IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('chart-visible');
+            _io.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    }
+    // data-cr đặt trên el (.js-plotly-plot) để :not([data-cr]) hoạt động đúng
     doc.querySelectorAll('.js-plotly-plot:not([data-cr])').forEach(function(el) {
+      el.setAttribute('data-cr','1');
       var wrap = el.closest('[data-testid="stPlotlyChart"]') || el;
-      if (wrap.classList.contains('chart-reveal')) return;
-      wrap.classList.add('chart-reveal');
-      wrap.setAttribute('data-cr','1');
+      if (!wrap.classList.contains('chart-reveal')) {
+        wrap.classList.add('chart-reveal');
+      }
       _io.observe(wrap);
     });
   }

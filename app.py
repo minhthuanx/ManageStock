@@ -1490,7 +1490,7 @@ _cmp_gsov.html("""
   /* Tạo div overlay */
   var ov=pd.createElement('div');
   ov.id='gs-overlay';
-  ov.innerHTML='<div class="gs-g">\uD83D\uDC7B</div>'
+  ov.innerHTML='<div class="gs-g">\U0001F47B</div>'
     +'<div class="gs-rail"><div class="gs-bar"></div></div>'
     +'<div class="gs-t">\u0110ang T\u1EA3i...</div>';
   pd.body.appendChild(ov);

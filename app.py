@@ -778,7 +778,8 @@ html, body, [data-testid="stAppViewContainer"] {
 }
 /* Giữ gutter cho scrollbar – tránh layout shift khi tab cao/thấp khác nhau */
 html { scrollbar-gutter: stable !important; }
-section.main { overflow-y: scroll !important; }
+section.main { overflow: visible !important; }
+[data-testid="stAppViewContainer"] { overflow-y: auto !important; }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] { background: var(--surface) !important; border-right: 1px solid var(--border); }
 .block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; }
@@ -2767,6 +2768,90 @@ with tab_chart:
         k2.metric("📈 Tổng doanh thu",   fmt_vnd(total_rev))
         k3.metric("📥 Tổng vốn nhập",    fmt_vnd(total_cost))
         k4.metric("📦 Pet đang tồn",     f"{total_stock:,}")
+
+    # ── Hôm nay: pet bán chi tiết ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🌅 Hoạt Động Hôm Nay</div>', unsafe_allow_html=True)
+
+        _td_today = now_vn().date()
+
+        def _td_is_today(ts_str):
+            if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+                return False
+            try:
+                dt = datetime.fromisoformat(str(ts_str))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=VN_TZ)
+                return dt.astimezone(VN_TZ).date() == _td_today
+            except Exception:
+                return False
+
+        def _td_bulk_is_today(d_str):
+            if not d_str or str(d_str).strip() in ("", "nan", "None", "-"):
+                return False
+            try:
+                return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date() == _td_today
+            except Exception:
+                return False
+
+        _td_sold_le   = sold_df[sold_df["time_ban"].apply(_td_is_today)].copy() if not sold_df.empty else pd.DataFrame()
+        _td_sold_bulk = bulk_history[bulk_history["Ngày Bán"].apply(_td_bulk_is_today)].copy() \
+            if not bulk_history.empty and "Ngày Bán" in bulk_history.columns else pd.DataFrame()
+
+        _td_le_count   = len(_td_sold_le)
+        _td_bulk_count = len(_td_sold_bulk)
+        _td_profit_le  = float(pd.to_numeric(_td_sold_le["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if not _td_sold_le.empty else 0.0
+        _td_profit_bk  = float(pd.to_numeric(_td_sold_bulk["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if not _td_sold_bulk.empty else 0.0
+        _td_profit_tot = _td_profit_le + _td_profit_bk
+        _td_rev_le     = float(pd.to_numeric(_td_sold_le["Doanh Thu"], errors="coerce").fillna(0).sum()) if not _td_sold_le.empty else 0.0
+        _td_rev_bk     = float(pd.to_numeric(_td_sold_bulk["Doanh Thu Giao Dịch"], errors="coerce").fillna(0).sum()) if not _td_sold_bulk.empty else 0.0
+        _td_rev_tot    = _td_rev_le + _td_rev_bk
+        _td_nhap_count = int(df["time_nhap"].apply(_td_is_today).sum()) if not df.empty else 0
+
+        _td_c1, _td_c2, _td_c3, _td_c4 = st.columns(4)
+        _td_c1.metric("🛒 Đã bán hôm nay", f"{_td_le_count + _td_bulk_count}",
+                      help=f"Lẻ: {_td_le_count} · Lô pack: {_td_bulk_count}")
+        _td_c2.metric("💰 Lợi nhuận hôm nay", fmt_vnd(_td_profit_tot))
+        _td_c3.metric("📈 Doanh thu hôm nay", fmt_vnd(_td_rev_tot))
+        _td_c4.metric("📥 Nhập hôm nay", f"{_td_nhap_count}")
+
+        # Bảng chi tiết pet lẻ bán hôm nay
+        if not _td_sold_le.empty:
+            st.markdown("**🐾 Pet lẻ đã bán hôm nay**")
+            _td_disp_cols = [c for c in ["STT","Tên Pet","Mutation","M/s","Số Trait","NameStock",
+                                          "Giá Nhập","Giá Bán","Lợi Nhuận","Doanh Thu","Tồn","Ngày Bán"] if c in _td_sold_le.columns]
+            _td_disp = _td_sold_le.copy()
+            if "Ngày Tồn" in _td_disp.columns and "Tồn" not in _td_disp.columns:
+                _td_disp["Tồn"] = _td_disp["Ngày Tồn"].apply(fmt_ngay_ton)
+            st.dataframe(
+                _td_disp[[c for c in _td_disp_cols if c in _td_disp.columns]],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Giá Nhập":  st.column_config.NumberColumn("Giá Nhập (₫)",  format="%d"),
+                    "Giá Bán":   st.column_config.NumberColumn("Giá Bán ($)"),
+                    "Lợi Nhuận": st.column_config.NumberColumn("Lợi Nhuận (₫)", format="%d"),
+                    "Doanh Thu": st.column_config.NumberColumn("Doanh Thu (₫)", format="%d"),
+                    "Tồn":       st.column_config.TextColumn("Tồn"),
+                },
+            )
+        else:
+            st.caption("Chưa bán pet lẻ nào hôm nay.")
+
+        # Bảng chi tiết lô pack bán hôm nay
+        if not _td_sold_bulk.empty:
+            st.markdown("**🗃️ Lô pack đã bán hôm nay**")
+            _td_bk_cols = [c for c in ["Ngày Bán","Tên Lô","Số Lượng Bán",
+                                        "Doanh Thu Giao Dịch","Lợi Nhuận Giao Dịch"] if c in _td_sold_bulk.columns]
+            st.dataframe(
+                _td_sold_bulk[_td_bk_cols],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Doanh Thu Giao Dịch":  st.column_config.NumberColumn("Doanh Thu (₫)",  format="%d"),
+                    "Lợi Nhuận Giao Dịch": st.column_config.NumberColumn("Lợi Nhuận (₫)", format="%d"),
+                },
+            )
 
     # ── Waterfall: Dòng Chảy Tài Chính ──
     with st.container(border=True):

@@ -1459,14 +1459,13 @@ div[data-testid="stMetric"] {
 }
 
 /* ── Plotly chart ── */
-.js-plotly-plot {
-  animation: fadeIn 0.3s ease both !important;
-}
+/* Không dùng animation riêng – để scroll-reveal CSS xử lý toàn bộ */
 
 /* ── Chart scroll-reveal: ẩn trước, JS sẽ thêm class .chart-visible khi scroll tới ── */
 .chart-reveal {
   opacity: 0;
-  transform: translateY(24px);
+  transform: translateY(20px);
+  will-change: opacity, transform;
   transition: opacity 0.5s cubic-bezier(0.22,1,0.36,1), transform 0.5s cubic-bezier(0.22,1,0.36,1) !important;
 }
 .chart-reveal.chart-visible {
@@ -1847,7 +1846,13 @@ _cmp_tab_js.html("""
       if (!wrap.classList.contains('chart-reveal')) {
         wrap.classList.add('chart-reveal');
       }
-      _io.observe(wrap);
+      // Delay 2 frames: đảm bảo browser paint opacity:0 TRƯỚC khi observe
+      // (tránh transition không trigger do add class + observe cùng frame)
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          _io.observe(wrap);
+        });
+      });
     });
   }
 

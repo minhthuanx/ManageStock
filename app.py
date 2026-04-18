@@ -2659,6 +2659,25 @@ with tab_chart:
     ).fillna(0).sum())
     total_stock = stock_count_single + stock_count_bulk
 
+    # ── Build unified profit-by-date dataframe (needed by monthly stats + charts) ──
+    frames = []
+    if not sold_df.empty:
+        tmp = sold_df[["Ngày Bán","Lợi Nhuận"]].copy()
+        tmp.columns = ["Ngày","Lợi Nhuận"]
+        frames.append(tmp)
+    if not bulk_history.empty:
+        tmp2 = bulk_history[["Ngày Bán","Lợi Nhuận Giao Dịch"]].copy()
+        tmp2.columns = ["Ngày","Lợi Nhuận"]
+        frames.append(tmp2)
+    pbd = pd.DataFrame(columns=["Ngày","Lợi Nhuận"])
+    if frames:
+        pbd = pd.concat(frames, ignore_index=True)
+    has_data = not pbd.empty
+    if has_data:
+        pbd["Ngày DT"] = pd.to_datetime(pbd["Ngày"], dayfirst=True, errors="coerce")
+        pbd = pbd.dropna(subset=["Ngày DT"])
+        pbd["Lợi Nhuận"] = pd.to_numeric(pbd["Lợi Nhuận"], errors="coerce").fillna(0)
+
     # ── KPI Row ──
     with st.container(border=True):
         st.markdown('<div class="sec-heading">📊 Tổng Quan</div>', unsafe_allow_html=True)
@@ -2911,31 +2930,6 @@ with tab_chart:
             st.caption("🟢 Doanh thu · 🔴 Chi phí vốn · 🟣 Lợi nhuận ròng (tất cả các thanh bắt đầu từ 0)")
         else:
             st.info("Chưa có dữ liệu tài chính.")
-
-
-        # ── Build unified profit-by-date dataframe ──
-        frames = []
-        # Single sold
-        if not sold_df.empty:
-            tmp = sold_df[["Ngày Bán","Lợi Nhuận"]].copy()
-            tmp.columns = ["Ngày","Lợi Nhuận"]
-            frames.append(tmp)
-        # Bulk history
-        if not bulk_history.empty:
-            tmp2 = bulk_history[["Ngày Bán","Lợi Nhuận Giao Dịch"]].copy()
-            tmp2.columns = ["Ngày","Lợi Nhuận"]
-            frames.append(tmp2)
-
-        pbd = pd.DataFrame(columns=["Ngày","Lợi Nhuận"])
-        if frames:
-            pbd = pd.concat(frames, ignore_index=True)
-
-        has_data = not pbd.empty
-
-        if has_data:
-            pbd["Ngày DT"] = pd.to_datetime(pbd["Ngày"], dayfirst=True, errors="coerce")
-            pbd = pbd.dropna(subset=["Ngày DT"])
-            pbd["Lợi Nhuận"] = pd.to_numeric(pbd["Lợi Nhuận"], errors="coerce").fillna(0)
 
         # ── Period selector ──
     with st.container(border=True):

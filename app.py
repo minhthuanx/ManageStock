@@ -777,9 +777,11 @@ html, body, [data-testid="stAppViewContainer"] {
   text-rendering: optimizeLegibility;
 }
 /* Giữ gutter cho scrollbar – tránh layout shift khi tab cao/thấp khác nhau */
-html { scrollbar-gutter: stable !important; }
+/* Scroll ở cấp html/body để window.scrollY luôn đúng → Plotly tooltip không bị lệch */
+html { scrollbar-gutter: stable !important; overflow-y: auto !important; }
+body { overflow: visible !important; }
 section.main { overflow: visible !important; }
-[data-testid="stAppViewContainer"] { overflow-y: auto !important; }
+[data-testid="stAppViewContainer"] { overflow: visible !important; }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] { background: var(--surface) !important; border-right: 1px solid var(--border); }
 .block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; }
@@ -1313,7 +1315,7 @@ hr {
 #MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
 
 /* ─── Ambient background orbs ─── */
-[data-testid="stAppViewContainer"] { overflow-x: hidden; }
+/* Orbs dùng position:fixed, không cần overflow-x:hidden để kiểm soát chúng */
 body::before {
   content: '';
   position: fixed;
@@ -1400,19 +1402,14 @@ body::after {
   to   { opacity: 1; transform: scale(1);    }
 }
 
-/* ── Tab content: fade+slide khi chuyển tab ── */
+/* ── Tab content: fade khi chuyển tab (dùng fadeIn, không có transform để tránh stacking context làm lệch Plotly tooltip) ── */
 [data-testid="stTabContent"] {
-  animation: fadeUp 0.22s ease both !important;
+  animation: fadeIn 0.22s ease forwards !important;
 }
 
 /* ── Toàn bộ nội dung block-container: fade khi rerun ── */
 [data-testid="stAppViewContainer"] > section.main > div.block-container {
-  animation: fadeIn 0.25s ease both !important;
-}
-
-/* ── Container / card: slide lên khi xuất hiện ── */
-[data-testid="stVerticalBlockBorderWrapper"] {
-  animation: fadeUp 0.2s ease both !important;
+  animation: fadeIn 0.25s ease forwards !important;
 }
 
 /* ── Expander khi mở: fade content ── */
@@ -1427,11 +1424,6 @@ div[data-testid="stSuccess"] > div,
 div[data-testid="stWarning"] > div,
 div[data-testid="stError"] > div {
   animation: scaleIn 0.18s ease both !important;
-}
-
-/* ── Metric card ── */
-div[data-testid="stMetric"] {
-  animation: fadeUp 0.2s ease both !important;
 }
 
 /* ── Button: nhấn xuống nhẹ ── */
@@ -1460,11 +1452,6 @@ div[data-testid="stMetric"] {
   animation: toastIn 0.22s cubic-bezier(0.22,1,0.36,1) both !important;
 }
 
-/* ── Plotly chart ── */
-.js-plotly-plot {
-  animation: fadeIn 0.3s ease both !important;
-}
-
 /* ── Giảm animation khi user prefer-reduced-motion ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -1474,6 +1461,65 @@ div[data-testid="stMetric"] {
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ─── Loading overlay — phủ FOUC cho đến khi CSS+data sẵn sàng ────────────────
+import streamlit.components.v1 as _cmp_gsov
+_cmp_gsov.html("""
+<script>
+(function(){
+  var pd=window.parent.document;
+  if(pd.getElementById('gs-overlay'))return;
+  /* CSS cho overlay */
+  var sty=pd.createElement('style');
+  sty.id='gs-overlay-style';
+  sty.textContent=[
+    '#gs-overlay{position:fixed;inset:0;z-index:2147483647;background:#0a0a0f;',
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;',
+      'transition:opacity 0.65s cubic-bezier(.4,0,.2,1),visibility 0.65s;}',
+    '#gs-overlay.gs-out{opacity:0;visibility:hidden;pointer-events:none;}',
+    '#gs-overlay .gs-g{font-size:2.8rem;animation:gsb 1.1s ease-in-out infinite;}',
+    '#gs-overlay .gs-rail{width:190px;height:3px;border-radius:999px;background:rgba(192,132,252,0.13);overflow:hidden;}',
+    '#gs-overlay .gs-bar{height:100%;width:45%;border-radius:999px;',
+      'background:linear-gradient(90deg,#c084fc,#e879f9);animation:gsbr 1.5s ease-in-out infinite alternate;}',
+    '#gs-overlay .gs-t{font-family:Inter,ui-sans-serif,sans-serif;font-size:0.74rem;',
+      'font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:#9d8fbf;}',
+    '@keyframes gsb{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}',
+    '@keyframes gsbr{0%{width:25%;margin-left:15%}100%{width:65%;margin-left:0}}'
+  ].join('');
+  pd.head.appendChild(sty);
+  /* Tạo div overlay */
+  var ov=pd.createElement('div');
+  ov.id='gs-overlay';
+  ov.innerHTML='<div class="gs-g">\uD83D\uDC7B</div>'
+    +'<div class="gs-rail"><div class="gs-bar"></div></div>'
+    +'<div class="gs-t">\u0110ang T\u1EA3i...</div>';
+  pd.body.appendChild(ov);
+  /* Dismiss overlay */
+  function bye(){
+    ov.classList.add('gs-out');
+    setTimeout(function(){
+      if(ov.parentNode)ov.remove();
+      var s=pd.getElementById('gs-overlay-style');
+      if(s)s.remove();
+    },750);
+  }
+  /* Kiểm tra app đã ready: CSS var --bg tồn tại + block-container có nội dung */
+  function ok(){
+    var bg=getComputedStyle(pd.documentElement).getPropertyValue('--bg').trim();
+    if(!bg)return false;
+    var bc=pd.querySelector('[data-testid="stAppViewContainer"] .block-container');
+    return !!(bc&&bc.children&&bc.children.length>1);
+  }
+  var n=0;
+  (function poll(){
+    n++;
+    if(ok()){setTimeout(bye,150);}
+    else if(n<200){setTimeout(poll,60);}
+    else{bye();} /* failsafe 12s */
+  })();
+})();
+</script>
+""", height=0)
 
 # Hero banner – tính stats nhanh
 _hb_con_hang = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
@@ -2815,43 +2861,76 @@ with tab_chart:
         _td_c3.metric("📈 Doanh thu hôm nay", fmt_vnd(_td_rev_tot))
         _td_c4.metric("📥 Nhập hôm nay", f"{_td_nhap_count}")
 
-        # Bảng chi tiết pet lẻ bán hôm nay
+        # Bảng tổng hợp pet lẻ + lô bán hôm nay — gọn, sắp xếp theo bán gần nhất
+        _td_rows = []
+
         if not _td_sold_le.empty:
-            st.markdown("**🐾 Pet lẻ đã bán hôm nay**")
-            _td_disp_cols = [c for c in ["STT","Tên Pet","Mutation","M/s","Số Trait","NameStock",
-                                          "Giá Nhập","Giá Bán","Lợi Nhuận","Doanh Thu","Tồn","Ngày Bán"] if c in _td_sold_le.columns]
-            _td_disp = _td_sold_le.copy()
-            if "Ngày Tồn" in _td_disp.columns and "Tồn" not in _td_disp.columns:
-                _td_disp["Tồn"] = _td_disp["Ngày Tồn"].apply(fmt_ngay_ton)
+            _le_tmp = _td_sold_le.copy()
+            # Chuẩn hoá cột thời gian → datetime để sort
+            _le_tmp["_sort_ts"] = pd.to_datetime(_le_tmp["time_ban"], errors="coerce", utc=True)
+            _le_tmp["_sort_ts"] = _le_tmp["_sort_ts"].dt.tz_convert(VN_TZ)
+            for _, _r in _le_tmp.iterrows():
+                _title = str(_r.get("Auto Title") or _r.get("Tên Pet") or "—")
+                _ngay_ban = _r["_sort_ts"].strftime("%H:%M:%S") if pd.notna(_r["_sort_ts"]) else "—"
+                _ngay_ton = _r.get("Ngày Tồn", 0)
+                try: _ngay_ton = int(float(_ngay_ton))
+                except: _ngay_ton = 0
+                _td_rows.append({
+                    "_sort_ts":     _r["_sort_ts"] if pd.notna(_r["_sort_ts"]) else pd.Timestamp.min.tz_localize(VN_TZ),
+                    "Tên / Lô":    _title,
+                    "Loại":        "🐾 Lẻ",
+                    "Ngày Bán":    _ngay_ban,
+                    "Ngày Tồn":   _ngay_ton,
+                    "Giá Nhập":   float(pd.to_numeric(_r.get("Giá Nhập"), errors="coerce") or 0),
+                    "Giá Bán":    float(pd.to_numeric(_r.get("Giá Bán"),  errors="coerce") or 0),
+                    "Lợi Nhuận":  float(pd.to_numeric(_r.get("Lợi Nhuận"), errors="coerce") or 0),
+                })
+
+        if not _td_sold_bulk.empty:
+            for _, _r in _td_sold_bulk.iterrows():
+                _ngay_ban_raw = str(_r.get("Ngày Bán", "") or "")
+                try:
+                    _bk_ts = datetime.strptime(_ngay_ban_raw.strip(), "%d/%m/%Y %H:%M")
+                    _bk_ts = _bk_ts.replace(tzinfo=VN_TZ)
+                    _sort_ts_bk = pd.Timestamp(_bk_ts)
+                    _ngay_ban_fmt = _bk_ts.strftime("%H:%M")
+                except Exception:
+                    _sort_ts_bk = pd.Timestamp.min.tz_localize(VN_TZ)
+                    _ngay_ban_fmt = _ngay_ban_raw
+                _td_rows.append({
+                    "_sort_ts":    _sort_ts_bk,
+                    "Tên / Lô":   str(_r.get("Tên Lô") or "—"),
+                    "Loại":       "🗃️ Lô",
+                    "Ngày Bán":   _ngay_ban_fmt,
+                    "Ngày Tồn":  "—",
+                    "Giá Nhập":  float(pd.to_numeric(_r.get("Giá Nhập Tổng"), errors="coerce") or 0),
+                    "Giá Bán":   float(pd.to_numeric(_r.get("Doanh Thu Giao Dịch"), errors="coerce") or 0),
+                    "Lợi Nhuận": float(pd.to_numeric(_r.get("Lợi Nhuận Giao Dịch"), errors="coerce") or 0),
+                })
+
+        if _td_rows:
+            _td_tbl = (
+                pd.DataFrame(_td_rows)
+                .sort_values("_sort_ts", ascending=False)
+                .drop(columns=["_sort_ts"])
+                .reset_index(drop=True)
+            )
+            _td_tbl.index = _td_tbl.index + 1   # STT từ 1
             st.dataframe(
-                _td_disp[[c for c in _td_disp_cols if c in _td_disp.columns]],
+                _td_tbl,
                 use_container_width=True,
-                hide_index=True,
                 column_config={
-                    "Giá Nhập":  st.column_config.NumberColumn("Giá Nhập (₫)",  format="%d"),
-                    "Giá Bán":   st.column_config.NumberColumn("Giá Bán ($)"),
-                    "Lợi Nhuận": st.column_config.NumberColumn("Lợi Nhuận (₫)", format="%d"),
-                    "Doanh Thu": st.column_config.NumberColumn("Doanh Thu (₫)", format="%d"),
-                    "Tồn":       st.column_config.TextColumn("Tồn"),
+                    "Tên / Lô":  st.column_config.TextColumn("Tên / Lô", width="large"),
+                    "Loại":      st.column_config.TextColumn("Loại",     width="small"),
+                    "Ngày Bán":  st.column_config.TextColumn("Giờ Bán",  width="small"),
+                    "Ngày Tồn":  st.column_config.Column("Ngày Tồn",    width="small"),
+                    "Giá Nhập":  st.column_config.NumberColumn("Giá Nhập (₫)",  format="%,.0f", width="medium"),
+                    "Giá Bán":   st.column_config.NumberColumn("Giá Bán",        width="medium"),
+                    "Lợi Nhuận": st.column_config.NumberColumn("Lợi Nhuận (₫)", format="%,.0f", width="medium"),
                 },
             )
         else:
-            st.caption("Chưa bán pet lẻ nào hôm nay.")
-
-        # Bảng chi tiết lô pack bán hôm nay
-        if not _td_sold_bulk.empty:
-            st.markdown("**🗃️ Lô pack đã bán hôm nay**")
-            _td_bk_cols = [c for c in ["Ngày Bán","Tên Lô","Số Lượng Bán",
-                                        "Doanh Thu Giao Dịch","Lợi Nhuận Giao Dịch"] if c in _td_sold_bulk.columns]
-            st.dataframe(
-                _td_sold_bulk[_td_bk_cols],
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Doanh Thu Giao Dịch":  st.column_config.NumberColumn("Doanh Thu (₫)",  format="%d"),
-                    "Lợi Nhuận Giao Dịch": st.column_config.NumberColumn("Lợi Nhuận (₫)", format="%d"),
-                },
-            )
+            st.caption("Chưa có giao dịch nào hôm nay.")
 
     # ── Waterfall: Dòng Chảy Tài Chính ──
     with st.container(border=True):
@@ -3814,30 +3893,32 @@ with tab_chart:
                 + [_mut_palette[i % len(_mut_palette)] for i in range(len(_sk_muts))]
                 + ["#c084fc", "#e879f9"]
             )
-            fig_sk = go.Figure(go.Sankey(
-                arrangement="snap",
-                node=dict(
-                    pad=15, thickness=18,
-                    label=_sk_labels,
-                    color=_sk_node_colors,
-                    hovertemplate="%{label}: %{value:,.0f}₫<extra></extra>",
-                ),
-                link=dict(
-                    source=_sk_src,
-                    target=_sk_tgt,
-                    value=_sk_val,
-                    color="rgba(100,120,220,0.18)",
-                ),
-            ))
-            fig_sk.update_layout(
-                paper_bgcolor="#0a0a0f",
-                font=dict(family="Inter", color="#e2e8f0", size=11),
-                margin=dict(l=10, r=10, t=20, b=10),
-                height=420,
-            )
-            st.plotly_chart(fig_sk, use_container_width=True)
-            _sk_mode_note = "Chiều rộng luồng = giá trị vốn nhập (₫)" if _use_cost else "Chiều rộng luồng = số lượng pet (Giá Nhập chưa nhập)"
-            st.caption(_sk_mode_note)
+            try:
+                fig_sk = go.Figure(go.Sankey(
+                    node=dict(
+                        pad=15, thickness=18,
+                        label=_sk_labels,
+                        color=_sk_node_colors,
+                    ),
+                    link=dict(
+                        source=_sk_src,
+                        target=_sk_tgt,
+                        value=_sk_val,
+                        color="rgba(100,120,220,0.18)",
+                        hovertemplate="%{source.label} → %{target.label}: %{value:,.0f}<extra></extra>",
+                    ),
+                ))
+                fig_sk.update_layout(
+                    paper_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#e2e8f0", size=11),
+                    margin=dict(l=10, r=10, t=20, b=10),
+                    height=420,
+                )
+                st.plotly_chart(fig_sk, use_container_width=True)
+                _sk_mode_note = "Chiều rộng luồng = giá trị vốn nhập (₫)" if _use_cost else "Chiều rộng luồng = số lượng pet (Giá Nhập chưa nhập)"
+                st.caption(_sk_mode_note)
+            except Exception as _sk_err:
+                st.warning(f"Không thể hiển thị Sankey: {_sk_err}")
         else:
             st.info("Chưa đủ dữ liệu.")
 

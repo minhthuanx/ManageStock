@@ -1390,9 +1390,7 @@ _hb_con_hang_count = len(_hb_con_hang)
 _hb_da_ban_le  = int(df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False).sum())
 _hb_da_ban_bk  = int(pd.to_numeric(bulk_history["Số Lượng Bán"], errors="coerce").fillna(0).sum()) if not bulk_history.empty and "Số Lượng Bán" in bulk_history.columns else 0
 _hb_da_ban     = _hb_da_ban_le + _hb_da_ban_bk
-_hb_now    = now_vn()
-_hb_today  = _hb_now.date()
-_td = __import__("datetime").timedelta
+_hb_today  = now_vn().date()
 
 def _hb_is_today(ts):
     if not ts or str(ts).strip() in ("","nan","None","-"): return False
@@ -1402,23 +1400,11 @@ def _hb_is_today(ts):
         return dt.astimezone(VN_TZ).date() == _hb_today
     except: return False
 
-def _hb_parse_date(ts):
-    if not ts or str(ts).strip() in ("","nan","None","-"): return None
-    try:
-        dt = datetime.fromisoformat(str(ts))
-        if dt.tzinfo is None: dt = dt.replace(tzinfo=VN_TZ)
-        return dt.astimezone(VN_TZ).date()
-    except: return None
-
 def _hb_bulk_is_today(d_str):
     if not d_str or str(d_str).strip() in ("","nan","None","-"): return False
     try:
         return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date() == _hb_today
     except: return False
-
-def _hb_bulk_parse_date(d_str):
-    try: return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date()
-    except: return None
 
 _hb_sold_today  = df[df["time_ban"].apply(_hb_is_today)]
 _hb_profit_le   = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
@@ -1426,66 +1412,14 @@ _hb_bulk_today  = bulk_history[bulk_history["Ngày Bán"].apply(_hb_bulk_is_toda
 _hb_profit_bulk = float(pd.to_numeric(_hb_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if not _hb_bulk_today.empty else 0.0
 _hb_profit_today = _hb_profit_le + _hb_profit_bulk
 
-# F: Greeting động theo giờ
-_hb_hour = _hb_now.hour
-_hb_greeting = "Chào buổi sáng ☀️" if _hb_hour < 12 else ("Buổi chiều ⛅" if _hb_hour < 18 else "Buổi tối 🌙")
-
-# B: Streak
-_hb_ban_dates    = df["time_ban"].apply(_hb_parse_date).dropna()
-_hb_unique_days  = sorted(set(_hb_ban_dates), reverse=True)
-_hb_streak = 0
-if _hb_unique_days:
-    _chk_d = _hb_today
-    for _d in _hb_unique_days:
-        if _d == _chk_d:
-            _hb_streak += 1
-            _chk_d = _chk_d - _td(days=1)
-        elif _d < _chk_d:
-            break
-_hb_streak_icon = "🔥" if _hb_streak >= 3 else ("✨" if _hb_streak >= 1 else "💤")
-
-# C: 7-day sparkline
-_hb_7days = [_hb_today - _td(days=i) for i in range(6, -1, -1)]
-_hb_daily = []
-for _d7 in _hb_7days:
-    _le7 = float(pd.to_numeric(df[df["time_ban"].apply(lambda t: _hb_parse_date(t) == _d7)]["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if not df.empty else 0.0
-    _bk7 = float(pd.to_numeric(bulk_history[bulk_history["Ngày Bán"].apply(lambda s: _hb_bulk_parse_date(s) == _d7)]["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if not bulk_history.empty else 0.0
-    _hb_daily.append(_le7 + _bk7)
-_sp_w, _sp_h = 68, 22
-_sp_min = min(_hb_daily)
-_sp_max = max(_hb_daily)
-_sp_range = (_sp_max - _sp_min) if _sp_max != _sp_min else 1
-_sp_pts = []
-for _si, _sp_v in enumerate(_hb_daily):
-    _spx = 2 + _si * (_sp_w - 4) / 6
-    _spy = (_sp_h / 2) if _sp_max == _sp_min else ((_sp_h - 5) - (_sp_v - _sp_min) / _sp_range * (_sp_h - 10) + 3)
-    _sp_pts.append(f"{_spx:.1f},{_spy:.1f}")
-_sp_path = "M " + " L ".join(_sp_pts)
-_sp_avg6 = sum(_hb_daily[:-1]) / 6
-_sp_color = "#86efac" if _hb_daily[-1] >= _sp_avg6 else "#f472b6"
-_sp_dot_x, _sp_dot_y = _sp_pts[-1].split(",")
-_sp_svg = (
-    f'<svg width="{_sp_w}" height="{_sp_h}" viewBox="0 0 {_sp_w} {_sp_h}" '
-    f'preserveAspectRatio="none" style="display:block;margin:1px auto 0;">'
-    f'<path d="{_sp_path}" fill="none" stroke="{_sp_color}" stroke-width="1.5" '
-    f'stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>'
-    f'<circle cx="{_sp_dot_x}" cy="{_sp_dot_y}" r="2.5" fill="{_sp_color}"/>'
-    f'</svg>'
-)
-
 _badge_html = f'<span class="badge-warn">&#9888; {_badge_count} tồn lâu</span>' if _badge_count > 0 else ""
 st.markdown(f"""
 <div class="hero-banner" style="flex-wrap:wrap;gap:0.9rem;">
   <div style="display:flex;align-items:center;gap:0.75rem;flex:1;min-width:180px;">
     <div class="logo">👻</div>
     <div>
-      <div style="font-size:0.85rem;font-weight:600;color:var(--accent);margin-bottom:3px;letter-spacing:0.06em;text-transform:uppercase;">{_hb_greeting}</div>
       <h1 style="margin:0;">Management Dashboard{_badge_html}</h1>
-      <p style="margin:0;display:flex;align-items:center;gap:0.45rem;">
-        <span id="gs-live-clock" style="font-family:'Inter',monospace;letter-spacing:0.02em;"></span>
-        <span style="color:#4a3f6b;">·</span>
-        <span>Copyright &copy; 2026 MINHTHUAN. All rights reserved.</span>
-      </p>
+      <p style="margin:0;">Copyright &copy; 2026 MINHTHUAN. All rights reserved.</p>
     </div>
   </div>
   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
@@ -1497,37 +1431,12 @@ st.markdown(f"""
       <div style="font-size:1.15rem;font-weight:700;color:#c084fc;line-height:1.2;">{_hb_da_ban}</div>
       <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Đã bán</div>
     </div>
-    <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
-      <div style="font-size:1.15rem;font-weight:700;color:#fbbf24;line-height:1.2;">{_hb_streak_icon} {_hb_streak}</div>
-      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Streak</div>
-    </div>
-    <div style="background:rgba(232,121,249,0.08);border:1px solid rgba(232,121,249,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:80px;">
-      <div style="font-size:1rem;font-weight:700;color:#e879f9;line-height:1.2;white-space:nowrap;">{fmt_vnd(_hb_profit_today)}</div>
+    <div style="background:rgba(232,121,249,0.08);border:1px solid rgba(232,121,249,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
+      <div style="font-size:1.1rem;font-weight:700;color:#e879f9;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
       <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Hôm nay</div>
-    </div>
-    <div style="background:rgba(232,121,249,0.06);border:1px solid rgba(232,121,249,0.15);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:80px;">
-      <div style="font-size:1rem;font-weight:700;color:{_sp_color};line-height:1.2;white-space:nowrap;">{fmt_short(sum(_hb_daily))}</div>
-      {_sp_svg}
-      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">7 ngày</div>
     </div>
   </div>
 </div>
-<script>
-(function(){{
-  var el = document.getElementById('gs-live-clock');
-  if (!el) return;
-  function tick() {{
-    var now = new Date();
-    var vn  = new Date(now.getTime() + 7 * 3600 * 1000);
-    var pad = function(n) {{ return n.toString().padStart(2,'0'); }};
-    el.textContent = '\U0001F550 '
-      + pad(vn.getUTCDate()) + '/' + pad(vn.getUTCMonth()+1) + '/' + vn.getUTCFullYear()
-      + ' ' + pad(vn.getUTCHours()) + ':' + pad(vn.getUTCMinutes()) + ':' + pad(vn.getUTCSeconds());
-  }}
-  tick();
-  setInterval(tick, 1000);
-}})();
-</script>
 """, unsafe_allow_html=True)
 # =============================================================================
 # SIDEBAR

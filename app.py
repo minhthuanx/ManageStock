@@ -3689,22 +3689,35 @@ with tab_chart:
         _sk_src, _sk_tgt, _sk_val, _sk_labels, _sk_muts = [], [], [], [], []
         if not df.empty and "Mutation" in df.columns:
             _sk_all = df.copy()
-            _sk_all["_mut"] = _sk_all["Mutation"].astype(str).str.strip().replace("", "Không rõ")
+            # Chuẩn hoá mutation: bỏ "nan", "" → "Không rõ"
+            _sk_all["_mut"] = _sk_all["Mutation"].astype(str).str.strip()
+            _sk_all.loc[_sk_all["_mut"].isin(["", "nan", "None"]), "_mut"] = "Không rõ"
             _sk_all["_gn"]  = pd.to_numeric(_sk_all["Giá Nhập"], errors="coerce").fillna(0)
             _sk_all["_st"]  = _sk_all["Trạng Thái"].astype(str)
-            _sk_muts   = sorted(_sk_all["_mut"].dropna().unique().tolist())
+            _sk_muts   = sorted(_sk_all["_mut"].unique().tolist())
             _sk_labels = ["Tổng vốn nhập"] + _sk_muts + ["Đã bán", "Còn tồn"]
             _sk_n_sold  = 1 + len(_sk_muts)
             _sk_n_stock = 2 + len(_sk_muts)
+
+            # Dùng Giá Nhập nếu có, fallback sang số lượng pet
+            _use_cost = (_sk_all["_gn"] > 0).any()
+
             for _i, _m in enumerate(_sk_muts):
                 _mdf = _sk_all[_sk_all["_mut"] == _m]
-                _v_all = float(_mdf["_gn"].sum())
+                if _use_cost:
+                    _v_all   = float(_mdf["_gn"].sum())
+                    _v_sold  = float(_mdf[_mdf["_st"].str.contains("Đã bán",   na=False)]["_gn"].sum())
+                    _v_stock = float(_mdf[_mdf["_st"].str.contains("Còn hàng", na=False)]["_gn"].sum())
+                else:
+                    # Fallback: dùng số lượng pet thay cho giá trị
+                    _v_all   = float(len(_mdf))
+                    _v_sold  = float(_mdf["_st"].str.contains("Đã bán",   na=False).sum())
+                    _v_stock = float(_mdf["_st"].str.contains("Còn hàng", na=False).sum())
+
                 if _v_all > 0:
                     _sk_src.append(0);       _sk_tgt.append(1 + _i);      _sk_val.append(_v_all)
-                _v_sold = float(_mdf[_mdf["_st"].str.contains("Đã bán",   na=False)]["_gn"].sum())
                 if _v_sold > 0:
                     _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_sold);  _sk_val.append(_v_sold)
-                _v_stock = float(_mdf[_mdf["_st"].str.contains("Còn hàng", na=False)]["_gn"].sum())
                 if _v_stock > 0:
                     _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_stock); _sk_val.append(_v_stock)
 
@@ -3738,7 +3751,8 @@ with tab_chart:
                 height=420,
             )
             st.plotly_chart(fig_sk, use_container_width=True)
-            st.caption("Chiều rộng luồng = giá trị vốn nhập (₫)")
+            _sk_mode_note = "Chiều rộng luồng = giá trị vốn nhập (₫)" if _use_cost else "Chiều rộng luồng = số lượng pet (Giá Nhập chưa nhập)"
+            st.caption(_sk_mode_note)
         else:
             st.info("Chưa đủ dữ liệu.")
 

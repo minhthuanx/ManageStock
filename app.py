@@ -4298,7 +4298,6 @@ with tab_pack:
                         if st.session_state.get("last_lo_key") == lo_submit_key:
                             st.warning("Lô này đã được lưu. Tải lại trang nếu cần.")
                             st.stop()
-                        st.session_state.last_lo_key = lo_submit_key
                         bid2 = next_id(bulk_df, "ID")
                         auto_title2 = generate_auto_title(b_pet2, b_mut2, "None", b_ms2, b_ns2)
                         row2 = {
@@ -4314,15 +4313,20 @@ with tab_pack:
                             "Auto Title": auto_title2,
                             "NameStock": b_ns2,
                         }
-                        bulk_df = append_row(bulk_df, row2, BULK_SCHEMA)
-                        st.session_state.bulk_df = bulk_df
                         if USE_SUPABASE:
                             db_row2 = to_db(row2)
-                            db_row2.pop("id", None)
-                            sb_insert("bulk_inventory", db_row2)
-                            # Tải lại để update ID từ database cho bản ghi mới thêm
+                            # Giữ nguyên id để Supabase dùng (không pop),
+                            # nhất quán với save_bulk_supabase dùng explicit id
+                            ok2 = sb_insert("bulk_inventory", db_row2)
+                            if not ok2:
+                                st.error("❌ Không thể lưu lô hàng. Vui lòng thử lại.")
+                                st.stop()
                             st.cache_data.clear()
-                            st.session_state.bulk_df = load_bulk()
+                        # Append vào session state ngay để hiển thị tức thì sau rerun
+                        bulk_df = append_row(bulk_df, row2, BULK_SCHEMA)
+                        st.session_state.bulk_df = bulk_df
+                        # Guard key chỉ set sau khi lưu thành công
+                        st.session_state.last_lo_key = lo_submit_key
                         st.toast("Lô hàng đã được lưu", icon="✅")
                         st.rerun()
 

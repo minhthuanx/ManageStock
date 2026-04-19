@@ -276,7 +276,7 @@ LIST_SCHEMA = {"Name": ""}
 MUTATION_OPTIONS = [
     "Normal", "Gold", "Diamond", "Bloodrot", "Candy",
     "Divine", "Lava", "Galaxy", "Yin-Yang", "Radioactive",
-    "Cursed", "Rainbow",
+    "Cursed", "Rainbow", "Cyber",
 ]
 
 # =============================================================================
@@ -405,7 +405,7 @@ def append_row(df: pd.DataFrame, row: dict, schema: dict) -> pd.DataFrame:
 MUTATION_ICONS = {
     "gold": "👑", "diamond": "💎", "bloodrot": "🩸", "candy": "🍬",
     "divine": "✨", "lava": "🌋", "galaxy": "🌌", "yin-yang": "☯️",
-    "radioactive": "☢️", "cursed": "😈", "rainbow": "🌈",
+    "radioactive": "☢️", "cursed": "😈", "rainbow": "🌈", "cyber": "🤖",
 }
 
 def _to_vn_iso(ts_str) -> str:

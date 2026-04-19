@@ -380,11 +380,13 @@ def _sv() -> str:
 def fmt_short(v: float) -> str:
     """Format ₫1.5M style for chart labels."""
     v = float(v)
-    if abs(v) >= 1_000_000:
-        return f"₫{v/1_000_000:.3f}M"
-    if abs(v) >= 1_000:
-        return f"₫{v/1_000:.1f}K"
-    return f"₫{int(v):,}"
+    sign = "-" if v < 0 else ""
+    abs_v = abs(v)
+    if abs_v >= 1_000_000:
+        return f"{sign}₫{abs_v/1_000_000:.3f}M"
+    if abs_v >= 1_000:
+        return f"{sign}₫{abs_v/1_000:.1f}K"
+    return f"{sign}₫{int(abs_v):,}"
 
 
 def get_name_options(db: pd.DataFrame, fallback: str = "None") -> list:

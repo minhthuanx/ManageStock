@@ -1814,6 +1814,21 @@ Extract and return VALID JSON only (no markdown, no extra text):
 
                     st.caption(f"**{len(results)}** ảnh đã phân tích · Xem lại và xác nhận trước khi lưu")
 
+                    # ── NameStock chung cho cả batch ──
+                    _gn1, _gn2 = st.columns([1, 3])
+                    use_global_ns = _gn1.checkbox("NameStock chung", key="dlg_global_ns_check",
+                                                   help="Áp dụng cùng 1 NameStock cho tất cả pet trong batch này")
+                    if use_global_ns:
+                        global_ns_val = _gn2.selectbox(
+                            "NameStock áp dụng cho tất cả",
+                            ns_opts_dlg,
+                            key="dlg_global_ns_val",
+                            label_visibility="collapsed",
+                        )
+                    else:
+                        global_ns_val = ""
+
+                    st.markdown("---")
                     edited_rows = []
                     all_valid = True
 
@@ -1821,7 +1836,6 @@ Extract and return VALID JSON only (no markdown, no extra text):
                         fname = res.get("_filename", f"Image {i+1}")
                         is_ok = res.get("_ok", False)
 
-                        # Chỉ auto-expand ảnh bị lỗi; ảnh OK thu gọn mặc định
                         _expander_label = (
                             f"❌ {fname} — Lỗi nhận dạng" if not is_ok
                             else f"✅ {fname} — {str(res.get('Tên Pet','?'))} · {str(res.get('Mutation','Normal'))} · {str(res.get('M/s','?'))}M/s"
@@ -1830,11 +1844,9 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             if not is_ok:
                                 st.warning(f"Không thể đọc ảnh này · {res.get('_error','')} · Có thể nhập thủ công.")
 
-                            # Chia layout: 1 cột nhỏ hiển thị ảnh, 1 cột lớn nhập liệu
                             img_col, form_col = st.columns([1, 3.5])
-                            
+
                             with img_col:
-                                # Lấy ảnh từ session_state để preview
                                 u_key = st.session_state.get("ai_uploader_key", 0)
                                 current_files = st.session_state.get(f"ai_batch_upload_{u_key}", [])
                                 matched_img = next((f for f in current_files if f.name == fname), None)
@@ -1846,28 +1858,36 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             with form_col:
                                 c1d, c2d, c3d = st.columns(3)
 
-                                # Tên Pet
                                 ai_name = str(res.get("Tên Pet") or "")
                                 if ai_name and ai_name.lower() not in [x.lower() for x in pet_opts_dlg]:
-                                    # Tự thêm vào list nếu chưa có
                                     pet_opts_dlg = [ai_name] + pet_opts_dlg
                                 pi = next((j for j, x in enumerate(pet_opts_dlg) if x.lower() == ai_name.lower()), 0)
                                 r_name = c1d.selectbox(f"Tên Pet", pet_opts_dlg, index=pi, key=f"dlg_name_{i}")
 
-                                # Mutation
                                 ai_mut_v = str(res.get("Mutation") or "Normal")
                                 mi = next((j for j, m in enumerate(MUTATION_OPTIONS) if m.lower() == ai_mut_v.lower()), 0)
                                 r_mut = c2d.selectbox(f"Mutation", MUTATION_OPTIONS, index=mi, key=f"dlg_mut_{i}")
 
-                                # M/s
                                 r_ms_raw = c3d.text_input(f"M/s", value=str(res.get("M/s") or ""), key=f"dlg_ms_{i}")
 
                                 c4d, c5d, c6d = st.columns(3)
                                 ai_trait = str(res.get("Số Trait") or "None").strip()
                                 ti = next((j for j, t in enumerate(trait_opts_dlg) if t.lower() == ai_trait.lower()), 0)
                                 r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, index=ti, key=f"dlg_trait_{i}")
-                                r_ns    = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_ns_{i}")
-                                r_cost  = c6d.text_input(f"Giá nhập", placeholder="150", key=f"dlg_cost_{i}")
+
+                                # NameStock: dùng global nếu checkbox bật, ngược lại dùng per-row
+                                if use_global_ns:
+                                    r_ns = global_ns_val
+                                    _ns_display = global_ns_val if global_ns_val else "—"
+                                    c5d.markdown(
+                                        f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#a78bfa;">'
+                                        f'NS: <b>{_ns_display}</b> <span style="color:#4b3f6b;">(chung)</span></div>',
+                                        unsafe_allow_html=True,
+                                    )
+                                else:
+                                    r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_ns_{i}")
+
+                                r_cost = c6d.text_input(f"Giá nhập", placeholder="150", key=f"dlg_cost_{i}")
 
                             r_ms = parse_usd(r_ms_raw)
                             err_row = []
@@ -1880,13 +1900,13 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                 all_valid = False
 
                             edited_rows.append({
-                                "Tên Pet":  r_name,
-                                "Mutation": r_mut,
-                                "M/s":      r_ms,
-                                "Số Trait": r_trait,
+                                "Tên Pet":   r_name,
+                                "Mutation":  r_mut,
+                                "M/s":       r_ms,
+                                "Số Trait":  r_trait,
                                 "NameStock": r_ns,
-                                "Giá Nhập": parse_vnd(r_cost),
-                                "_valid":   len(err_row) == 0,
+                                "Giá Nhập":  parse_vnd(r_cost),
+                                "_valid":    len(err_row) == 0,
                             })
 
                     st.markdown("---")
@@ -1904,13 +1924,12 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             saved = 0
                             current_df = st.session_state.df
                             sb_records_to_insert = []
-                            _ts_batch = now_iso()
+                            _ts_batch   = now_iso()
                             _ngay_batch = now_str()
 
                             for r in edited_rows:
                                 if not r["_valid"]:
                                     continue
-                                # Auto-add new pet name to DB
                                 existing_lower = [x.lower() for x in get_name_options(pet_db)]
                                 if r["Tên Pet"].lower() not in existing_lower:
                                     pet_db = append_row(pet_db, {"Name": r["Tên Pet"]}, LIST_SCHEMA)
@@ -1941,30 +1960,32 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                 }
                                 current_df = append_row(current_df, new_row, MAIN_SCHEMA)
                                 _db_row = to_db(new_row)
-                                _db_row.pop("id", None)  # Để DB tự cấp ID
+                                _db_row.pop("id", None)
                                 sb_records_to_insert.append(_db_row)
                                 saved += 1
 
-                            # Đẩy toàn bộ batch lên Supabase trong 1 request duy nhất
+                            # Toàn bộ I/O nằm trong spinner — không có khoảng freeze nào bên ngoài
+                            _save_ok = False
                             with st.spinner(f"Đang lưu {saved} mục..."):
                                 sb_ok = True
                                 if USE_SUPABASE and sb_records_to_insert:
                                     sb_ok = sb_insert_batch("inventory", sb_records_to_insert)
 
-                            if sb_ok:
-                                if USE_SUPABASE:
-                                    # Refresh Cache để lấy ID thật từ DB về tránh dup khi reindex
-                                    st.cache_data.clear()
-                                    st.session_state.df = apply_ngay_ton(load_inventory())
-                                else:
-                                    current_df = apply_ngay_ton(current_df)
-                                    st.session_state.df = current_df
+                                if sb_ok:
+                                    if USE_SUPABASE:
+                                        st.cache_data.clear()
+                                        st.session_state.df = apply_ngay_ton(load_inventory())
+                                    else:
+                                        current_df = apply_ngay_ton(current_df)
+                                        st.session_state.df = current_df
+                                    save_csv(st.session_state.df, DB_FILE)
+                                    st.session_state.ai_show_dialog = False
+                                    st.session_state.ai_batch_results = []
+                                    st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1
+                                    st.session_state.ai_expander = False
+                                    _save_ok = True
 
-                                save_csv(st.session_state.df, DB_FILE)
-                                st.session_state.ai_show_dialog = False
-                                st.session_state.ai_batch_results = []
-                                st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1
-                                st.session_state.ai_expander = False
+                            if _save_ok:
                                 st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
                                 st.rerun()
 
@@ -3281,6 +3302,29 @@ with tab_chart:
                 .sum()
                 .sort_values("SortKey")
             )
+
+            # Đảm bảo kỳ hiện tại luôn xuất hiện (dù chưa có giao dịch hôm nay)
+            _now_vn = datetime.now(VN_TZ)
+            if period == "Theo ngày":
+                _cur_period  = _now_vn.strftime("%d/%m/%Y")
+                _cur_sort    = pd.Timestamp(_now_vn.date())
+            elif period == "Theo tuần":
+                _cur_period  = _now_vn.strftime("W%V/%Y")
+                _cur_sort    = pd.Timestamp(
+                    _now_vn.date() - pd.Timedelta(days=_now_vn.weekday())
+                )
+            else:
+                _cur_period  = _now_vn.strftime("%m/%Y")
+                _cur_sort    = _now_vn.strftime("%Y-%m")
+
+            if _cur_period not in agg["Period"].values:
+                _today_row = pd.DataFrame([{
+                    "Period":     _cur_period,
+                    "SortKey":    _cur_sort,
+                    "Lợi Nhuận": 0,
+                }])
+                agg = pd.concat([agg, _today_row], ignore_index=True).sort_values("SortKey")
+
             agg["Label"] = agg["Lợi Nhuận"].apply(fmt_short)
 
             # Dark bar chart like reference image

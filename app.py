@@ -153,6 +153,17 @@ def sb_insert_returning(table: str, data: dict) -> dict | None:
         st.toast(f"❌ Insert {table}: {e}", icon="❌")
         return None
 
+def sb_insert_batch(table: str, records: list[dict]) -> bool:
+    """Insert nhiều records trong 1 request duy nhất – nhanh hơn gọi sb_insert() nhiều lần."""
+    if not USE_SUPABASE or not records:
+        return False
+    try:
+        r = supabase_client.table(table).insert(records).execute()
+        return bool(r.data)
+    except Exception as e:
+        st.toast(f"❌ Batch insert {table}: {e}", icon="❌")
+        return False
+
 def sb_update(table: str, data: dict, col: str, val) -> bool:
     if not USE_SUPABASE:
         return False
@@ -1893,7 +1904,9 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             saved = 0
                             current_df = st.session_state.df
                             sb_records_to_insert = []
-                            
+                            _ts_batch = now_iso()
+                            _ngay_batch = now_str()
+
                             for r in edited_rows:
                                 if not r["_valid"]:
                                     continue
@@ -1904,7 +1917,6 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                     save_csv(pet_db, PET_LIST_FILE)
 
                                 stt = next_id(current_df, "STT")
-                                ts  = now_iso()
                                 new_row = {
                                     "STT":        stt,
                                     "Tên Pet":    r["Tên Pet"],
@@ -1916,30 +1928,29 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                     "Giá Bán":    0.0,
                                     "Lợi Nhuận":  0.0,
                                     "Doanh Thu":  0.0,
-                                    "Ngày Nhập":  now_str(),
+                                    "Ngày Nhập":  _ngay_batch,
                                     "Ngày Bán":   "-",
                                     "Auto Title": generate_auto_title(
                                         r["Tên Pet"], r["Mutation"], r["Số Trait"], r["M/s"], r["NameStock"]
                                     ),
                                     "Trạng Thái": "Còn hàng",
-                                    "time_nhap":  ts,
+                                    "time_nhap":  _ts_batch,
                                     "time_ban":   "",
                                     "Ngày Tồn":   0,
                                     "Place":      "",
                                 }
                                 current_df = append_row(current_df, new_row, MAIN_SCHEMA)
-                                sb_records_to_insert.append(to_db(new_row))
+                                _db_row = to_db(new_row)
+                                _db_row.pop("id", None)  # Để DB tự cấp ID
+                                sb_records_to_insert.append(_db_row)
                                 saved += 1
 
-                            # Đẩy từng record lên Supabase bằng sb_insert (an toàn hơn upsert)
-                            sb_ok = True
-                            if USE_SUPABASE and sb_records_to_insert:
-                                for r in sb_records_to_insert:
-                                    r.pop("id", None)  # Để DB tự cấp ID – tuyệt đối không upsert
-                                    if not sb_insert("inventory", r):
-                                        sb_ok = False
-                                        break
-                            
+                            # Đẩy toàn bộ batch lên Supabase trong 1 request duy nhất
+                            with st.spinner(f"Đang lưu {saved} mục..."):
+                                sb_ok = True
+                                if USE_SUPABASE and sb_records_to_insert:
+                                    sb_ok = sb_insert_batch("inventory", sb_records_to_insert)
+
                             if sb_ok:
                                 if USE_SUPABASE:
                                     # Refresh Cache để lấy ID thật từ DB về tránh dup khi reindex
@@ -1948,13 +1959,13 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                 else:
                                     current_df = apply_ngay_ton(current_df)
                                     st.session_state.df = current_df
-                                    
+
                                 save_csv(st.session_state.df, DB_FILE)
                                 st.session_state.ai_show_dialog = False
                                 st.session_state.ai_batch_results = []
                                 st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1
                                 st.session_state.ai_expander = False
-                                st.toast(f"Đã lưu {saved} mục thành công", icon="✅")
+                                st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
                                 st.rerun()
 
                 ai_preview_dialog()

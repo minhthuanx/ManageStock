@@ -1683,23 +1683,21 @@ with tab_kho:
                             results = []
                             progress = st.progress(0, text="Đang khởi tạo...")
                             
-                            prompt = """Analyze this Roblox game screenshot ("Steal a Brainrot").
+                            prompt = """This is a screenshot from the Roblox game "Steal a Brainrot".
 
-The pet has a dark rounded INFO CARD panel. Inside this card:
-- Top: pet NAME in white text
-- Below the name: a strip of small square/circular BADGE ICONS (these are the traits)
-- If the pet has 5 or more traits, the badge icons overflow into a SECOND ROW below the first row — count ALL icons in BOTH rows
+Locate the dark rounded INFO CARD panel floating near the pet. It contains:
+1. The pet NAME in text at the top
+2. A horizontal strip of small icon badges just below the name (these are traits)
+   - When there are 5+ traits they wrap into a 2nd row — examine BOTH rows
 
-The large dollar speed value (e.g. $700M/s) is OUTSIDE the card, ignore it for trait counting.
+The $M/s speed number displayed in large text is OUTSIDE the card.
 
-Your task: carefully examine the info card and count every small badge/icon tile visible inside it.
-
-Return ONLY this JSON with no extra text:
+Return ONLY valid JSON, no markdown, no extra text:
 {
-  "Tên Pet": "exact pet name from the card text",
-  "Mutation": "detect from pet body glow/color: Gold|Diamond|Divine|Rainbow|Bloodrot|Candy|Lava|Galaxy|Yin-Yang|Radioactive|Cursed|Celestial|Normal",
-  "Tốc độ": "speed value normalized to Millions as plain number. $700M/s→700, $1.2B/s→1200, $55M/s→55, $500K/s→0.5",
-  "Số Trait": "count of badge icons inside the card (scan row 1 AND row 2 if exists). If no badges found: None. Otherwise: 1, 2, 3, 4, 5, 6, 7, 8, 9..."
+  "Tên Pet": "pet name exactly as written in the card",
+  "Mutation": "body glow color: Gold|Diamond|Divine|Rainbow|Bloodrot|Candy|Lava|Galaxy|Yin-Yang|Radioactive|Cursed|Celestial|Normal",
+  "Tốc độ": "speed in Millions as plain number: $700M/s→700, $1.2B/s→1200, $55M/s→55, $500K/s→0.5",
+  "Traits": ["describe each icon badge you see inside the card as a short word, e.g. fire, spider, taco, hat, crab, snowflake, nyan, ufo, balloon, etc. List ALL icons from row 1 then row 2. Empty array [] if no icons."]
 }"""
 
                             headers = {
@@ -1771,13 +1769,24 @@ Return ONLY this JSON with no extra text:
                                             json_str = txt[txt.find("{"):txt.rfind("}")+1]
                                             
                                         parsed_data  = json.loads(json_str)
+                                        # Traits là array — đếm bằng Python, chính xác hơn để model tự đếm
+                                        _traits_raw = parsed_data.get("Traits", [])
+                                        if isinstance(_traits_raw, list):
+                                            _trait_count = len(_traits_raw)
+                                        else:
+                                            # Fallback: nếu model vẫn trả số hoặc string
+                                            try:
+                                                _trait_count = int(str(_traits_raw).strip())
+                                            except Exception:
+                                                _trait_count = 0
+                                        _so_trait = "None" if _trait_count == 0 else str(_trait_count)
                                         results.append({
                                             "_filename": img_f.name,
                                             "_ok": True,
                                             "Tên Pet":  parsed_data.get("Tên Pet", ""),
                                             "Mutation": parsed_data.get("Mutation", "Normal"),
                                             "M/s":      parsed_data.get("Tốc độ", ""),
-                                            "Số Trait": str(parsed_data.get("Số Trait", "None")),
+                                            "Số Trait": _so_trait,
                                             "NameStock": "",
                                             "Giá Nhập": "",
                                         })

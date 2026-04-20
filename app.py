@@ -694,6 +694,30 @@ def _save_groq_key_to_supabase(api_key: str):
     except Exception as e:
         st.toast(f"⚠️ Không thể lưu Groq key: {e}", icon="⚠️")
 
+def _load_pinned_resell_from_supabase() -> dict:
+    """Đọc danh sách pin re-sell từ app_settings (JSON string)."""
+    if not USE_SUPABASE:
+        return {}
+    try:
+        r = supabase_client.table("app_settings").select("value").eq("key", "pinned_resell").execute()
+        if r.data:
+            return json.loads(r.data[0].get("value", "{}"))
+    except Exception:
+        pass
+    return {}
+
+def _save_pinned_resell_to_supabase(pinned: dict):
+    """Lưu danh sách pin re-sell vào app_settings (JSON string)."""
+    if not USE_SUPABASE:
+        return
+    try:
+        supabase_client.table("app_settings").upsert(
+            {"key": "pinned_resell", "value": json.dumps(pinned, ensure_ascii=False, default=str)},
+            on_conflict="key",
+        ).execute()
+    except Exception as e:
+        st.toast(f"⚠️ Không thể lưu pin re-sell: {e}", icon="⚠️")
+
 def init_session():
     if "initialized" not in st.session_state:
         _sk_ph = st.empty()
@@ -710,22 +734,27 @@ def init_session():
             '</div>',
             unsafe_allow_html=True,
         )
-        # Tải song song 4 nguồn dữ liệu để giảm thời gian chờ
-        with ThreadPoolExecutor(max_workers=4) as _ex:
-            _f_inv  = _ex.submit(load_inventory)
-            _f_bulk = _ex.submit(load_bulk)
-            _f_hist = _ex.submit(load_bulk_history)
-            _f_groq = _ex.submit(_load_groq_key_from_supabase)
-            _inv_df = _f_inv.result()
-            _bulk_r = _f_bulk.result()
-            _hist_r = _f_hist.result()
-            _groq_r = _f_groq.result()
+        # Tải song song 5 nguồn dữ liệu để giảm thời gian chờ
+        with ThreadPoolExecutor(max_workers=5) as _ex:
+            _f_inv    = _ex.submit(load_inventory)
+            _f_bulk   = _ex.submit(load_bulk)
+            _f_hist   = _ex.submit(load_bulk_history)
+            _f_groq   = _ex.submit(_load_groq_key_from_supabase)
+            _f_pinned = _ex.submit(_load_pinned_resell_from_supabase)
+            _inv_df   = _f_inv.result()
+            _bulk_r   = _f_bulk.result()
+            _hist_r   = _f_hist.result()
+            _groq_r   = _f_groq.result()
+            _pinned_r = _f_pinned.result()
         st.session_state.df           = apply_ngay_ton(_inv_df)
         st.session_state.bulk_df      = _bulk_r
         st.session_state.bulk_history = _hist_r
         # Tải Groq key đã lưu (nếu có)
         if not st.session_state.get("groq_key") and _groq_r:
             st.session_state.groq_key = _groq_r
+        # Tải danh sách pin re-sell đã lưu (nếu có)
+        if not st.session_state.get("pinned_resell"):
+            st.session_state.pinned_resell = _pinned_r
         _sk_ph.empty()
         st.session_state.initialized = True
     else:
@@ -2639,11 +2668,13 @@ Extract and return VALID JSON only (no markdown, no extra text):
         # ── RE-SELL (bán lại pet khách không lấy) ──
         _resell_src = df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)]
         with st.expander("🔄 Bán lại (Re-sell)", expanded=False):
-            # ── Init session states (tách biệt hoàn toàn với bulk_cart) ──
+            # ── Init session states ──
+            # pinned_resell đã được load từ Supabase trong init_session;
+            # chỉ fallback về {} nếu key hoàn toàn vắng mặt (e.g. lần chạy đầu tiên).
             if "pinned_resell" not in st.session_state:
-                st.session_state.pinned_resell = {}   # str(id) → row dict — vùng chờ xác nhận
+                st.session_state.pinned_resell = _load_pinned_resell_from_supabase()
             if "resell_cart" not in st.session_state:
-                st.session_state.resell_cart = {}     # str(id) → row dict — sẵn sàng insert
+                st.session_state.resell_cart = {}  # sẵn sàng insert — không cần persist
 
             # ── GIAI ĐOẠN 1: TÌM & PIN ──
             st.markdown(
@@ -2682,9 +2713,8 @@ Extract and return VALID JSON only (no markdown, no extra text):
                     _shown_rs = _rs_df.head(15)
                     for _, _rr in _shown_rs.iterrows():
                         _rrid = str(int(float(_rr.get("id", 0) or 0))) if int(float(_rr.get("id", 0) or 0)) > 0 else f"stt_{int(_rr['STT'])}"
-                        _is_pinned    = _rrid in st.session_state.pinned_resell
-                        _is_in_rcart  = _rrid in st.session_state.resell_cart
-                        _rrc1, _rrc2 = st.columns([4, 1])
+                        _is_pinned   = _rrid in st.session_state.pinned_resell
+                        _is_in_rcart = _rrid in st.session_state.resell_cart
                         _rr_ms       = _rr.get("M/s", "")
                         _rr_ns       = str(_rr.get("NameStock", "") or "").strip()
                         _rr_trait    = str(_rr.get("Số Trait", "") or "").strip()
@@ -2693,15 +2723,15 @@ Extract and return VALID JSON only (no markdown, no extra text):
                         _rr_ns_str    = f" · <span style='color:#7c6fa0'>{_rr_ns}</span>" if _rr_ns else ""
                         _rr_trait_str = f" · Trait:{_rr_trait}" if _rr_trait and _rr_trait.lower() != "none" else ""
                         _rr_ban_str   = f" · <span style='color:#f87171'>Bán: {_rr_ngayban}</span>" if _rr_ngayban and _rr_ngayban != "-" else ""
-                        # Badge trạng thái pin / re-sell
                         if _is_in_rcart:
                             _status_badge = " · <span style='color:#22c55e;font-weight:600;'>✅ Re-sell</span>"
                         elif _is_pinned:
                             _status_badge = " · <span style='color:#fb923c;font-weight:600;'>📌 Đã pin</span>"
                         else:
                             _status_badge = ""
-                        _rrc1.markdown(
-                            f'<div style="font-size:0.82rem;padding:2px 0;">'
+                        # ── Layout mobile-safe: text trên dòng riêng, nút dưới ──
+                        st.markdown(
+                            f'<div style="font-size:0.82rem;padding:4px 0 2px 0;">'
                             f'<b style="color:#f97316">#{int(_rr["STT"])}</b> · '
                             f'<b>{_rr["Tên Pet"]}</b> · <span style="color:#a78bfa">{_rr["Mutation"]}</span>'
                             f'{_rr_ms_str}{_rr_ns_str}{_rr_trait_str}{_rr_ban_str}{_status_badge}'
@@ -2709,14 +2739,17 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             unsafe_allow_html=True,
                         )
                         if _is_pinned or _is_in_rcart:
-                            if _rrc2.button("✓ Bỏ pin", key=f"rs_unpin_{_rrid}", use_container_width=True):
+                            if st.button("✓ Bỏ pin", key=f"rs_unpin_{_rrid}", use_container_width=True):
                                 st.session_state.pinned_resell.pop(_rrid, None)
                                 st.session_state.resell_cart.pop(_rrid, None)
+                                _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
                                 st.rerun()
                         else:
-                            if _rrc2.button("📌 Pin", key=f"rs_pin_{_rrid}", use_container_width=True, type="primary"):
+                            if st.button("📌 Pin", key=f"rs_pin_{_rrid}", use_container_width=True, type="primary"):
                                 st.session_state.pinned_resell[_rrid] = _rr.to_dict()
+                                _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
                                 st.rerun()
+                        st.markdown('<div style="border-top:1px solid rgba(45,37,64,0.5);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
                     if len(_rs_df) > 15:
                         st.caption(f"Đang hiển thị 15 / {len(_rs_df)} kết quả — thu hẹp tìm kiếm để xem thêm.")
 
@@ -2737,42 +2770,46 @@ Extract and return VALID JSON only (no markdown, no extra text):
                 _ph1.caption(f"📌 {len(st.session_state.pinned_resell)} đang pin · ✅ {len(st.session_state.resell_cart)} sẵn sàng re-sell")
                 if _ph2.button("🗑️ Xóa tất cả pin", key="rs_clear_pin", use_container_width=True):
                     st.session_state.pinned_resell = {}
+                    st.session_state.resell_cart = {}
+                    _save_pinned_resell_to_supabase({})
                     st.rerun()
 
-                # Hiển thị từng pet trong pinned list
+                # Hiển thị từng pet — layout mobile-safe: text trên dòng riêng, nút dưới
                 _all_pinned_ids = list(st.session_state.pinned_resell.keys())
                 for _pid in _all_pinned_ids:
                     _pv = st.session_state.pinned_resell[_pid]
                     _already_in_rcart = _pid in st.session_state.resell_cart
-                    _pc1, _pc2, _pc3 = st.columns([4, 1, 1])
                     _pv_ms    = _pv.get("M/s", "")
                     _pv_ns    = str(_pv.get("NameStock", "") or "").strip()
                     _pv_mut   = str(_pv.get("Mutation", "") or "")
                     _pv_ban   = str(_pv.get("Ngày Bán", "") or "").strip()
-                    _pv_ms_str = f" · <b>{_pv_ms}M/s</b>" if _pv_ms else ""
-                    _pv_ns_str = f" · <span style='color:#7c6fa0'>{_pv_ns}</span>" if _pv_ns else ""
+                    _pv_ms_str  = f" · <b>{_pv_ms}M/s</b>" if _pv_ms else ""
+                    _pv_ns_str  = f" · <span style='color:#7c6fa0'>{_pv_ns}</span>" if _pv_ns else ""
                     _pv_ban_str = f" · <span style='color:#f87171'>{_pv_ban}</span>" if _pv_ban and _pv_ban != "-" else ""
                     _rs_badge   = " · <span style='color:#22c55e;font-weight:600;'>✅ Re-sell</span>" if _already_in_rcart else ""
-                    _pc1.markdown(
-                        f'<div style="font-size:0.82rem;padding:3px 0;">'
+                    st.markdown(
+                        f'<div style="font-size:0.82rem;padding:4px 0 2px 0;">'
                         f'<b style="color:#f97316">#{int(float(_pv.get("STT", 0) or 0))}</b> · '
                         f'<b>{_pv.get("Tên Pet", "")}</b> · <span style="color:#a78bfa">{_pv_mut}</span>'
                         f'{_pv_ms_str}{_pv_ns_str}{_pv_ban_str}{_rs_badge}'
                         f'</div>',
                         unsafe_allow_html=True,
                     )
+                    _pc1, _pc2 = st.columns(2)
                     if _already_in_rcart:
-                        if _pc2.button("↩️ Hoàn tác", key=f"rs_undo_{_pid}", use_container_width=True):
+                        if _pc1.button("↩️ Hoàn tác", key=f"rs_undo_{_pid}", use_container_width=True):
                             st.session_state.resell_cart.pop(_pid, None)
                             st.rerun()
                     else:
-                        if _pc2.button("🔄 Re-sell", key=f"rs_move_{_pid}", use_container_width=True, type="primary"):
+                        if _pc1.button("🔄 Re-sell", key=f"rs_move_{_pid}", use_container_width=True, type="primary"):
                             st.session_state.resell_cart[_pid] = _pv
                             st.rerun()
-                    if _pc3.button("❌ Bỏ", key=f"rs_del_{_pid}", use_container_width=True):
+                    if _pc2.button("❌ Bỏ pin", key=f"rs_del_{_pid}", use_container_width=True):
                         st.session_state.pinned_resell.pop(_pid, None)
                         st.session_state.resell_cart.pop(_pid, None)
+                        _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
                         st.rerun()
+                    st.markdown('<div style="border-top:1px solid rgba(45,37,64,0.5);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
 
             # ── GIAI ĐOẠN 3: XÁC NHẬN RE-SELL ──
             if st.session_state.resell_cart:

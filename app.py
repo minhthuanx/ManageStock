@@ -2636,6 +2636,263 @@ Extract and return VALID JSON only (no markdown, no extra text):
                             _clear_searches()
                             st.rerun()
 
+        # ── RE-SELL (bán lại pet khách không lấy) ──
+        _resell_src = df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)]
+        with st.expander("🔄 Bán lại (Re-sell)", expanded=False):
+            # ── Init session states (tách biệt hoàn toàn với bulk_cart) ──
+            if "pinned_resell" not in st.session_state:
+                st.session_state.pinned_resell = {}   # str(id) → row dict — vùng chờ xác nhận
+            if "resell_cart" not in st.session_state:
+                st.session_state.resell_cart = {}     # str(id) → row dict — sẵn sàng insert
+
+            # ── GIAI ĐOẠN 1: TÌM & PIN ──
+            st.markdown(
+                '<div style="display:inline-flex;align-items:center;gap:6px;'
+                'background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.3);'
+                'border-radius:6px;padding:4px 10px;margin-bottom:6px;">'
+                '<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
+                'color:#fb923c;font-weight:600;">① Tìm &amp; Pin</span>'
+                '<span style="font-size:0.72rem;color:#9d8fbf;">— chọn pet khách chưa chắc đã không lấy</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
+            if _resell_src.empty:
+                st.info("Chưa có pet nào được đánh dấu 'Đã bán'.")
+            else:
+                _rs_search = st.text_input(
+                    "Tìm pet đã bán", placeholder="Tên, mutation, STT, NameStock...",
+                    key=f"resell_search_{_sv()}", label_visibility="collapsed",
+                )
+                _rs_df = _resell_src.copy()
+                if _rs_search.strip():
+                    _rs_toks = re.split(r'[\s\-]+', _rs_search.strip().lower())
+                    _rs_toks = [t for t in _rs_toks if t]
+                    _rs_hay = _rs_df[["Tên Pet","Mutation","Auto Title","NameStock","STT"]].astype(str) \
+                        .apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
+                    _rs_combined = _rs_hay.apply(lambda r: ' '.join(r), axis=1)
+                    _rs_mask = pd.Series([True]*len(_rs_df), index=_rs_df.index)
+                    for _rt in _rs_toks:
+                        _rs_mask &= _rs_combined.str.contains(_rt, regex=False, na=False)
+                    _rs_df = _rs_df[_rs_mask]
+
+                if _rs_df.empty and _rs_search.strip():
+                    st.info("Không tìm thấy pet phù hợp.")
+                else:
+                    _shown_rs = _rs_df.head(15)
+                    for _, _rr in _shown_rs.iterrows():
+                        _rrid = str(int(float(_rr.get("id", 0) or 0))) if int(float(_rr.get("id", 0) or 0)) > 0 else f"stt_{int(_rr['STT'])}"
+                        _is_pinned    = _rrid in st.session_state.pinned_resell
+                        _is_in_rcart  = _rrid in st.session_state.resell_cart
+                        _rrc1, _rrc2 = st.columns([4, 1])
+                        _rr_ms       = _rr.get("M/s", "")
+                        _rr_ns       = str(_rr.get("NameStock", "") or "").strip()
+                        _rr_trait    = str(_rr.get("Số Trait", "") or "").strip()
+                        _rr_ngayban  = str(_rr.get("Ngày Bán", "") or "").strip()
+                        _rr_ms_str    = f" · <b>{_rr_ms}M/s</b>" if _rr_ms else ""
+                        _rr_ns_str    = f" · <span style='color:#7c6fa0'>{_rr_ns}</span>" if _rr_ns else ""
+                        _rr_trait_str = f" · Trait:{_rr_trait}" if _rr_trait and _rr_trait.lower() != "none" else ""
+                        _rr_ban_str   = f" · <span style='color:#f87171'>Bán: {_rr_ngayban}</span>" if _rr_ngayban and _rr_ngayban != "-" else ""
+                        # Badge trạng thái pin / re-sell
+                        if _is_in_rcart:
+                            _status_badge = " · <span style='color:#22c55e;font-weight:600;'>✅ Re-sell</span>"
+                        elif _is_pinned:
+                            _status_badge = " · <span style='color:#fb923c;font-weight:600;'>📌 Đã pin</span>"
+                        else:
+                            _status_badge = ""
+                        _rrc1.markdown(
+                            f'<div style="font-size:0.82rem;padding:2px 0;">'
+                            f'<b style="color:#f97316">#{int(_rr["STT"])}</b> · '
+                            f'<b>{_rr["Tên Pet"]}</b> · <span style="color:#a78bfa">{_rr["Mutation"]}</span>'
+                            f'{_rr_ms_str}{_rr_ns_str}{_rr_trait_str}{_rr_ban_str}{_status_badge}'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+                        if _is_pinned or _is_in_rcart:
+                            if _rrc2.button("✓ Bỏ pin", key=f"rs_unpin_{_rrid}", use_container_width=True):
+                                st.session_state.pinned_resell.pop(_rrid, None)
+                                st.session_state.resell_cart.pop(_rrid, None)
+                                st.rerun()
+                        else:
+                            if _rrc2.button("📌 Pin", key=f"rs_pin_{_rrid}", use_container_width=True, type="primary"):
+                                st.session_state.pinned_resell[_rrid] = _rr.to_dict()
+                                st.rerun()
+                    if len(_rs_df) > 15:
+                        st.caption(f"Đang hiển thị 15 / {len(_rs_df)} kết quả — thu hẹp tìm kiếm để xem thêm.")
+
+            # ── GIAI ĐOẠN 2: DANH SÁCH ĐÃ PIN ──
+            if st.session_state.pinned_resell or st.session_state.resell_cart:
+                st.markdown("---")
+                st.markdown(
+                    '<div style="display:inline-flex;align-items:center;gap:6px;'
+                    'background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);'
+                    'border-radius:6px;padding:4px 10px;margin-bottom:6px;">'
+                    '<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
+                    'color:#a855f7;font-weight:600;">② Danh sách đã Pin</span>'
+                    '<span style="font-size:0.72rem;color:#9d8fbf;">— khi chắc chắn khách không lấy, nhấn Re-sell</span>'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+                _ph1, _ph2 = st.columns([3, 1])
+                _ph1.caption(f"📌 {len(st.session_state.pinned_resell)} đang pin · ✅ {len(st.session_state.resell_cart)} sẵn sàng re-sell")
+                if _ph2.button("🗑️ Xóa tất cả pin", key="rs_clear_pin", use_container_width=True):
+                    st.session_state.pinned_resell = {}
+                    st.rerun()
+
+                # Hiển thị từng pet trong pinned list
+                _all_pinned_ids = list(st.session_state.pinned_resell.keys())
+                for _pid in _all_pinned_ids:
+                    _pv = st.session_state.pinned_resell[_pid]
+                    _already_in_rcart = _pid in st.session_state.resell_cart
+                    _pc1, _pc2, _pc3 = st.columns([4, 1, 1])
+                    _pv_ms    = _pv.get("M/s", "")
+                    _pv_ns    = str(_pv.get("NameStock", "") or "").strip()
+                    _pv_mut   = str(_pv.get("Mutation", "") or "")
+                    _pv_ban   = str(_pv.get("Ngày Bán", "") or "").strip()
+                    _pv_ms_str = f" · <b>{_pv_ms}M/s</b>" if _pv_ms else ""
+                    _pv_ns_str = f" · <span style='color:#7c6fa0'>{_pv_ns}</span>" if _pv_ns else ""
+                    _pv_ban_str = f" · <span style='color:#f87171'>{_pv_ban}</span>" if _pv_ban and _pv_ban != "-" else ""
+                    _rs_badge   = " · <span style='color:#22c55e;font-weight:600;'>✅ Re-sell</span>" if _already_in_rcart else ""
+                    _pc1.markdown(
+                        f'<div style="font-size:0.82rem;padding:3px 0;">'
+                        f'<b style="color:#f97316">#{int(float(_pv.get("STT", 0) or 0))}</b> · '
+                        f'<b>{_pv.get("Tên Pet", "")}</b> · <span style="color:#a78bfa">{_pv_mut}</span>'
+                        f'{_pv_ms_str}{_pv_ns_str}{_pv_ban_str}{_rs_badge}'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                    if _already_in_rcart:
+                        if _pc2.button("↩️ Hoàn tác", key=f"rs_undo_{_pid}", use_container_width=True):
+                            st.session_state.resell_cart.pop(_pid, None)
+                            st.rerun()
+                    else:
+                        if _pc2.button("🔄 Re-sell", key=f"rs_move_{_pid}", use_container_width=True, type="primary"):
+                            st.session_state.resell_cart[_pid] = _pv
+                            st.rerun()
+                    if _pc3.button("❌ Bỏ", key=f"rs_del_{_pid}", use_container_width=True):
+                        st.session_state.pinned_resell.pop(_pid, None)
+                        st.session_state.resell_cart.pop(_pid, None)
+                        st.rerun()
+
+            # ── GIAI ĐOẠN 3: XÁC NHẬN RE-SELL ──
+            if st.session_state.resell_cart:
+                st.markdown("---")
+                st.markdown(
+                    '<div style="display:inline-flex;align-items:center;gap:6px;'
+                    'background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);'
+                    'border-radius:6px;padding:4px 10px;margin-bottom:6px;">'
+                    '<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
+                    'color:#22c55e;font-weight:600;">③ Xác nhận Re-sell</span>'
+                    '<span style="font-size:0.72rem;color:#9d8fbf;">— tạo bản ghi kho mới, giá nhập 1₫</span>'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+
+                # Bảng preview read-only
+                _rs_preview = []
+                for _rck, _rcv in st.session_state.resell_cart.items():
+                    _rs_preview.append({
+                        "STT gốc":      int(float(_rcv.get("STT", 0) or 0)),
+                        "Tên Pet":      str(_rcv.get("Tên Pet", "")),
+                        "Mutation":     str(_rcv.get("Mutation", "")),
+                        "M/s":          str(_rcv.get("M/s", "") or ""),
+                        "NameStock":    str(_rcv.get("NameStock", "") or ""),
+                        "Trait":        str(_rcv.get("Số Trait", "") or ""),
+                        "Bán lần 1":    str(_rcv.get("Ngày Bán", "") or ""),
+                        "Giá Nhập mới": 1,
+                    })
+                st.dataframe(
+                    pd.DataFrame(_rs_preview),
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "STT gốc":      st.column_config.NumberColumn("STT gốc", format="%d"),
+                        "Giá Nhập mới": st.column_config.NumberColumn("Giá Nhập mới (₫)", format="%d"),
+                    },
+                )
+
+                st.warning(
+                    f"⚠️ Xác nhận sẽ tạo **{len(st.session_state.resell_cart)} bản ghi mới** "
+                    f"với giá nhập **1₫** và trạng thái **Còn hàng**. "
+                    f"Bản ghi gốc (lần bán 1) sẽ **không bị thay đổi**.",
+                    icon="🔄",
+                )
+                if st.button(
+                    f"✅ Xác Nhận Re-sell {len(st.session_state.resell_cart)} Pet",
+                    type="primary",
+                    key="confirm_resell",
+                    use_container_width=True,
+                ):
+                    _rs_inserted  = 0
+                    _ts_nhap_rs   = now_iso()
+                    _ngay_nhap_rs = now_str()
+                    _rs_max_stt   = int(df["STT"].max()) if not df.empty else 0
+
+                    for _rck, _rcv in st.session_state.resell_cart.items():
+                        _rs_max_stt += 1
+                        _pet_name   = str(_rcv.get("Tên Pet", ""))
+                        _mutation   = str(_rcv.get("Mutation", "Normal"))
+                        _ms         = float(pd.to_numeric(_rcv.get("M/s", 0), errors="coerce") or 0)
+                        _so_trait   = str(_rcv.get("Số Trait", "None") or "None")
+                        _namestock  = str(_rcv.get("NameStock", "") or "")
+                        _auto_title = generate_auto_title(_pet_name, _mutation, _so_trait, _ms, _namestock)
+
+                        _new_payload = {
+                            "stt":        _rs_max_stt,
+                            "ten_pet":    _pet_name,
+                            "ms":         _ms,
+                            "mutation":   _mutation,
+                            "so_trait":   _so_trait,
+                            "namestock":  _namestock,
+                            "gia_nhap":   1.0,
+                            "gia_ban":    0.0,
+                            "doanh_thu":  0.0,
+                            "loi_nhuan":  0.0,
+                            "ngay_nhap":  _ngay_nhap_rs,
+                            "ngay_ban":   "-",
+                            "auto_title": _auto_title,
+                            "trang_thai": "Còn hàng",
+                            "time_nhap":  _ts_nhap_rs,
+                            "time_ban":   "",
+                            "ngay_ton":   0,
+                            "place":      "",
+                        }
+
+                        if USE_SUPABASE:
+                            _inserted_row = sb_insert_returning("inventory", _new_payload)
+                            if _inserted_row:
+                                _rs_inserted += 1
+                            else:
+                                st.toast(f"❌ Lỗi khi tạo bản ghi cho {_pet_name}", icon="❌")
+                        else:
+                            _new_row = {
+                                "id": 0, "STT": _rs_max_stt,
+                                "Tên Pet": _pet_name, "M/s": _ms,
+                                "Mutation": _mutation, "Số Trait": _so_trait,
+                                "NameStock": _namestock, "Giá Nhập": 1.0,
+                                "Giá Bán": 0.0, "Doanh Thu": 0.0, "Lợi Nhuận": 0.0,
+                                "Ngày Nhập": _ngay_nhap_rs, "Ngày Bán": "-",
+                                "Auto Title": _auto_title, "Trạng Thái": "Còn hàng",
+                                "time_nhap": _ts_nhap_rs, "time_ban": "",
+                                "Ngày Tồn": 0, "Place": "",
+                            }
+                            st.session_state.df = append_row(st.session_state.df, _new_row, MAIN_SCHEMA)
+                            _rs_inserted += 1
+
+                    if USE_SUPABASE:
+                        st.cache_data.clear()
+                        st.session_state.df = apply_ngay_ton(load_inventory())
+                    df = st.session_state.df
+                    # Xóa cả pin lẫn cart sau khi insert xong
+                    _inserted_keys = set(st.session_state.resell_cart.keys())
+                    for _k in _inserted_keys:
+                        st.session_state.pinned_resell.pop(_k, None)
+                    st.session_state.resell_cart = {}
+                    st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
+                    st.toast(f"✅ Đã tạo {_rs_inserted} bản ghi re-sell mới trong kho!", icon="🔄")
+                    _clear_searches()
+                    st.rerun()
+
     # ─────────────────────────────────────────────────────────────────────────────
     # TAB 2: CHART & THỐNG KÊ
     # ─────────────────────────────────────────────────────────────────────────────

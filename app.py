@@ -119,9 +119,16 @@ def to_db(record: dict) -> dict:
         # convert NaN / None safely
         if isinstance(v, float) and pd.isna(v):
             v = None
-        # Xử lý lỗi Supabase khi truyền chuỗi rỗng vào cột Timestamp
-        if v == "" and mapped in ["time_nhap", "time_ban"]:
-            v = None
+        # Xử lý lỗi Supabase khi truyền chuỗi rỗng/None/nan vào cột Timestamp
+        if mapped in ("time_nhap", "time_ban"):
+            if not v or str(v).strip() in ("", "None", "nan", "NaT", "null", "-"):
+                v = None
+        # Đảm bảo id luôn là int (Supabase bigint từ chối float như 1.0)
+        if mapped == "id" and v is not None:
+            try:
+                v = int(float(v))
+            except (ValueError, TypeError):
+                v = None
         out[mapped] = v
     return out
 

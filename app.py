@@ -2453,7 +2453,14 @@ Return ONLY valid JSON, no markdown:
                 before_reindexed = reindex(normalize_df(before_edit.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT") if _can_reindex \
                     else normalize_df(before_edit.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols})
 
-                # Regenerate auto titles
+                # So sánh TRƯỚC khi regen auto title — tránh vòng lặp lưu vô hạn
+                # do format cũ "[1]" vs mới "[1 Trait]" khiến always-dirty
+                _compare_cols = [c for c in after_reindexed.columns if c != "Auto Title"]
+                _user_changed = not after_reindexed[_compare_cols].astype(str).equals(
+                    before_reindexed[[c for c in _compare_cols if c in before_reindexed.columns]].astype(str)
+                )
+
+                # Regenerate auto titles (chỉ để ghi, không dùng để so sánh)
                 has_title_col = "Auto Title" in after_reindexed.columns
                 if has_title_col:
                     def _regen_title(r):
@@ -2465,7 +2472,7 @@ Return ONLY valid JSON, no markdown:
                         )
                     after_reindexed["Auto Title"] = after_reindexed.apply(_regen_title, axis=1)
 
-                if not after_reindexed.astype(str).equals(before_reindexed.astype(str)):
+                if _user_changed:
                     # Merge changes back into full df
                     full_df = st.session_state.df.copy()
 

@@ -1764,41 +1764,61 @@ row1 = icons in the FIRST (top) row inside the card. row2 = icons in the SECOND 
                                             }
                                         ],
                                         "temperature": 0.0,
-                                        "max_tokens": 256
+                                        "max_tokens": 512
                                     }
                                     
-                                    resp = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
-                                    if resp.status_code == 200:
-                                        data = resp.json()
-                                        txt = data["choices"][0]["message"]["content"].strip()
-                                        
-                                        json_str = txt
-                                        if "```json" in txt:
-                                            json_str = txt.split("```json")[-1].split("```")[0].strip()
-                                        elif txt.find("{") != -1:
-                                            json_str = txt[txt.find("{"):txt.rfind("}")+1]
-                                            
-                                        parsed_data  = json.loads(json_str)
-                                        # Đếm từ row1 + row2 riêng biệt — model scan tuần tự từng hàng
-                                        _row1 = parsed_data.get("row1", [])
-                                        _row2 = parsed_data.get("row2", [])
-                                        if not isinstance(_row1, list): _row1 = []
-                                        if not isinstance(_row2, list): _row2 = []
-                                        _trait_count = len(_row1) + len(_row2)
-                                        _so_trait = "None" if _trait_count == 0 else str(_trait_count)
-                                        results.append({
-                                            "_filename": img_f.name,
-                                            "_ok": True,
-                                            "Tên Pet":  parsed_data.get("Tên Pet", ""),
-                                            "Mutation": parsed_data.get("Mutation", "Normal"),
-                                            "M/s":      parsed_data.get("Tốc độ", ""),
-                                            "Số Trait": _so_trait,
-                                            "NameStock": "",
-                                            "Giá Nhập": "",
-                                        })
-                                        success = True
-                                    else:
-                                        last_err = f"API Error {resp.status_code}: {resp.text}"
+                                    MAX_RETRY = 3
+                                    for _attempt in range(MAX_RETRY):
+                                        try:
+                                            resp = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers, timeout=30)
+                                            if resp.status_code == 429:
+                                                # Rate limit — chờ thêm 15s rồi retry
+                                                _wait = 15 + _attempt * 5
+                                                for _cd in range(_wait, 0, -1):
+                                                    progress.progress(
+                                                        int((idx / len(batch_imgs)) * 100),
+                                                        text=f"⏳ Rate limit ảnh {idx+1} · Retry {_attempt+1}/{MAX_RETRY} · Chờ {_cd}s..."
+                                                    )
+                                                    time.sleep(1)
+                                                continue
+                                            if resp.status_code != 200:
+                                                last_err = f"API Error {resp.status_code}: {resp.text[:200]}"
+                                                break
+                                            data = resp.json()
+                                            txt = data["choices"][0]["message"]["content"].strip()
+                                            json_str = txt
+                                            if "```json" in txt:
+                                                json_str = txt.split("```json")[-1].split("```")[0].strip()
+                                            elif txt.find("{") != -1:
+                                                json_str = txt[txt.find("{"):txt.rfind("}")+1]
+                                            parsed_data = json.loads(json_str)
+                                            # Đếm từ row1 + row2 riêng biệt
+                                            _row1 = parsed_data.get("row1", [])
+                                            _row2 = parsed_data.get("row2", [])
+                                            if not isinstance(_row1, list): _row1 = []
+                                            if not isinstance(_row2, list): _row2 = []
+                                            _trait_count = len(_row1) + len(_row2)
+                                            _so_trait = "None" if _trait_count == 0 else str(_trait_count)
+                                            results.append({
+                                                "_filename": img_f.name,
+                                                "_ok": True,
+                                                "Tên Pet":  parsed_data.get("Tên Pet", ""),
+                                                "Mutation": parsed_data.get("Mutation", "Normal"),
+                                                "M/s":      parsed_data.get("Tốc độ", ""),
+                                                "Số Trait": _so_trait,
+                                                "NameStock": "",
+                                                "Giá Nhập": "",
+                                            })
+                                            success = True
+                                            break
+                                        except (json.JSONDecodeError, KeyError) as _je:
+                                            last_err = f"Parse error (attempt {_attempt+1}): {_je}"
+                                            if _attempt < MAX_RETRY - 1:
+                                                time.sleep(3)
+                                            continue
+                                        except Exception as _re:
+                                            last_err = str(_re)
+                                            break
                                 except Exception as e_img:
                                     last_err = str(e_img)
                                 

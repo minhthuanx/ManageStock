@@ -1683,68 +1683,23 @@ with tab_kho:
                             results = []
                             progress = st.progress(0, text="Đang khởi tạo...")
                             
-                            prompt = """This is a screenshot from the Roblox game "Steal a Brainrot".
+                            prompt = """Analyze this Roblox game screenshot ("Steal a Brainrot").
 
-STEP 1 — Find the INFO CARD: Locate the dark semi-transparent rounded panel displayed near the pet. This card contains the pet NAME text and small TRAIT ICONS inside it. The pet SPEED value ($X.XM/s) is displayed in large white text OUTSIDE/BELOW the card.
+The pet has a dark rounded INFO CARD panel. Inside this card:
+- Top: pet NAME in white text
+- Below the name: a strip of small square/circular BADGE ICONS (these are the traits)
+- If the pet has 5 or more traits, the badge icons overflow into a SECOND ROW below the first row — count ALL icons in BOTH rows
 
-STEP 2 — Count TRAIT ICONS inside the card ONLY: Small icons appear in a horizontal row (or TWO rows when there are 5 or more traits) inside the dark info card. Do NOT count accessories/decorations on the pet body — only count the icons INSIDE the card panel.
+The large dollar speed value (e.g. $700M/s) is OUTSIDE the card, ignore it for trait counting.
 
-CRITICAL: When traits ≥ 5, icons WRAP into a SECOND ROW inside the card. You MUST scan BOTH rows left-to-right and count every icon in both rows.
+Your task: carefully examine the info card and count every small badge/icon tile visible inside it.
 
-Known trait icons and their visual appearance inside the card:
-— Fire: flame/fire icon
-— Crab Claw: crab claw/pincer icon
-— Spider: spider or web icon
-— Shark Fin: shark fin icon
-— Taco: taco icon
-— Nyan: rainbow/nyan cat trail icon
-— UFO: flying saucer / UFO icon
-— Glitched: glitchy pixel / static icon
-— Matteo Hat: bowler hat icon
-— Sombrero: wide sombrero hat icon
-— Witch Hat: pointy witch hat icon
-— Santa Hat: red santa hat icon
-— Bunny Ears: bunny/rabbit ears icon
-— Halo: halo ring icon
-— Strawberry: strawberry fruit icon
-— Meowl: cat face / cat ears icon
-— Skibidi: toilet head icon
-— Skeleton/Extinct: ribs / bone icon
-— Paint: graffiti spray / paint splat icon
-— Tie: necktie icon
-— Galactic: purple comet / purple orb icon
-— Explosive: explosion / boom icon
-— Snowy: snowflake icon
-— Wet: water drop / raindrop icon
-— Comet-struck: yellow-blue spark / comet icon
-— Disco: glowing orb / disco ball icon
-— Zombie: red glowing eyes icon
-— Bubblegum: bubble / pink bubble icon
-— UFO: mini UFO icon
-— Taco: taco icon
-— Sleepy: Z letter / zzz icon
-— Dragon/Lightning: dragon icon
-— Fireworks: firework burst icon
-— Rose: rose flower icon
-— Granny: old lady silhouette icon
-— Brazil: Brazilian flag / green-yellow-blue flag icon
-— Indonesia: red-white flag icon
-— Lucky: coin / four-leaf clover icon
-— Balloon (any color): balloon icon
-— Egg (any color): egg icon
-— Jack O'Lantern: pumpkin icon
-— Tombstone: RIP gravestone icon
-— Reindeer: reindeer / deer icon
-— Chocolate: chocolate bar / heart icon
-— :3: speech bubble with ":3"
-— 10B / 26: text number badge icon
-
-Extract and return VALID JSON only (no markdown, no extra text):
+Return ONLY this JSON with no extra text:
 {
-  "Tên Pet": "The pet name exactly as shown in the info card (e.g. 'Celularcini Viciosini', 'La Taco Combinasion', 'Los Primos')",
-  "Mutation": "Detect mutation from the pet body color/glow aura. Gold=golden/yellow tint, Diamond=blue/crystal shimmer, Divine=white heavenly glow, Rainbow=multicolor sparkles, Bloodrot=dark red tint, Candy=pastel candy swirl, Lava=orange molten glow, Galaxy=purple starfield aura, Yin-Yang=black+white glow, Radioactive=green radioactive glow, Cursed=dark purple aura, Celestial=stars shimmer. If no special effect return 'Normal'.",
-  "Tốc độ": "Large speed value shown below the pet. Normalize to Millions as plain number string. Examples: '$742.5M/s'→'742.5', '$700M/s'→'700', '$1.2B/s'→'1200', '$310M/s'→'310', '$55M/s'→'55', '$500K/s'→'0.5'.",
-  "Số Trait": "Total count of all trait icons found inside the info card (both rows combined). Return 'None' if zero icons found, otherwise return plain number string: '1', '2', '3', '4', '5', '6', '7', '8', '9', etc."
+  "Tên Pet": "exact pet name from the card text",
+  "Mutation": "detect from pet body glow/color: Gold|Diamond|Divine|Rainbow|Bloodrot|Candy|Lava|Galaxy|Yin-Yang|Radioactive|Cursed|Celestial|Normal",
+  "Tốc độ": "speed value normalized to Millions as plain number. $700M/s→700, $1.2B/s→1200, $55M/s→55, $500K/s→0.5",
+  "Số Trait": "count of badge icons inside the card (scan row 1 AND row 2 if exists). If no badges found: None. Otherwise: 1, 2, 3, 4, 5, 6, 7, 8, 9..."
 }"""
 
                             headers = {
@@ -1789,6 +1744,10 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                         "model": target_model,
                                         "messages": [
                                             {
+                                                "role": "system",
+                                                "content": "You are a precise image analyst. You ONLY output valid JSON with no markdown, no commentary, no extra text. When counting icons, you examine every pixel region methodically."
+                                            },
+                                            {
                                                 "role": "user",
                                                 "content": [
                                                     {"type": "text", "text": prompt},
@@ -1796,7 +1755,8 @@ Extract and return VALID JSON only (no markdown, no extra text):
                                                 ]
                                             }
                                         ],
-                                        "temperature": 0.1
+                                        "temperature": 0.0,
+                                        "max_tokens": 256
                                     }
                                     
                                     resp = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)

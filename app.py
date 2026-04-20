@@ -1832,7 +1832,8 @@ Return ONLY valid JSON, no markdown, no extra text:
                 def ai_preview_dialog():
                     global pet_db
                     pet_opts_dlg   = get_name_options(pet_db)
-                    trait_opts_dlg = ["None"] + get_name_options(trait_db)
+                    # Số Trait là con số đếm (1-15), không phụ thuộc vào file CSV
+                    trait_opts_dlg = ["None"] + [str(n) for n in range(1, 16)]
                     ns_opts_dlg    = [""] + get_name_options(ns_db, fallback="")
 
                     st.caption(f"**{len(results)}** ảnh đã phân tích · Xem lại và xác nhận trước khi lưu")
@@ -1895,6 +1896,9 @@ Return ONLY valid JSON, no markdown, no extra text:
 
                                 c4d, c5d, c6d = st.columns(3)
                                 ai_trait = str(res.get("Số Trait") or "None").strip()
+                                # Tự thêm vào list nếu model trả giá trị ngoài 1-15
+                                if ai_trait not in trait_opts_dlg:
+                                    trait_opts_dlg = trait_opts_dlg + [ai_trait]
                                 ti = next((j for j, t in enumerate(trait_opts_dlg) if t.lower() == ai_trait.lower()), 0)
                                 r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, index=ti, key=f"dlg_trait_{i}")
 

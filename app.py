@@ -575,6 +575,9 @@ def load_inventory() -> pd.DataFrame:
             r = supabase_client.table("inventory").select("*").order("stt").execute()
             if r.data:
                 df = pd.DataFrame(r.data)
+                # Lưu lại danh sách cột thực tế của Supabase (snake_case) để dùng khi save
+                import streamlit as _st
+                _st.session_state["_inv_sb_cols"] = set(df.columns)
                 # Rename snake_case → display name, nhưng KHÔNG đổi "id" → "ID"
                 rename_map = {c: REVERSE_MAP.get(c, c) for c in df.columns}
                 rename_map["id"] = "id"   # FORCE giữ "id" lowercase cho inventory PK
@@ -631,6 +634,13 @@ def save_inventory_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
     """
     if not USE_SUPABASE: return
     try:
+        # ── Lấy danh sách cột thực của Supabase để lọc trước khi gửi ──
+        _sb_cols = st.session_state.get("_inv_sb_cols", None)
+        def _filter_record(rec: dict) -> dict:
+            if _sb_cols:
+                return {k: v for k, v in rec.items() if k in _sb_cols}
+            return rec
+
         # ── 1. Xoá các dòng đã bị xoá khỏi editor ──
         if not df_before.empty and not df_after.empty:
             before_ids = set(df_before[df_before["id"] > 0]["id"].dropna().astype(int))
@@ -638,7 +648,7 @@ def save_inventory_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
             for d_id in (before_ids - after_ids):
                 sb_delete("inventory", "id", d_id)
 
-        records = [to_db(r) for r in df_after.to_dict("records")]
+        records = [_filter_record(to_db(r)) for r in df_after.to_dict("records")]
 
         # ── 2. Phân loại: có ID thì UPDATE, không ID thì INSERT mới ──
         update_records = [r for r in records if int(float(r.get("id") or 0)) > 0]
@@ -2515,12 +2525,15 @@ Return ONLY valid JSON, no markdown:
         # ── XÓA DÒNG KHO LẺ ──
         if USE_SUPABASE and not df.empty:
             with st.expander("🗑️ Xóa dòng khỏi Kho Lẻ", expanded=False):
+                def _safe_int(v, default=0):
+                    try: return int(float(v)) if v not in (None, "", "nan", "None") else default
+                    except: return default
                 _del_rows = df[["id","STT","Tên Pet","Mutation","NameStock"]].copy()
                 _del_labels = [
-                    f"ID {int(r['id'])} | STT {int(r['STT'])} | {r['Tên Pet']} {r['Mutation']} – {r['NameStock']}"
+                    f"ID {_safe_int(r['id'])} | STT {_safe_int(r['STT'])} | {r['Tên Pet']} {r['Mutation']} – {r['NameStock']}"
                     for _, r in _del_rows.iterrows()
                 ]
-                _del_id_map = {lbl: int(r["id"]) for lbl, (_, r) in zip(_del_labels, _del_rows.iterrows())}
+                _del_id_map = {lbl: _safe_int(r["id"]) for lbl, (_, r) in zip(_del_labels, _del_rows.iterrows())}
                 _sel_del = st.multiselect(
                     "Chọn dòng cần xóa",
                     options=_del_labels,
@@ -5068,12 +5081,15 @@ with tab_pack:
         # ── XÓA DÒNG LÔ PACK ──
         if USE_SUPABASE and not bulk_df.empty:
             with st.expander("🗑️ Xóa dòng khỏi Lô Pack", expanded=False):
+                def _safe_int_bk(v, default=0):
+                    try: return int(float(v)) if v not in (None, "", "nan", "None") else default
+                    except: return default
                 _del_bk_rows = bulk_df[[c for c in ["ID","Tên Lô","NameStock"] if c in bulk_df.columns]].copy()
                 _del_bk_labels = [
-                    f"ID {int(r.get('ID',0))} | {r.get('Tên Lô','')} – {r.get('NameStock','')}"
+                    f"ID {_safe_int_bk(r.get('ID',0))} | {r.get('Tên Lô','')} – {r.get('NameStock','')}"
                     for _, r in _del_bk_rows.iterrows()
                 ]
-                _del_bk_id_map = {lbl: int(r.get("ID", 0)) for lbl, (_, r) in zip(_del_bk_labels, _del_bk_rows.iterrows())}
+                _del_bk_id_map = {lbl: _safe_int_bk(r.get("ID", 0)) for lbl, (_, r) in zip(_del_bk_labels, _del_bk_rows.iterrows())}
                 _sel_bk_del = st.multiselect(
                     "Chọn lô cần xóa",
                     options=_del_bk_labels,

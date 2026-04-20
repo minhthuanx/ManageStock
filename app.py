@@ -355,9 +355,43 @@ def reindex(df: pd.DataFrame, col: str) -> pd.DataFrame:
 
 
 def parse_vnd(s: str) -> float:
-    cleaned = re.sub(r"[^0-9]", "", str(s))
+    """Parse giá VNĐ — hỗ trợ shorthand:
+      150k → 150,000 | 1.5tr / 1.5m → 1,500,000 | 2tỷ / 2b → 2,000,000,000
+      Dấu chấm/phẩy phân cách hàng nghìn đều được chấp nhận: 1.500.000 hoặc 1,500,000
+    """
+    raw = str(s).strip().lower().replace(" ", "")
+    if not raw:
+        return 0.0
+    # Xác định hệ số từ suffix
+    multiplier = 1
+    for suffix, mult in [("tỷ", 1_000_000_000), ("b", 1_000_000_000),
+                         ("tr", 1_000_000), ("m", 1_000_000),
+                         ("k", 1_000)]:
+        if raw.endswith(suffix):
+            raw = raw[:-len(suffix)]
+            multiplier = mult
+            break
+    # Nếu có nhiều dấu chấm/phẩy → phân cách hàng nghìn, bỏ hết
+    # Nếu chỉ 1 dấu chấm/phẩy và có chữ số sau → dấu thập phân
+    dot_count   = raw.count(".")
+    comma_count = raw.count(",")
+    if dot_count + comma_count > 1:
+        # Nhiều dấu → separator hàng nghìn, strip hết
+        raw = raw.replace(".", "").replace(",", "")
+    elif comma_count == 1 and dot_count == 0:
+        # Dấu phẩy đơn → thập phân (kiểu VN) hoặc hàng nghìn
+        parts = raw.split(",")
+        if len(parts[1]) == 3 and parts[1].isdigit():
+            # "1,500" → hàng nghìn
+            raw = raw.replace(",", "")
+        else:
+            raw = raw.replace(",", ".")
+    elif dot_count == 1 and comma_count == 0:
+        pass  # Dấu chấm đơn → giữ nguyên làm thập phân
+    else:
+        raw = re.sub(r"[^0-9]", "", raw)
     try:
-        return float(cleaned) if cleaned else 0.0
+        return float(raw) * multiplier if raw else 0.0
     except ValueError:
         return 0.0
 
@@ -439,7 +473,12 @@ def _to_vn_iso(ts_str) -> str:
 
 def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> str:
     icon = MUTATION_ICONS.get(str(mutation).lower(), "🌟")
-    t_str = f" [{trait_str}]" if (trait_str and str(trait_str).lower() != "none") else ""
+    _t = str(trait_str).strip() if trait_str else ""
+    if _t and _t.lower() != "none" and _t != "0":
+        _label = "Trait" if _t == "1" else "Traits"
+        t_str = f" [{_t} {_label}]"
+    else:
+        t_str = ""
     display_ms = f"{ms_value / 1000:g}B/s" if ms_value >= 1000 else f"{ms_value:g}M/s"
     ns_str = f" {namestock}" if namestock else ""
     if str(mutation).lower() == "normal" or not mutation:
@@ -1913,7 +1952,7 @@ Return ONLY valid JSON, no markdown:
                                 else:
                                     r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_ns_{i}")
 
-                                r_cost = c6d.text_input(f"Giá nhập", placeholder="150", key=f"dlg_cost_{i}")
+                                r_cost = c6d.text_input(f"Giá nhập", placeholder="150k / 1.5tr / 1500000", key=f"dlg_cost_{i}")
 
                             r_ms = parse_usd(r_ms_raw)
                             err_row = []
@@ -2045,7 +2084,7 @@ Return ONLY valid JSON, no markdown:
                 c4, c5 = st.columns([1.5, 1])
                 _pi_ns = next((i for i, n in enumerate(ns_opts) if n == _prefill.get("p_ns", "")), 0)
                 p_ns       = c4.selectbox("NameStock", ns_opts, index=_pi_ns)
-                p_cost_raw = c5.text_input("Giá nhập (VNĐ)", placeholder="150000")
+                p_cost_raw = c5.text_input("Giá nhập (VNĐ)", placeholder="150k / 1.5tr / 1.500.000")
                 submitted = st.form_submit_button("Lưu Hàng", type="primary", use_container_width=True)
 
             if submitted:
@@ -5030,6 +5069,41 @@ with tab_settings:
         manage_category(cat_cols[0], "Pet",       pet_db,   PET_LIST_FILE, "🐾")
         manage_category(cat_cols[1], "NameStock", ns_db,    NS_LIST_FILE,  "🏷️")
         manage_category(cat_cols[2], "Trait",     trait_db, TRAIT_LIST,    "🧬")
+
+        # ── Sửa Auto Title sai định dạng ──
+        if USE_SUPABASE:
+            st.markdown("---")
+            st.markdown("### 🛠️ Sửa Auto Title (Trait)")
+            st.caption("Tìm các dòng có auto_title dạng `[1]` thay vì `[1 Trait]` và cập nhật lại.")
+            if st.button("Chạy Sửa Auto Title", use_container_width=True):
+                try:
+                    rows = supabase_client.table("inventory").select(
+                        "id, auto_title, ten_pet, mutation, so_trait, ms, namestock"
+                    ).execute().data or []
+                    import re as _re
+                    _broken_pat = _re.compile(r"\[(\d+)\]")
+                    fixed = 0
+                    for row in rows:
+                        at = row.get("auto_title") or ""
+                        if _broken_pat.search(at):
+                            new_at = generate_auto_title(
+                                row.get("ten_pet", ""),
+                                row.get("mutation", "Normal"),
+                                row.get("so_trait", "None"),
+                                row.get("ms", 0),
+                                row.get("namestock", ""),
+                            )
+                            supabase_client.table("inventory").update(
+                                {"auto_title": new_at}
+                            ).eq("id", row["id"]).execute()
+                            fixed += 1
+                    if fixed:
+                        st.success(f"Đã sửa **{fixed} dòng** — auto_title đã được cập nhật.")
+                        st.cache_data.clear()
+                    else:
+                        st.info("Không tìm thấy dòng nào cần sửa.")
+                except Exception as _e:
+                    st.error(f"Lỗi: {_e}")
 
         # ── Kiểm tra trùng lặp ──
         if USE_SUPABASE:

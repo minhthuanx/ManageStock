@@ -2505,6 +2505,32 @@ Return ONLY valid JSON, no markdown:
             else:
                 st.info("Không có dữ liệu để hiển thị.")
 
+        # ── XÓA DÒNG KHO LẺ ──
+        if USE_SUPABASE and not df.empty:
+            with st.expander("🗑️ Xóa dòng khỏi Kho Lẻ", expanded=False):
+                _del_rows = df[["id","STT","Tên Pet","Mutation","NameStock"]].copy()
+                _del_labels = [
+                    f"ID {int(r['id'])} | STT {int(r['STT'])} | {r['Tên Pet']} {r['Mutation']} – {r['NameStock']}"
+                    for _, r in _del_rows.iterrows()
+                ]
+                _del_id_map = {lbl: int(r["id"]) for lbl, (_, r) in zip(_del_labels, _del_rows.iterrows())}
+                _sel_del = st.multiselect(
+                    "Chọn dòng cần xóa",
+                    options=_del_labels,
+                    placeholder="Tìm và chọn...",
+                    key="inv_del_multiselect",
+                )
+                if _sel_del:
+                    st.warning(f"⚠️ Sẽ xóa vĩnh viễn **{len(_sel_del)} dòng** khỏi Supabase. Không thể hoàn tác!")
+                    if st.button("🗑️ Xác nhận Xóa", key="inv_del_confirm", type="primary", use_container_width=True):
+                        for _lbl in _sel_del:
+                            sb_delete("inventory", "id", _del_id_map[_lbl])
+                        st.cache_data.clear()
+                        st.session_state.df = apply_ngay_ton(load_inventory())
+                        st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
+                        st.toast(f"Đã xóa {len(_sel_del)} dòng.", icon="🗑️")
+                        st.rerun()
+
         # ── COPY AUTO TITLE NHANH ──
         _shop_desc = st.session_state.get("_shop_desc", "")
         import base64 as _b64
@@ -5024,6 +5050,32 @@ with tab_pack:
                 st.rerun()
         else:
             st.info("Chưa có lô hàng nào.")
+
+        # ── XÓA DÒNG LÔ PACK ──
+        if USE_SUPABASE and not bulk_df.empty:
+            with st.expander("🗑️ Xóa dòng khỏi Lô Pack", expanded=False):
+                _del_bk_rows = bulk_df[[c for c in ["ID","Tên Lô","NameStock"] if c in bulk_df.columns]].copy()
+                _del_bk_labels = [
+                    f"ID {int(r.get('ID',0))} | {r.get('Tên Lô','')} – {r.get('NameStock','')}"
+                    for _, r in _del_bk_rows.iterrows()
+                ]
+                _del_bk_id_map = {lbl: int(r.get("ID", 0)) for lbl, (_, r) in zip(_del_bk_labels, _del_bk_rows.iterrows())}
+                _sel_bk_del = st.multiselect(
+                    "Chọn lô cần xóa",
+                    options=_del_bk_labels,
+                    placeholder="Tìm và chọn...",
+                    key="bulk_del_multiselect",
+                )
+                if _sel_bk_del:
+                    st.warning(f"⚠️ Sẽ xóa vĩnh viễn **{len(_sel_bk_del)} lô** khỏi Supabase. Không thể hoàn tác!")
+                    if st.button("🗑️ Xác nhận Xóa", key="bulk_del_confirm", type="primary", use_container_width=True):
+                        for _lbl in _sel_bk_del:
+                            sb_delete("bulk_inventory", "id", _del_bk_id_map[_lbl])
+                        st.cache_data.clear()
+                        st.session_state.bulk_df = load_bulk()
+                        st.session_state.editor_bulk_ver = st.session_state.get("editor_bulk_ver", 0) + 1
+                        st.toast(f"Đã xóa {len(_sel_bk_del)} lô.", icon="🗑️")
+                        st.rerun()
 
     # ─────────────────────────────────────────────────────────────────────────────
     # TAB 5: CÀI ĐẶT (Chỉ danh mục)

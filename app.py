@@ -2591,6 +2591,13 @@ Return ONLY valid JSON, no markdown:
                 else:
                     st.caption(f"📌 {_cp_mode_label}")
                     for _ci, (_, _crow) in enumerate(_cp_filtered.iterrows()):
+                        # Luôn regen để đảm bảo định dạng mới (Trait/Traits) dù DB chưa cập nhật
+                        _display_title = generate_auto_title(
+                            _crow.get("Tên Pet", ""), _crow.get("Mutation", "Normal"),
+                            _crow.get("Số Trait", "None"),
+                            float(pd.to_numeric(_crow.get("M/s", 0), errors="coerce") or 0),
+                            _crow.get("NameStock", ""),
+                        )
                         st.markdown(
                             f'<div style="font-size:0.78rem;color:#9d8fbf;margin-top:0.5rem;">'
                             f'STT <b style="color:#c084fc">{int(_crow["STT"])}</b> · '
@@ -2600,7 +2607,7 @@ Return ONLY valid JSON, no markdown:
                         )
                         _ct1, _ct2 = st.columns([4, 1])
                         with _ct1:
-                            st.code(_crow["Auto Title"], language=None)
+                            st.code(_display_title, language=None)
                         with _ct2:
                             if _b64_desc:
                                 _bid = "cpShop" + str(_ci)

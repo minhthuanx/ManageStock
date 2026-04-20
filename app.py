@@ -1683,14 +1683,68 @@ with tab_kho:
                             results = []
                             progress = st.progress(0, text="Đang khởi tạo...")
                             
-                            prompt = """This is a screenshot from the Roblox game "Steal a Brainrot". Each brainrot (pet) has an info panel above it showing: its name, speed ($/s), optional mutation indicator, and optional trait icons.
+                            prompt = """This is a screenshot from the Roblox game "Steal a Brainrot".
+
+STEP 1 — Find the INFO CARD: Locate the dark semi-transparent rounded panel displayed near the pet. This card contains the pet NAME text and small TRAIT ICONS inside it. The pet SPEED value ($X.XM/s) is displayed in large white text OUTSIDE/BELOW the card.
+
+STEP 2 — Count TRAIT ICONS inside the card ONLY: Small icons appear in a horizontal row (or TWO rows when there are 5 or more traits) inside the dark info card. Do NOT count accessories/decorations on the pet body — only count the icons INSIDE the card panel.
+
+CRITICAL: When traits ≥ 5, icons WRAP into a SECOND ROW inside the card. You MUST scan BOTH rows left-to-right and count every icon in both rows.
+
+Known trait icons and their visual appearance inside the card:
+— Fire: flame/fire icon
+— Crab Claw: crab claw/pincer icon
+— Spider: spider or web icon
+— Shark Fin: shark fin icon
+— Taco: taco icon
+— Nyan: rainbow/nyan cat trail icon
+— UFO: flying saucer / UFO icon
+— Glitched: glitchy pixel / static icon
+— Matteo Hat: bowler hat icon
+— Sombrero: wide sombrero hat icon
+— Witch Hat: pointy witch hat icon
+— Santa Hat: red santa hat icon
+— Bunny Ears: bunny/rabbit ears icon
+— Halo: halo ring icon
+— Strawberry: strawberry fruit icon
+— Meowl: cat face / cat ears icon
+— Skibidi: toilet head icon
+— Skeleton/Extinct: ribs / bone icon
+— Paint: graffiti spray / paint splat icon
+— Tie: necktie icon
+— Galactic: purple comet / purple orb icon
+— Explosive: explosion / boom icon
+— Snowy: snowflake icon
+— Wet: water drop / raindrop icon
+— Comet-struck: yellow-blue spark / comet icon
+— Disco: glowing orb / disco ball icon
+— Zombie: red glowing eyes icon
+— Bubblegum: bubble / pink bubble icon
+— UFO: mini UFO icon
+— Taco: taco icon
+— Sleepy: Z letter / zzz icon
+— Dragon/Lightning: dragon icon
+— Fireworks: firework burst icon
+— Rose: rose flower icon
+— Granny: old lady silhouette icon
+— Brazil: Brazilian flag / green-yellow-blue flag icon
+— Indonesia: red-white flag icon
+— Lucky: coin / four-leaf clover icon
+— Balloon (any color): balloon icon
+— Egg (any color): egg icon
+— Jack O'Lantern: pumpkin icon
+— Tombstone: RIP gravestone icon
+— Reindeer: reindeer / deer icon
+— Chocolate: chocolate bar / heart icon
+— :3: speech bubble with ":3"
+— 10B / 26: text number badge icon
 
 Extract and return VALID JSON only (no markdown, no extra text):
 {
-  "Tên Pet": "The brainrot's name as shown in the info panel (e.g. 'Tralalero Tralala', 'Bombardiro Crocodilo')",
-  "Mutation": "Detect the mutation from visual cues or text labels. Mutations change the pet's color/glow: Gold=golden/yellow tint, Diamond=blue/crystal shimmer, Divine=white heavenly glow, Rainbow=multicolor sparkles, Bloodrot=dark red tint, Candy=pastel candy swirl, Lava=orange molten glow, Galaxy=purple starfield aura, Yin-Yang=black+white balanced glow, Radioactive=green radioactive glow, Cursed=dark purple aura, Celestial=stars/celestial shimmer. If no special color/glow is visible, return 'Normal'.",
-  "Tốc độ": "The speed/income value shown near the pet. Normalize to Millions (M number only). Examples: '1.2B/s' → '1200', '975M/s' → '975', '500K/s' → '0.5'. Always return a plain number string.",
-  "Số Trait": "Count the small trait ICONS/SYMBOLS displayed in the pet's info panel (NOT the pet model decorations). In Steal a Brainrot, traits appear as small distinct icons in a row within the info card. Known trait symbols include: asteroid, shark fin, hat, Bombardiro Crocodilo face, spider/web, graffiti spray, taco, glitch pixel, crab claw, fire/flame, three sparkles, nyan cat, white flash, strawberry, raindrop, snowflake, star. Count how many of these distinct icon symbols you see in the info panel. Return 'None' if 0 traits, else return the count as a string like '1', '2', '3'."
+  "Tên Pet": "The pet name exactly as shown in the info card (e.g. 'Celularcini Viciosini', 'La Taco Combinasion', 'Los Primos')",
+  "Mutation": "Detect mutation from the pet body color/glow aura. Gold=golden/yellow tint, Diamond=blue/crystal shimmer, Divine=white heavenly glow, Rainbow=multicolor sparkles, Bloodrot=dark red tint, Candy=pastel candy swirl, Lava=orange molten glow, Galaxy=purple starfield aura, Yin-Yang=black+white glow, Radioactive=green radioactive glow, Cursed=dark purple aura, Celestial=stars shimmer. If no special effect return 'Normal'.",
+  "Tốc độ": "Large speed value shown below the pet. Normalize to Millions as plain number string. Examples: '$742.5M/s'→'742.5', '$700M/s'→'700', '$1.2B/s'→'1200', '$310M/s'→'310', '$55M/s'→'55', '$500K/s'→'0.5'.",
+  "Số Trait": "Total count of all trait icons found inside the info card (both rows combined). Return 'None' if zero icons found, otherwise return plain number string: '1', '2', '3', '4', '5', '6', '7', '8', '9', etc."
 }"""
 
                             headers = {

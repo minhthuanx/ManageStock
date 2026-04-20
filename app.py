@@ -634,8 +634,16 @@ def save_inventory_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
     """
     if not USE_SUPABASE: return
     try:
-        # ── Lấy danh sách cột thực của Supabase để lọc trước khi gửi ──
-        _sb_cols = st.session_state.get("_inv_sb_cols", None)
+        # ── Lấy cột thực của Supabase (1 lần/session, bỏ qua cache) ──
+        _sb_cols = st.session_state.get("_inv_sb_cols")
+        if not _sb_cols:
+            try:
+                _probe = supabase_client.table("inventory").select("*").limit(1).execute()
+                if _probe.data:
+                    _sb_cols = set(_probe.data[0].keys())
+                    st.session_state["_inv_sb_cols"] = _sb_cols
+            except Exception:
+                pass
         def _filter_record(rec: dict) -> dict:
             if _sb_cols:
                 return {k: v for k, v in rec.items() if k in _sb_cols}

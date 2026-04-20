@@ -3302,8 +3302,10 @@ with tab_chart:
                 .sum()
                 .sort_values("SortKey")
             )
+            # agg_real: chỉ các kỳ có giao dịch thật — dùng cho metrics (count, avg)
+            agg_real = agg.copy()
 
-            # Đảm bảo kỳ hiện tại luôn xuất hiện (dù chưa có giao dịch hôm nay)
+            # Đảm bảo kỳ hiện tại luôn xuất hiện trên chart (dù chưa có giao dịch hôm nay)
             _now_vn = datetime.now(VN_TZ)
             if period == "Theo ngày":
                 _cur_period  = _now_vn.strftime("%d/%m/%Y")
@@ -3398,8 +3400,8 @@ with tab_chart:
                     delta=delta,
                     help=f"So sánh {_period_delta_label}",
                 )
-                c2.metric(f"Số {period_label} có giao dịch",  f"{len(agg):,}")
-                c3.metric(f"Lợi nhuận trung bình mỗi {period_label}",  fmt_vnd(agg['Lợi Nhuận'].mean()))
+                c2.metric(f"Số {period_label} có giao dịch",  f"{len(agg_real):,}")
+                c3.metric(f"Lợi nhuận trung bình mỗi {period_label}",  fmt_vnd(agg_real['Lợi Nhuận'].mean() if not agg_real.empty else 0))
         else:
             st.info("Chưa có dữ liệu giao dịch để hiển thị.")
 

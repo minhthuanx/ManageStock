@@ -4212,9 +4212,8 @@ with tab_chart:
         _lst_ln_ms = next((m for m in reversed(_LN_MS) if _ln_m_ch >= m), None)
         st.caption(f"Lợi nhuận tích lũy: **{fmt_vnd(_total_ln_ch)}**")
         if _nxt_ln_ms:
-            _base_ch = (_lst_ln_ms or 0) * 1_000_000
             _tgt_ch = _nxt_ln_ms * 1_000_000
-            _pct_ch = min((_total_ln_ch - _base_ch) / (_tgt_ch - _base_ch), 1.0) if _tgt_ch > _base_ch else 1.0
+            _pct_ch = min(_total_ln_ch / _tgt_ch, 1.0) if _tgt_ch > 0 else 1.0
             st.progress(max(_pct_ch, 0.0),
                         text=f"Mốc {_nxt_ln_ms}M: {fmt_vnd(_total_ln_ch)} / {fmt_vnd(_tgt_ch)} ({_pct_ch*100:.0f}%)")
         else:

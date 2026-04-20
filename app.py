@@ -1685,20 +1685,30 @@ with tab_kho:
                             
                             prompt = """This is a screenshot from the Roblox game "Steal a Brainrot".
 
-Locate the dark rounded INFO CARD panel floating near the pet. It contains:
-1. The pet NAME in text at the top
-2. A horizontal strip of small icon badges just below the name (these are traits)
-   - When there are 5+ traits they wrap into a 2nd row — examine BOTH rows
+TASK: Find the dark rounded INFO CARD panel near the pet and extract exactly these 4 fields.
 
-The $M/s speed number displayed in large text is OUTSIDE the card.
+The INFO CARD has:
+- Pet name text at the top
+- Small trait icon badges below the name (may span 1 or 2 rows if many traits)
+- The large $M/s speed text is OUTSIDE the card — do not confuse it with trait icons
 
-Return ONLY valid JSON, no markdown, no extra text:
+IMPORTANT for counting traits:
+- Only count icons that are INSIDE the dark card background
+- Each icon is a small distinct square/circle badge (roughly equal size, evenly spaced)
+- Do NOT count the pet's body decorations, wings, accessories outside the card
+- Scan left-to-right: first complete row 1, then row 2 if it exists
+- If you are unsure about an icon, do NOT include it
+
+Return ONLY this JSON (no markdown, no explanation):
 {
-  "Tên Pet": "pet name exactly as written in the card",
-  "Mutation": "body glow color: Gold|Diamond|Divine|Rainbow|Bloodrot|Candy|Lava|Galaxy|Yin-Yang|Radioactive|Cursed|Celestial|Normal",
-  "Tốc độ": "speed in Millions as plain number: $700M/s→700, $1.2B/s→1200, $55M/s→55, $500K/s→0.5",
-  "Traits": ["describe each icon badge you see inside the card as a short word, e.g. fire, spider, taco, hat, crab, snowflake, nyan, ufo, balloon, etc. List ALL icons from row 1 then row 2. Empty array [] if no icons."]
-}"""
+  "Tên Pet": "exact pet name from the card",
+  "Mutation": "Gold|Diamond|Divine|Rainbow|Bloodrot|Candy|Lava|Galaxy|Yin-Yang|Radioactive|Cursed|Celestial|Normal",
+  "Tốc độ": "speed in Millions: $700M/s→700  $1.2B/s→1200  $55M/s→55  $500K/s→0.5",
+  "row1": ["icon1", "icon2", ...],
+  "row2": ["icon1", "icon2", ...]
+}
+
+row1 = icons in the FIRST (top) row inside the card. row2 = icons in the SECOND row (only if traits overflow). Use [] for empty rows."""
 
                             headers = {
                                 "Authorization": f"Bearer {ai_key}",
@@ -1769,16 +1779,12 @@ Return ONLY valid JSON, no markdown, no extra text:
                                             json_str = txt[txt.find("{"):txt.rfind("}")+1]
                                             
                                         parsed_data  = json.loads(json_str)
-                                        # Traits là array — đếm bằng Python, chính xác hơn để model tự đếm
-                                        _traits_raw = parsed_data.get("Traits", [])
-                                        if isinstance(_traits_raw, list):
-                                            _trait_count = len(_traits_raw)
-                                        else:
-                                            # Fallback: nếu model vẫn trả số hoặc string
-                                            try:
-                                                _trait_count = int(str(_traits_raw).strip())
-                                            except Exception:
-                                                _trait_count = 0
+                                        # Đếm từ row1 + row2 riêng biệt — model scan tuần tự từng hàng
+                                        _row1 = parsed_data.get("row1", [])
+                                        _row2 = parsed_data.get("row2", [])
+                                        if not isinstance(_row1, list): _row1 = []
+                                        if not isinstance(_row2, list): _row2 = []
+                                        _trait_count = len(_row1) + len(_row2)
                                         _so_trait = "None" if _trait_count == 0 else str(_trait_count)
                                         results.append({
                                             "_filename": img_f.name,

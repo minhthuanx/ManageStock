@@ -1683,32 +1683,14 @@ with tab_kho:
                             results = []
                             progress = st.progress(0, text="Đang khởi tạo...")
                             
-                            prompt = """This is a screenshot from the Roblox game "Steal a Brainrot".
-
-TASK: Find the dark rounded INFO CARD panel near the pet and extract exactly these 4 fields.
-
-The INFO CARD has:
-- Pet name text at the top
-- Small trait icon badges below the name (may span 1 or 2 rows if many traits)
-- The large $M/s speed text is OUTSIDE the card — do not confuse it with trait icons
-
-IMPORTANT for counting traits:
-- Only count icons that are INSIDE the dark card background
-- Each icon is a small distinct square/circle badge (roughly equal size, evenly spaced)
-- Do NOT count the pet's body decorations, wings, accessories outside the card
-- Scan left-to-right: first complete row 1, then row 2 if it exists
-- If you are unsure about an icon, do NOT include it
-
-Return ONLY this JSON (no markdown, no explanation):
+                            prompt = """Screenshot from Roblox game "Steal a Brainrot". Find the dark rounded INFO CARD near the pet.
+The card has the pet NAME at the top and the large $M/s speed value is OUTSIDE the card.
+Return ONLY valid JSON, no markdown:
 {
   "Tên Pet": "exact pet name from the card",
   "Mutation": "Gold|Diamond|Divine|Rainbow|Bloodrot|Candy|Lava|Galaxy|Yin-Yang|Radioactive|Cursed|Celestial|Normal",
-  "Tốc độ": "speed in Millions: $700M/s→700  $1.2B/s→1200  $55M/s→55  $500K/s→0.5",
-  "row1": ["icon1", "icon2", ...],
-  "row2": ["icon1", "icon2", ...]
-}
-
-row1 = icons in the FIRST (top) row inside the card. row2 = icons in the SECOND row (only if traits overflow). Use [] for empty rows."""
+  "Tốc độ": "speed in Millions as plain number: $700M/s→700  $1.2B/s→1200  $55M/s→55  $500K/s→0.5"
+}"""
 
                             headers = {
                                 "Authorization": f"Bearer {ai_key}",
@@ -1735,113 +1717,104 @@ row1 = icons in the FIRST (top) row inside the card. row2 = icons in the SECOND 
                                 
                             st.toast(f"Model: {target_model}", icon="🦙")
 
-                            for idx, img_f in enumerate(batch_imgs):
-                                progress.progress(
-                                    int((idx / len(batch_imgs)) * 100),
-                                    text=f"Quét ảnh {idx+1}/{len(batch_imgs)}: {img_f.name[:20]}..."
-                                )
-                                success = False
+                            # Đọc và encode tất cả ảnh trước (I/O)
+                            _img_data = []
+                            for img_f in batch_imgs:
+                                img_f.seek(0)
+                                _img_data.append({
+                                    "name": img_f.name,
+                                    "b64": base64.b64encode(img_f.read()).decode("utf-8"),
+                                    "mime": img_f.type or "image/jpeg",
+                                })
+
+                            import threading
+                            _lock = threading.Lock()
+                            _done_count = [0]
+
+                            def _analyze_one(item):
+                                _payload = {
+                                    "model": target_model,
+                                    "messages": [
+                                        {
+                                            "role": "system",
+                                            "content": "You are a game data extractor. Output ONLY valid JSON, no markdown, no extra text."
+                                        },
+                                        {
+                                            "role": "user",
+                                            "content": [
+                                                {"type": "text", "text": prompt},
+                                                {"type": "image_url", "image_url": {"url": f"data:{item['mime']};base64,{item['b64']}"}}
+                                            ]
+                                        }
+                                    ],
+                                    "temperature": 0.0,
+                                    "max_tokens": 128
+                                }
+                                MAX_RETRY = 3
                                 last_err = ""
-                                
-                                try:
-                                    img_f.seek(0)
-                                    b64_img = base64.b64encode(img_f.read()).decode("utf-8")
-                                    mime_type = img_f.type if img_f.type else "image/jpeg"
-                                    
-                                    payload = {
-                                        "model": target_model,
-                                        "messages": [
-                                            {
-                                                "role": "system",
-                                                "content": "You are a precise image analyst. You ONLY output valid JSON with no markdown, no commentary, no extra text. When counting icons, you examine every pixel region methodically."
-                                            },
-                                            {
-                                                "role": "user",
-                                                "content": [
-                                                    {"type": "text", "text": prompt},
-                                                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_img}"}}
-                                                ]
-                                            }
-                                        ],
-                                        "temperature": 0.0,
-                                        "max_tokens": 512
-                                    }
-                                    
-                                    MAX_RETRY = 3
-                                    for _attempt in range(MAX_RETRY):
-                                        try:
-                                            resp = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers, timeout=30)
-                                            if resp.status_code == 429:
-                                                # Rate limit — chờ thêm 15s rồi retry
-                                                _wait = 15 + _attempt * 5
-                                                for _cd in range(_wait, 0, -1):
-                                                    progress.progress(
-                                                        int((idx / len(batch_imgs)) * 100),
-                                                        text=f"⏳ Rate limit ảnh {idx+1} · Retry {_attempt+1}/{MAX_RETRY} · Chờ {_cd}s..."
-                                                    )
-                                                    time.sleep(1)
-                                                continue
-                                            if resp.status_code != 200:
-                                                last_err = f"API Error {resp.status_code}: {resp.text[:200]}"
-                                                break
-                                            data = resp.json()
-                                            txt = data["choices"][0]["message"]["content"].strip()
-                                            json_str = txt
-                                            if "```json" in txt:
-                                                json_str = txt.split("```json")[-1].split("```")[0].strip()
-                                            elif txt.find("{") != -1:
-                                                json_str = txt[txt.find("{"):txt.rfind("}")+1]
-                                            parsed_data = json.loads(json_str)
-                                            # Đếm từ row1 + row2 riêng biệt
-                                            _row1 = parsed_data.get("row1", [])
-                                            _row2 = parsed_data.get("row2", [])
-                                            if not isinstance(_row1, list): _row1 = []
-                                            if not isinstance(_row2, list): _row2 = []
-                                            _trait_count = len(_row1) + len(_row2)
-                                            _so_trait = "None" if _trait_count == 0 else str(_trait_count)
-                                            results.append({
-                                                "_filename": img_f.name,
-                                                "_ok": True,
-                                                "Tên Pet":  parsed_data.get("Tên Pet", ""),
-                                                "Mutation": parsed_data.get("Mutation", "Normal"),
-                                                "M/s":      parsed_data.get("Tốc độ", ""),
-                                                "Số Trait": _so_trait,
-                                                "NameStock": "",
-                                                "Giá Nhập": "",
-                                            })
-                                            success = True
-                                            break
-                                        except (json.JSONDecodeError, KeyError) as _je:
-                                            last_err = f"Parse error (attempt {_attempt+1}): {_je}"
-                                            if _attempt < MAX_RETRY - 1:
-                                                time.sleep(3)
-                                            continue
-                                        except Exception as _re:
-                                            last_err = str(_re)
-                                            break
-                                except Exception as e_img:
-                                    last_err = str(e_img)
-                                
-                                if not success:
-                                    if "429" in last_err or "rate" in last_err.lower():
-                                        last_err = "❌ Rate Limit! (Groq giới hạn 15 ảnh/phút). Vui lòng đợi xíu."
-                                    results.append({
-                                        "_filename": img_f.name,
-                                        "_ok": False,
-                                        "_error": last_err,
-                                        "Tên Pet": "", "Mutation": "Normal",
-                                        "M/s": "", "Số Trait": "None",
-                                        "NameStock": "", "Giá Nhập": "",
-                                    })
-                                
-                                if idx < len(batch_imgs) - 1:
-                                    _pct_done = int(((idx + 1) / len(batch_imgs)) * 100)
-                                    for _cd in range(4, 0, -1):
-                                        progress.progress(
-                                            _pct_done,
-                                            text=f"✅ Xong ảnh {idx+1}/{len(batch_imgs)} · Chờ {_cd}s (Groq giới hạn 15 ảnh/phút)..."
+                                for _attempt in range(MAX_RETRY):
+                                    try:
+                                        resp = requests.post(
+                                            "https://api.groq.com/openai/v1/chat/completions",
+                                            json=_payload, headers=headers, timeout=30
                                         )
-                                        time.sleep(1)
+                                        if resp.status_code == 429:
+                                            time.sleep(15 + _attempt * 5)
+                                            continue
+                                        if resp.status_code != 200:
+                                            last_err = f"API {resp.status_code}: {resp.text[:150]}"
+                                            break
+                                        txt = resp.json()["choices"][0]["message"]["content"].strip()
+                                        json_str = txt
+                                        if "```json" in txt:
+                                            json_str = txt.split("```json")[-1].split("```")[0].strip()
+                                        elif "{" in txt:
+                                            json_str = txt[txt.find("{"):txt.rfind("}")+1]
+                                        parsed = json.loads(json_str)
+                                        with _lock:
+                                            _done_count[0] += 1
+                                        return {
+                                            "_filename": item["name"],
+                                            "_ok": True,
+                                            "Tên Pet":   parsed.get("Tên Pet", ""),
+                                            "Mutation":  parsed.get("Mutation", "Normal"),
+                                            "M/s":       parsed.get("Tốc độ", ""),
+                                            "Số Trait":  "None",
+                                            "NameStock": "",
+                                            "Giá Nhập":  "",
+                                        }
+                                    except (json.JSONDecodeError, KeyError) as _je:
+                                        last_err = f"Parse error: {_je}"
+                                        if _attempt < MAX_RETRY - 1:
+                                            time.sleep(2)
+                                        continue
+                                    except Exception as _e:
+                                        last_err = str(_e)
+                                        break
+                                with _lock:
+                                    _done_count[0] += 1
+                                return {
+                                    "_filename": item["name"], "_ok": False, "_error": last_err,
+                                    "Tên Pet": "", "Mutation": "Normal", "M/s": "",
+                                    "Số Trait": "None", "NameStock": "", "Giá Nhập": "",
+                                }
+
+                            # Chạy song song, tối đa 4 luồng
+                            from concurrent.futures import ThreadPoolExecutor, as_completed
+                            _futures_map = {}
+                            with ThreadPoolExecutor(max_workers=4) as _pool:
+                                for _item in _img_data:
+                                    _futures_map[_pool.submit(_analyze_one, _item)] = _item["name"]
+                                for _fut in as_completed(_futures_map):
+                                    results.append(_fut.result())
+                                    _n = _done_count[0]
+                                    progress.progress(
+                                        int(_n / len(_img_data) * 100),
+                                        text=f"⚡ Đã xong {_n}/{len(_img_data)} ảnh..."
+                                    )
+                            # Sắp xếp lại theo thứ tự ảnh gốc
+                            _order = {d["name"]: i for i, d in enumerate(_img_data)}
+                            results.sort(key=lambda r: _order.get(r["_filename"], 999))
                             
                             progress.progress(100, text="Hoàn thành phân tích!")
                             st.session_state.ai_batch_results = results

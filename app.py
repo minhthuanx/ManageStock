@@ -3053,7 +3053,7 @@ Return ONLY valid JSON, no markdown:
                             "auto_title": _auto_title,
                             "trang_thai": "Còn hàng",
                             "time_nhap":  _ts_nhap_rs,
-                            "time_ban":   "",
+                            "time_ban":   None,
                             "ngay_ton":   0,
                             "place":      "",
                         }

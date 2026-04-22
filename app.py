@@ -481,6 +481,9 @@ def _to_vn_iso(ts_str) -> str:
 def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> str:
     icon = MUTATION_ICONS.get(str(mutation).lower(), "🌟")
     _t = str(trait_str).strip() if trait_str else ""
+    # Loại bỏ phần text thừa như "Trait"/"Traits" nếu đã dính vào giá trị
+    import re as _re
+    _t = _re.sub(r'\s*[Tt]raits?\s*$', '', _t).strip()
     if _t and _t.lower() != "none" and _t != "0":
         _label = "Trait" if _t == "1" else "Traits"
         t_str = f" [{_t} {_label}]"
@@ -2500,6 +2503,15 @@ Return ONLY valid JSON, no markdown:
                 if _user_changed:
                     # Merge changes back into full df
                     full_df = st.session_state.df.copy()
+
+                    # Khôi phục time_nhap / time_ban bị mất do view_cols không hiển thị chúng
+                    if "id" in after_reindexed.columns and not full_df.empty:
+                        _ts_src = full_df[["id", "time_nhap", "time_ban"]].copy()
+                        _ts_src["_id_int"] = pd.to_numeric(_ts_src["id"], errors="coerce").fillna(0).astype(int)
+                        _ar = after_reindexed.copy()
+                        _ar["_id_int"] = pd.to_numeric(_ar["id"], errors="coerce").fillna(0).astype(int)
+                        _ar = _ar.merge(_ts_src[["_id_int", "time_nhap", "time_ban"]], on="_id_int", how="left").drop(columns=["_id_int"])
+                        after_reindexed = _ar
 
                     if _is_searching:
                         # Khi search: chỉ cập nhật các dòng hiển thị, giữ nguyên dòng ẩn

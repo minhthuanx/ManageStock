@@ -1611,7 +1611,7 @@ with st.sidebar:
     st.markdown("---")
 
     # ── Copy Shop Description ──
-    _SHOP_DESC = """👻Welcome to Management Dashboard - The Safest Way to Trade! 👻
+    _SHOP_DESC = """👻Welcome to GhostlyStock - The Safest Way to Trade! 👻
 
 Don't risk your items with "base-stealing" transfers. While others make you "steal" items from base to base, we use the "Trade Machine" for every order! 🚀
 
@@ -1633,7 +1633,7 @@ How to get your Brainrot 📦:
 
 5️⃣ Secure the Loot: Once accepted, your Brainrot is 100% secured in your base—no risk of being intercepted!
 
-Why Management Dashboard is Different?
+Why GhostlyStock is Different?
 
 In Steal a Brainrot, manual transfers are slow and dangerous. We skip the "stealing" hassle entirely! By utilizing the in-game Trade function, we guarantee your pets are protected during the entire process. No shared servers required, no risks taken.
 

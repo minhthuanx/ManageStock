@@ -123,8 +123,8 @@ def to_db(record: dict) -> dict:
         if mapped in ("time_nhap", "time_ban"):
             if not v or str(v).strip() in ("", "None", "nan", "NaT", "null", "-"):
                 v = None
-        # Đảm bảo id luôn là int (Supabase bigint từ chối float như 1.0)
-        if mapped == "id" and v is not None:
+        # Đảm bảo id/ngay_ton luôn là int (Supabase integer/bigint từ chối float như 1.0)
+        if mapped in ("id", "ngay_ton") and v is not None:
             try:
                 v = int(float(v))
             except (ValueError, TypeError):
@@ -1611,7 +1611,7 @@ with st.sidebar:
     st.markdown("---")
 
     # ── Copy Shop Description ──
-    _SHOP_DESC = """👻Welcome to GhostlyStock - The Safest Way to Trade! 👻
+    _SHOP_DESC = """👻Welcome to Management Dashboard - The Safest Way to Trade! 👻
 
 Don't risk your items with "base-stealing" transfers. While others make you "steal" items from base to base, we use the "Trade Machine" for every order! 🚀
 
@@ -1633,7 +1633,7 @@ How to get your Brainrot 📦:
 
 5️⃣ Secure the Loot: Once accepted, your Brainrot is 100% secured in your base—no risk of being intercepted!
 
-Why GhostlyStock is Different?
+Why Management Dashboard is Different?
 
 In Steal a Brainrot, manual transfers are slow and dangerous. We skip the "stealing" hassle entirely! By utilizing the in-game Trade function, we guarantee your pets are protected during the entire process. No shared servers required, no risks taken.
 

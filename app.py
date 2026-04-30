@@ -3127,8 +3127,14 @@ with tab_chart:
     total_cost_bulk    = float(bulk_df["Giá Nhập Tổng"].sum()) if not bulk_df.empty else 0.0
     total_cost         = total_cost_single + total_cost_bulk
 
-    rev_single  = float(sold_df["Doanh Thu"].sum()) if not sold_df.empty else 0.0
-    rev_bulk    = float(bulk_history["Doanh Thu Giao Dịch"].sum()) if not bulk_history.empty else 0.0
+    if not sold_df.empty:
+        _dt_col = pd.to_numeric(sold_df["Doanh Thu"], errors="coerce").fillna(0)
+        _gb_col = pd.to_numeric(sold_df["Giá Bán"], errors="coerce").fillna(0) * EXCHANGE_RATE
+        # Nếu Doanh Thu = 0 (null trong DB hoặc chưa được ghi), dùng Giá Bán * EXCHANGE_RATE làm fallback
+        rev_single = float(_dt_col.where(_dt_col > 0, _gb_col).sum())
+    else:
+        rev_single = 0.0
+    rev_bulk    = float(pd.to_numeric(bulk_history["Doanh Thu Giao Dịch"], errors="coerce").fillna(0).sum()) if not bulk_history.empty else 0.0
     total_rev   = rev_single + rev_bulk
 
     profit_single = float(sold_df["Lợi Nhuận"].sum()) if not sold_df.empty else 0.0
@@ -3227,8 +3233,11 @@ with tab_chart:
             _mo_best_mo  = _mo_df.loc[_mo_best_idx, "_mo"]
             _mo_best_ln  = float(_mo_df.loc[_mo_best_idx, "_ln"])
             _mo_best_cnt = int(_mo_df.loc[_mo_best_idx, "_cnt"])
-            _mo_last_ln  = float(_mo_df.iloc[-1]["_ln"])
-            _mo_last_cnt = int(_mo_df.iloc[-1]["_cnt"])
+            # Lọc đúng tháng hiện tại (không dùng iloc[-1] để tránh hiển thị tháng cũ)
+            _cur_mo_sk   = now_vn().strftime("%Y-%m")
+            _mo_cur_rows = _mo_df[_mo_df["_sk"] == _cur_mo_sk]
+            _mo_last_ln  = float(_mo_cur_rows["_ln"].iloc[0]) if not _mo_cur_rows.empty else 0.0
+            _mo_last_cnt = int(_mo_cur_rows["_cnt"].iloc[0]) if not _mo_cur_rows.empty else 0
             _mc1, _mc2, _mc3 = st.columns(3)
             _mc1.metric("📅 Tháng hiện tại",
                         fmt_vnd(_mo_last_ln),

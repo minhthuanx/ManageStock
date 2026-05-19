@@ -3576,8 +3576,9 @@ with tab_chart:
             _cum_daily["Tích Lũy"] = _cum_daily["Lợi Nhuận"].cumsum()
             _cum_daily["Ngày DT"]  = pd.to_datetime(_cum_daily["_date"])
 
-            # milestone annotations (only those reached)
-            _cum_milestones = [10_000_000, 20_000_000, 30_000_000, 50_000_000, 100_000_000]
+            # milestone annotations (only those reached) - auto generate every 10M
+            _max_cum = float(_cum_daily["Tích Lũy"].max())
+            _cum_milestones = [int(i * 10_000_000) for i in range(1, int(_max_cum / 10_000_000) + 2)]
             _annotations = []
             for _ms_val in _cum_milestones:
                 _cross = _cum_daily[_cum_daily["Tích Lũy"] >= _ms_val]

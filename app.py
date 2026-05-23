@@ -1581,16 +1581,16 @@ with st.sidebar:
             return dt.astimezone(VN_TZ).date() == _today_date
         except Exception:
             return False
-    _sold_today   = df[df["time_ban"].apply(_is_today_ban)]
-    _today_count  = len(_sold_today)
-    _profit_le    = float(pd.to_numeric(_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
+    _sold_today = df[df["time_ban"].apply(_is_today_ban)] if "time_ban" in df.columns else pd.DataFrame(columns=df.columns)
+    _today_count = len(_sold_today)
+    _profit_le = float(pd.to_numeric(_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if "Lợi Nhuận" in _sold_today.columns else 0.0
     # Cộng lợi nhuận lô pack hôm nay
     def _is_today_bulk(d_str):
         if not d_str or str(d_str).strip() in ("", "nan", "None", "-"): return False
         try: return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date() == _today_date
         except: return False
-    _bulk_today   = bulk_history[bulk_history["Ngày Bán"].apply(_is_today_bulk)] if not bulk_history.empty else pd.DataFrame()
-    _profit_bulk  = float(pd.to_numeric(_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if not _bulk_today.empty else 0.0
+    _bulk_today = bulk_history[bulk_history["Ngày Bán"].apply(_is_today_bulk)] if (not bulk_history.empty and "Ngày Bán" in bulk_history.columns) else pd.DataFrame(columns=bulk_history.columns)
+    _profit_bulk = float(pd.to_numeric(_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if "Lợi Nhuận Giao Dịch" in _bulk_today.columns else 0.0
     _today_profit = _profit_le + _profit_bulk
     st.markdown('<span class="sidebar-heading">Hôm nay</span>', unsafe_allow_html=True)
     _td1, _td2 = st.columns(2)

@@ -836,12 +836,10 @@ def init_session():
         _sk_ph.empty()
         st.session_state.initialized = True
     else:
-        # Migrate: đảm bảo bulk_df luôn có đủ cột từ BULK_SCHEMA (sau khi thêm cột mới)
-        _bdf = st.session_state.get("bulk_df", pd.DataFrame())
-        for _col, _default in BULK_SCHEMA.items():
-            if _col not in _bdf.columns:
-                _bdf[_col] = _default
-                st.session_state.bulk_df = _bdf
+        # Migrate: đảm bảo df, bulk_df và bulk_history luôn có đủ cột từ schema
+        st.session_state.df = normalize_df(st.session_state.get("df", pd.DataFrame()), MAIN_SCHEMA)
+        st.session_state.bulk_df = normalize_df(st.session_state.get("bulk_df", pd.DataFrame()), BULK_SCHEMA)
+        st.session_state.bulk_history = normalize_df(st.session_state.get("bulk_history", pd.DataFrame()), HISTORY_SCHEMA)
 
 init_session()
 
@@ -1515,10 +1513,10 @@ def _hb_bulk_is_today(d_str):
         return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date() == _hb_today
     except: return False
 
-_hb_sold_today  = df[df["time_ban"].apply(_hb_is_today)]
-_hb_profit_le   = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
-_hb_bulk_today  = bulk_history[bulk_history["Ngày Bán"].apply(_hb_bulk_is_today)] if not bulk_history.empty else pd.DataFrame()
-_hb_profit_bulk = float(pd.to_numeric(_hb_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if not _hb_bulk_today.empty else 0.0
+_hb_sold_today  = df[df["time_ban"].apply(_hb_is_today)] if "time_ban" in df.columns else pd.DataFrame(columns=df.columns)
+_hb_profit_le   = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if "Lợi Nhuận" in _hb_sold_today.columns else 0.0
+_hb_bulk_today  = bulk_history[bulk_history["Ngày Bán"].apply(_hb_bulk_is_today)] if (not bulk_history.empty and "Ngày Bán" in bulk_history.columns) else pd.DataFrame()
+_hb_profit_bulk = float(pd.to_numeric(_hb_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if (not _hb_bulk_today.empty and "Lợi Nhuận Giao Dịch" in _hb_bulk_today.columns) else 0.0
 _hb_profit_today = _hb_profit_le + _hb_profit_bulk
 
 _badge_html = f'<span class="badge-warn">&#9888; {_badge_count} tồn lâu</span>' if _badge_count > 0 else ""

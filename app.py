@@ -195,7 +195,7 @@ def sb_select(table: str, order: str = "stt") -> pd.DataFrame:
     if not USE_SUPABASE:
         return pd.DataFrame()
     try:
-        r = supabase_client.table(table).select("*").order(order).execute()
+        r = supabase_client.table(table).select("*").order(order).limit(-1).execute()
         if r.data:
             return from_db(pd.DataFrame(r.data))
         return pd.DataFrame()
@@ -221,7 +221,7 @@ def find_duplicates(table: str) -> pd.DataFrame:
     if not USE_SUPABASE:
         return pd.DataFrame()
     try:
-        r = supabase_client.table(table).select("*").execute()
+        r = supabase_client.table(table).select("*").limit(-1).execute()
         if not r.data:
             return pd.DataFrame()
         df = pd.DataFrame(r.data)
@@ -582,7 +582,7 @@ def load_inventory() -> pd.DataFrame:
     """
     if USE_SUPABASE:
         try:
-            r = supabase_client.table("inventory").select("*").order("stt").execute()
+            r = supabase_client.table("inventory").select("*").order("stt").limit(-1).execute()
             if r.data:
                 df = pd.DataFrame(r.data)
                 # Lưu lại danh sách cột thực tế của Supabase (snake_case) để dùng khi save
@@ -609,7 +609,7 @@ def load_bulk() -> pd.DataFrame:
     """
     if USE_SUPABASE:
         try:
-            r = supabase_client.table("bulk_inventory").select("*").order("id").execute()
+            r = supabase_client.table("bulk_inventory").select("*").order("id").limit(-1).execute()
             if r.data:
                 df = pd.DataFrame(r.data)
                 # Rename snake_case → display name, nhưng map "id" → "ID" rõ ràng
@@ -626,7 +626,7 @@ def load_bulk_history() -> pd.DataFrame:
     """Load bulk_history. Bypass sb_select/from_db để tránh id→ID rename."""
     if USE_SUPABASE:
         try:
-            r = supabase_client.table("bulk_history").select("*").order("id").execute()
+            r = supabase_client.table("bulk_history").select("*").order("id").limit(-1).execute()
             if r.data:
                 df = pd.DataFrame(r.data)
                 rename_map = {c: REVERSE_MAP.get(c, c) for c in df.columns}
@@ -682,7 +682,7 @@ def save_inventory_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
         if insert_records:
             try:
                 existing_resp = supabase_client.table("inventory") \
-                    .select("auto_title, time_nhap").execute()
+                    .select("auto_title, time_nhap").limit(-1).execute()
                 existing_keys = {
                     (r.get("auto_title", ""), str(r.get("time_nhap", "")))
                     for r in (existing_resp.data or [])
@@ -728,7 +728,7 @@ def save_bulk_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
         if insert_records:
             try:
                 existing_resp = supabase_client.table("bulk_inventory") \
-                    .select("ten_lo, ngay_nhap").execute()
+                    .select("ten_lo, ngay_nhap").limit(-1).execute()
                 existing_keys = {
                     (r.get("ten_lo", ""), str(r.get("ngay_nhap", "")))
                     for r in (existing_resp.data or [])
@@ -5197,7 +5197,7 @@ with tab_settings:
                 try:
                     rows = supabase_client.table("inventory").select(
                         "id, auto_title, ten_pet, mutation, so_trait, ms, namestock"
-                    ).execute().data or []
+                    ).limit(-1).execute().data or []
                     import re as _re
                     _broken_pat = _re.compile(r"\[(\d+)\]")
                     fixed = 0

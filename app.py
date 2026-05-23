@@ -195,7 +195,7 @@ def sb_select(table: str, order: str = "stt") -> pd.DataFrame:
     if not USE_SUPABASE:
         return pd.DataFrame()
     try:
-        r = supabase_client.table(table).select("*").order(order).execute()
+        r = supabase_client.table(table).select("*").order(order).limit(-1).execute()
         if r.data:
             return from_db(pd.DataFrame(r.data))
         return pd.DataFrame()
@@ -221,7 +221,7 @@ def find_duplicates(table: str) -> pd.DataFrame:
     if not USE_SUPABASE:
         return pd.DataFrame()
     try:
-        r = supabase_client.table(table).select("*").execute()
+        r = supabase_client.table(table).select("*").limit(-1).execute()
         if not r.data:
             return pd.DataFrame()
         df = pd.DataFrame(r.data)
@@ -573,18 +573,65 @@ def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # =============================================================================
+# PAGINATION HELPER - Fetch dữ liệu theo batch để vượt qua giới hạn 1000 rows
+# =============================================================================
+def _fetch_all_with_pagination(table_name: str, order_col: str, batch_size: int = 1000) -> list:
+    """Fetch toàn bộ dữ liệu từ table bằng pagination, vượt qua giới hạn 1000 rows của Supabase.
+    Args:
+        table_name: Tên bảng trong Supabase
+        order_col: Cột để sắp xếp dữ liệu
+        batch_size: Số hàng fetch mỗi lần (mặc định 1000)
+    Returns:
+        List toàn bộ dữ liệu từ table
+    """
+    if not USE_SUPABASE or not supabase_client:
+        return []
+    
+    all_data = []
+    offset = 0
+    
+    while True:
+        try:
+            # Fetch batch tiếp theo sử dụng .range() để vượt qua giới hạn
+            r = (supabase_client
+                 .table(table_name)
+                 .select("*")
+                 .order(order_col)
+                 .range(offset, offset + batch_size - 1)  # range là 0-indexed, inclusive
+                 .execute())
+            
+            if not r.data:
+                # Không có dữ liệu trong batch này, kết thúc
+                break
+            
+            all_data.extend(r.data)
+            
+            # Nếu batch nhỏ hơn batch_size, đã fetch hết dữ liệu
+            if len(r.data) < batch_size:
+                break
+            
+            offset += batch_size
+        except Exception as e:
+            st.toast(f"⚠️ Lỗi khi fetch {table_name} (offset {offset}): {e}", icon="⚠️")
+            break
+    
+    return all_data
+
+# =============================================================================
 # LOAD DATA
 # =============================================================================
 @st.cache_data(show_spinner=False, ttl=300)
 def load_inventory() -> pd.DataFrame:
-    """Load inventory. Bypass sb_select/from_db để tránh REVERSE_MAP["id"]="ID"
-    đổi cột 'id' thành 'ID' → normalize_df tạo id=0 → mọi lần save đều INSERT mới.
+    """Load inventory với pagination để vượt qua giới hạn 1000 rows.
+    Bypass sb_select/from_db để tránh REVERSE_MAP["id"]="ID".
     """
     if USE_SUPABASE:
         try:
-            r = supabase_client.table("inventory").select("*").order("stt").execute()
-            if r.data:
-                df = pd.DataFrame(r.data)
+            # Fetch toàn bộ dữ liệu với pagination (vượt qua giới hạn 1000 rows)
+            all_data = _fetch_all_with_pagination("inventory", "stt")
+            
+            if all_data:
+                df = pd.DataFrame(all_data)
                 # Lưu lại danh sách cột thực tế của Supabase (snake_case) để dùng khi save
                 import streamlit as _st
                 _st.session_state["_inv_sb_cols"] = set(df.columns)
@@ -603,15 +650,16 @@ def load_inventory() -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def load_bulk() -> pd.DataFrame:
-    """Load bulk_inventory. Bypass sb_select/from_db để xử lý đúng 'id'→'ID'.
-    REVERSE_MAP["id"]="ID" (từ COL_MAP "ID":"id"), nhưng inventory cũng dùng
-    cột "id" nên từng bảng phải load riêng để rename đúng.
+    """Load bulk_inventory với pagination để vượt qua giới hạn 1000 rows.
+    Bypass sb_select/from_db để xử lý đúng 'id'→'ID'.
     """
     if USE_SUPABASE:
         try:
-            r = supabase_client.table("bulk_inventory").select("*").order("id").execute()
-            if r.data:
-                df = pd.DataFrame(r.data)
+            # Fetch toàn bộ dữ liệu với pagination
+            all_data = _fetch_all_with_pagination("bulk_inventory", "id")
+            
+            if all_data:
+                df = pd.DataFrame(all_data)
                 # Rename snake_case → display name, nhưng map "id" → "ID" rõ ràng
                 rename_map = {c: REVERSE_MAP.get(c, c) for c in df.columns}
                 rename_map["id"] = "ID"   # force uppercase cho bulk primary key
@@ -623,12 +671,16 @@ def load_bulk() -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def load_bulk_history() -> pd.DataFrame:
-    """Load bulk_history. Bypass sb_select/from_db để tránh id→ID rename."""
+    """Load bulk_history với pagination để vượt qua giới hạn 1000 rows.
+    Bypass sb_select/from_db để tránh id→ID rename.
+    """
     if USE_SUPABASE:
         try:
-            r = supabase_client.table("bulk_history").select("*").order("id").execute()
-            if r.data:
-                df = pd.DataFrame(r.data)
+            # Fetch toàn bộ dữ liệu với pagination
+            all_data = _fetch_all_with_pagination("bulk_history", "id")
+            
+            if all_data:
+                df = pd.DataFrame(all_data)
                 rename_map = {c: REVERSE_MAP.get(c, c) for c in df.columns}
                 rename_map["id"] = "id"   # giữ lowercase
                 df = df.rename(columns=rename_map)
@@ -682,7 +734,7 @@ def save_inventory_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
         if insert_records:
             try:
                 existing_resp = supabase_client.table("inventory") \
-                    .select("auto_title, time_nhap").execute()
+                    .select("auto_title, time_nhap").limit(-1).execute()
                 existing_keys = {
                     (r.get("auto_title", ""), str(r.get("time_nhap", "")))
                     for r in (existing_resp.data or [])
@@ -728,7 +780,7 @@ def save_bulk_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
         if insert_records:
             try:
                 existing_resp = supabase_client.table("bulk_inventory") \
-                    .select("ten_lo, ngay_nhap").execute()
+                    .select("ten_lo, ngay_nhap").limit(-1).execute()
                 existing_keys = {
                     (r.get("ten_lo", ""), str(r.get("ngay_nhap", "")))
                     for r in (existing_resp.data or [])
@@ -836,12 +888,10 @@ def init_session():
         _sk_ph.empty()
         st.session_state.initialized = True
     else:
-        # Migrate: đảm bảo bulk_df luôn có đủ cột từ BULK_SCHEMA (sau khi thêm cột mới)
-        _bdf = st.session_state.get("bulk_df", pd.DataFrame())
-        for _col, _default in BULK_SCHEMA.items():
-            if _col not in _bdf.columns:
-                _bdf[_col] = _default
-                st.session_state.bulk_df = _bdf
+        # Migrate: đảm bảo df, bulk_df và bulk_history luôn có đủ cột từ schema
+        st.session_state.df = normalize_df(st.session_state.get("df", pd.DataFrame()), MAIN_SCHEMA)
+        st.session_state.bulk_df = normalize_df(st.session_state.get("bulk_df", pd.DataFrame()), BULK_SCHEMA)
+        st.session_state.bulk_history = normalize_df(st.session_state.get("bulk_history", pd.DataFrame()), HISTORY_SCHEMA)
 
 init_session()
 
@@ -1515,10 +1565,10 @@ def _hb_bulk_is_today(d_str):
         return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date() == _hb_today
     except: return False
 
-_hb_sold_today  = df[df["time_ban"].apply(_hb_is_today)]
-_hb_profit_le   = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
-_hb_bulk_today  = bulk_history[bulk_history["Ngày Bán"].apply(_hb_bulk_is_today)] if not bulk_history.empty else pd.DataFrame()
-_hb_profit_bulk = float(pd.to_numeric(_hb_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if not _hb_bulk_today.empty else 0.0
+_hb_sold_today  = df[df["time_ban"].apply(_hb_is_today)] if "time_ban" in df.columns else pd.DataFrame(columns=df.columns)
+_hb_profit_le   = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if "Lợi Nhuận" in _hb_sold_today.columns else 0.0
+_hb_bulk_today  = bulk_history[bulk_history["Ngày Bán"].apply(_hb_bulk_is_today)] if (not bulk_history.empty and "Ngày Bán" in bulk_history.columns) else pd.DataFrame()
+_hb_profit_bulk = float(pd.to_numeric(_hb_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if (not _hb_bulk_today.empty and "Lợi Nhuận Giao Dịch" in _hb_bulk_today.columns) else 0.0
 _hb_profit_today = _hb_profit_le + _hb_profit_bulk
 
 _badge_html = f'<span class="badge-warn">&#9888; {_badge_count} tồn lâu</span>' if _badge_count > 0 else ""
@@ -1583,16 +1633,16 @@ with st.sidebar:
             return dt.astimezone(VN_TZ).date() == _today_date
         except Exception:
             return False
-    _sold_today   = df[df["time_ban"].apply(_is_today_ban)]
-    _today_count  = len(_sold_today)
-    _profit_le    = float(pd.to_numeric(_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum())
+    _sold_today = df[df["time_ban"].apply(_is_today_ban)] if "time_ban" in df.columns else pd.DataFrame(columns=df.columns)
+    _today_count = len(_sold_today)
+    _profit_le = float(pd.to_numeric(_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if "Lợi Nhuận" in _sold_today.columns else 0.0
     # Cộng lợi nhuận lô pack hôm nay
     def _is_today_bulk(d_str):
         if not d_str or str(d_str).strip() in ("", "nan", "None", "-"): return False
         try: return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date() == _today_date
         except: return False
-    _bulk_today   = bulk_history[bulk_history["Ngày Bán"].apply(_is_today_bulk)] if not bulk_history.empty else pd.DataFrame()
-    _profit_bulk  = float(pd.to_numeric(_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if not _bulk_today.empty else 0.0
+    _bulk_today = bulk_history[bulk_history["Ngày Bán"].apply(_is_today_bulk)] if (not bulk_history.empty and "Ngày Bán" in bulk_history.columns) else pd.DataFrame(columns=bulk_history.columns)
+    _profit_bulk = float(pd.to_numeric(_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if "Lợi Nhuận Giao Dịch" in _bulk_today.columns else 0.0
     _today_profit = _profit_le + _profit_bulk
     st.markdown('<span class="sidebar-heading">Hôm nay</span>', unsafe_allow_html=True)
     _td1, _td2 = st.columns(2)
@@ -5197,7 +5247,7 @@ with tab_settings:
                 try:
                     rows = supabase_client.table("inventory").select(
                         "id, auto_title, ten_pet, mutation, so_trait, ms, namestock"
-                    ).execute().data or []
+                    ).limit(-1).execute().data or []
                     import re as _re
                     _broken_pat = _re.compile(r"\[(\d+)\]")
                     fixed = 0

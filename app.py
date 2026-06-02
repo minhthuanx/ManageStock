@@ -1656,7 +1656,7 @@ with st.sidebar:
                     key="daily_profit_target", format="%d")
     _daily_target_val = st.session_state["daily_profit_target"]
     if _daily_target_val > 0:
-        _goal_pct = min(_today_profit / _daily_target_val, 1.0)
+        _goal_pct = max(0, min(_today_profit / _daily_target_val, 1.0))
         st.progress(_goal_pct, text=f"{fmt_vnd(_today_profit)} / {fmt_vnd(_daily_target_val)} ({_goal_pct*100:.0f}%)")
     st.markdown("---")
 

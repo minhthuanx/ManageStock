@@ -2288,7 +2288,7 @@ Return ONLY valid JSON, no markdown:
                     # ── PRE-PROCESS: Cache similar pets detection ──
                     similar_cache = {}
                     if not st.session_state.df.empty:
-                        # Build pet lookup map từ inventory: {(ns, mutation, ms_range): [pet_names]}
+                        # Build pet lookup map từ inventory: {(ns, mutation, ms_range): [(pet_name, ms, ns), ...]}
                         for _, row in st.session_state.df.iterrows():
                             try:
                                 ns = str(row.get("NameStock", "")).strip()
@@ -2299,7 +2299,7 @@ Return ONLY valid JSON, no markdown:
                                     key = (ns, mut, int(ms / 50) * 50)  # Group by 50M/s range
                                     if key not in similar_cache:
                                         similar_cache[key] = []
-                                    similar_cache[key].append((pet_name, ms))
+                                    similar_cache[key].append((pet_name, ms, ns))  # ← STORE NameStock too
                             except (TypeError, ValueError):
                                 pass
 
@@ -2376,16 +2376,19 @@ Return ONLY valid JSON, no markdown:
                                         key = (effective_ns.strip(), r_mut_str, int(r_ms / 50) * 50)
                                         similar_pets = similar_cache.get(key, [])
                                         
-                                        # Filter ±5% range
+                                        # Filter ±5% range + EXPLICIT CHECK NameStock
                                         ms_range = r_ms * 0.05
-                                        similar_pets = [p for p in similar_pets if abs(p[1] - r_ms) <= ms_range]
+                                        similar_pets = [
+                                            p for p in similar_pets 
+                                            if abs(p[1] - r_ms) <= ms_range and p[2] == effective_ns.strip()
+                                        ]
                                         
                                         if similar_pets:
                                             similar_names = ", ".join([f"{p[0]} ({p[1]:.0f}M/s)" for p in similar_pets[:3]])
                                             if len(similar_pets) > 3:
                                                 similar_names += f" +{len(similar_pets)-3} nữa"
-                                            st.warning(f"⚠️ **Có vẻ trùng:** {similar_names}")
-                                except Exception:
+                                            st.warning(f"⚠️ **Có vẻ trùng (cùng {effective_ns}):** {similar_names}")
+                                except Exception as e:
                                     pass
 
                         r_ms = parse_usd(r_ms_raw)

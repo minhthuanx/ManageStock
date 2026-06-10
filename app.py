@@ -415,6 +415,87 @@ def parse_usd(s: str) -> float:
         return 0.0
 
 
+# =============================================================================
+# JSON IMPORT HELPERS
+# =============================================================================
+def parse_gen_text(gen_text: str) -> float:
+    """Extract M/s value from gen_text field (e.g., '2B/s' → 2000, '675M/s' → 675, '55M/s' → 55)."""
+    if not gen_text:
+        return 0.0
+    try:
+        gen_str = str(gen_text).strip().upper()
+        # Remove spaces and /s suffix
+        gen_str = gen_str.replace(" ", "").replace("/S", "")
+        
+        # Find multiplier
+        multiplier = 1
+        if "B" in gen_str:
+            gen_str = gen_str.replace("B", "")
+            multiplier = 1000
+        elif "M" in gen_str:
+            gen_str = gen_str.replace("M", "")
+            multiplier = 1
+        elif "K" in gen_str:
+            gen_str = gen_str.replace("K", "")
+            multiplier = 0.001
+        
+        value = float(gen_str) if gen_str else 0.0
+        return value * multiplier
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def parse_json_import(json_str: str) -> list:
+    """Parse JSON string and extract pet data. Returns list of dicts with essential fields only."""
+    try:
+        data = json.loads(json_str)
+        if not isinstance(data, list):
+            return []
+        
+        results = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            
+            pet_name = str(item.get("name", ""))
+            if not pet_name.strip():
+                continue
+            
+            results.append({
+                "Tên Pet": pet_name,
+                "Mutation": str(item.get("mutation", "Normal")).strip() or "Normal",
+                "M/s": parse_gen_text(item.get("gen_text", "")),
+                "Số Trait": str(len(item.get("traits", []))) if item.get("traits") else "None",
+                "NameStock": "",
+                "_ok": True,
+            })
+        
+        return results
+    except (json.JSONDecodeError, ValueError) as e:
+        return []
+
+
+def build_pet_namestock_map() -> dict:
+    """Build mapping of pet names to namestock. Returns dict of {pet_name: [namestock_list]}."""
+    pet_ns_map = {}
+    if not ns_db.empty and not pet_db.empty:
+        # Group by pet name from current inventory to suggest namestock
+        try:
+            # Tạo map từ dữ liệu hiện tại
+            for _, row in st.session_state.df.iterrows() if hasattr(st.session_state, 'df') and not st.session_state.df.empty else []:
+                pet = str(row.get("Tên Pet", "")).strip()
+                ns = str(row.get("NameStock", "")).strip()
+                if pet and ns:
+                    if pet not in pet_ns_map:
+                        pet_ns_map[pet] = set()
+                    pet_ns_map[pet].add(ns)
+            # Convert sets to lists
+            pet_ns_map = {k: sorted(list(v)) for k, v in pet_ns_map.items()}
+        except Exception:
+            pass
+    return pet_ns_map
+
+
 def fmt_vnd(v: float) -> str:
     return f"₫{v:,.0f}"
 
@@ -2133,6 +2214,215 @@ Return ONLY valid JSON, no markdown:
                                 st.rerun()
 
                 ai_preview_dialog()
+
+            # =========================================================
+            # JSON IMPORT — Nhập từ JSON
+            # =========================================================
+            with st.expander("📋 JSON Import — Nhập từ JSON", expanded=st.session_state.get("json_import_expander", False)):
+                st.caption("Dán JSON từ game vào đây để nhập dữ liệu pet nhanh chóng")
+                
+                json_input = st.text_area(
+                    "Dán JSON",
+                    value="",
+                    height=120,
+                    placeholder='[{"name":"Burguro And Fryuro","mutation":"Galaxy","gen_text":"2B/s","traits":["Galactic","Matteo Hat"],...}]',
+                    key="json_import_text",
+                    label_visibility="collapsed",
+                )
+
+                parse_btn = st.button(
+                    "Phân tích JSON",
+                    type="primary",
+                    use_container_width=True,
+                    key="btn_json_parse",
+                    disabled=not json_input.strip(),
+                )
+
+                if parse_btn and json_input.strip():
+                    json_results = parse_json_import(json_input)
+                    if not json_results:
+                        st.error("❌ Lỗi: Không thể phân tích JSON. Kiểm tra định dạng lại.")
+                    else:
+                        st.session_state.json_batch_results = json_results
+                        st.session_state.json_show_dialog = True
+                        st.rerun()
+
+            # =========================================================
+            # JSON DIALOG PREVIEW + EDIT
+            # =========================================================
+            if st.session_state.get("json_show_dialog") and st.session_state.get("json_batch_results"):
+                json_results = st.session_state.json_batch_results
+
+                @st.dialog("Kết Quả JSON — Xem trước & Chỉnh sửa", width="large")
+                def json_preview_dialog():
+                    global pet_db
+                    pet_opts_dlg   = get_name_options(pet_db)
+                    trait_opts_dlg = ["None"] + [str(n) for n in range(1, 16)]
+                    ns_opts_dlg    = [""] + get_name_options(ns_db, fallback="")
+
+                    st.caption(f"**{len(json_results)}** mục từ JSON · Xem lại và xác nhận trước khi lưu")
+
+                    # ── NameStock chung cho cả batch ──
+                    _gn1, _gn2 = st.columns([1, 3])
+                    use_global_ns = _gn1.checkbox("NameStock chung", key="dlg_json_global_ns_check",
+                                                   help="Áp dụng cùng 1 NameStock cho tất cả pet trong batch này")
+                    if use_global_ns:
+                        global_ns_val = _gn2.selectbox(
+                            "NameStock áp dụng cho tất cả",
+                            ns_opts_dlg,
+                            key="dlg_json_global_ns_val",
+                            label_visibility="collapsed",
+                        )
+                    else:
+                        global_ns_val = ""
+
+                    st.markdown("---")
+                    edited_rows = []
+                    all_valid = True
+
+                    for i, res in enumerate(json_results):
+                        pet_name = res.get("Tên Pet", f"Item {i+1}")
+                        mutation = res.get("Mutation", "Normal")
+                        
+                        _expander_label = f"✅ {pet_name} · {mutation}"
+                        
+                        with st.expander(_expander_label, expanded=True):
+                            c1d, c2d, c3d = st.columns(3)
+
+                            # Tên Pet
+                            json_name = str(res.get("Tên Pet") or "")
+                            if json_name and json_name.lower() not in [x.lower() for x in pet_opts_dlg]:
+                                pet_opts_dlg = [json_name] + pet_opts_dlg
+                            pi = next((j for j, x in enumerate(pet_opts_dlg) if x.lower() == json_name.lower()), 0)
+                            r_name = c1d.selectbox(f"Tên Pet", pet_opts_dlg, index=pi, key=f"dlg_json_name_{i}", label_visibility="collapsed")
+
+                            # Mutation
+                            json_mut_v = str(res.get("Mutation") or "Normal")
+                            mi = next((j for j, m in enumerate(MUTATION_OPTIONS) if m.lower() == json_mut_v.lower()), 0)
+                            r_mut = c2d.selectbox(f"Mutation", MUTATION_OPTIONS, index=mi, key=f"dlg_json_mut_{i}", label_visibility="collapsed")
+
+                            # M/s
+                            r_ms_raw = c3d.text_input(f"M/s", value=str(int(res.get("M/s")) if res.get("M/s") else ""), key=f"dlg_json_ms_{i}", label_visibility="collapsed")
+
+                            c4d, c5d = st.columns(2)
+                            
+                            # Số Trait
+                            json_trait = str(res.get("Số Trait") or "None").strip()
+                            if json_trait not in trait_opts_dlg:
+                                trait_opts_dlg = trait_opts_dlg + [json_trait]
+                            ti = next((j for j, t in enumerate(trait_opts_dlg) if t.lower() == json_trait.lower()), 0)
+                            r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, index=ti, key=f"dlg_json_trait_{i}", label_visibility="collapsed")
+
+                            # NameStock: dùng global nếu checkbox bật, ngược lại dùng per-row
+                            if use_global_ns:
+                                r_ns = global_ns_val
+                                _ns_display = global_ns_val if global_ns_val else "—"
+                                c5d.markdown(
+                                    f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#a78bfa;">'
+                                    f'NS: <b>{_ns_display}</b> <span style="color:#4b3f6b;">(chung)</span></div>',
+                                    unsafe_allow_html=True,
+                                )
+                            else:
+                                r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_json_ns_{i}", label_visibility="collapsed")
+
+                        r_ms = parse_usd(r_ms_raw)
+                        err_row = []
+                        if not r_name or r_name == "None": err_row.append("Tên Pet")
+                        if r_ms <= 0:  err_row.append("M/s")
+                        if not r_ns.strip(): err_row.append("NameStock")
+                        if err_row:
+                            st.info(f"⚠️ Thiếu thông tin: {', '.join(err_row)}")
+                            all_valid = False
+
+                        edited_rows.append({
+                            "Tên Pet":   r_name,
+                            "Mutation":  r_mut,
+                            "M/s":       r_ms,
+                            "Số Trait":  r_trait,
+                            "NameStock": r_ns,
+                            "_valid":    len(err_row) == 0,
+                        })
+
+                    st.markdown("---")
+                    col_cancel, col_save = st.columns([1, 2])
+                    with col_cancel:
+                        if st.button("Huỷ bỏ", use_container_width=True):
+                            st.session_state.json_show_dialog = False
+                            st.session_state.json_batch_results = []
+                            st.rerun()
+
+                    with col_save:
+                        valid_count = sum(1 for r in edited_rows if r["_valid"])
+                        save_label = f"Lưu {valid_count} / {len(edited_rows)} mục hợp lệ"
+                        if st.button(save_label, type="primary", use_container_width=True, disabled=valid_count == 0):
+                            saved = 0
+                            current_df = st.session_state.df
+                            sb_records_to_insert = []
+                            _ts_batch   = now_iso()
+                            _ngay_batch = now_str()
+
+                            for r in edited_rows:
+                                if not r["_valid"]:
+                                    continue
+                                existing_lower = [x.lower() for x in get_name_options(pet_db)]
+                                if r["Tên Pet"].lower() not in existing_lower:
+                                    pet_db = append_row(pet_db, {"Name": r["Tên Pet"]}, LIST_SCHEMA)
+                                    save_csv(pet_db, PET_LIST_FILE)
+
+                                stt = next_id(current_df, "STT")
+                                new_row = {
+                                    "STT":        stt,
+                                    "Tên Pet":    r["Tên Pet"],
+                                    "M/s":        float(r["M/s"]),
+                                    "Mutation":   r["Mutation"],
+                                    "Số Trait":   r["Số Trait"],
+                                    "NameStock":  r["NameStock"],
+                                    "Giá Nhập":   0.0,
+                                    "Giá Bán":    0.0,
+                                    "Lợi Nhuận":  0.0,
+                                    "Doanh Thu":  0.0,
+                                    "Ngày Nhập":  _ngay_batch,
+                                    "Ngày Bán":   "-",
+                                    "Auto Title": generate_auto_title(
+                                        r["Tên Pet"], r["Mutation"], r["Số Trait"], r["M/s"], r["NameStock"]
+                                    ),
+                                    "Trạng Thái": "Còn hàng",
+                                    "time_nhap":  _ts_batch,
+                                    "time_ban":   "",
+                                    "Ngày Tồn":   0,
+                                    "Place":      "",
+                                }
+                                current_df = append_row(current_df, new_row, MAIN_SCHEMA)
+                                _db_row = to_db(new_row)
+                                _db_row.pop("id", None)
+                                sb_records_to_insert.append(_db_row)
+                                saved += 1
+
+                            # Toàn bộ I/O nằm trong spinner — không có khoảng freeze nào bên ngoài
+                            _save_ok = False
+                            with st.spinner(f"Đang lưu {saved} mục..."):
+                                sb_ok = True
+                                if USE_SUPABASE and sb_records_to_insert:
+                                    sb_ok = sb_insert_batch("inventory", sb_records_to_insert)
+
+                                if sb_ok:
+                                    if USE_SUPABASE:
+                                        st.cache_data.clear()
+                                        st.session_state.df = apply_ngay_ton(load_inventory())
+                                    else:
+                                        current_df = apply_ngay_ton(current_df)
+                                        st.session_state.df = current_df
+                                    save_csv(st.session_state.df, DB_FILE)
+                                    st.session_state.json_show_dialog = False
+                                    st.session_state.json_batch_results = []
+                                    st.session_state.json_import_expander = False
+                                    _save_ok = True
+
+                            if _save_ok:
+                                st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
+                                st.rerun()
+
+                json_preview_dialog()
 
             # =========================================================
             # NHẬP THỦ CÔNG (Always visible)

@@ -418,6 +418,7 @@ def parse_usd(s: str) -> float:
 # =============================================================================
 # JSON IMPORT HELPERS
 # =============================================================================
+@st.cache_data(show_spinner=False)
 def parse_gen_text(gen_text: str) -> float:
     """Extract M/s value from gen_text field (e.g., '2B/s' → 2000, '675M/s' → 675, '55M/s' → 55)."""
     if not gen_text:
@@ -445,6 +446,7 @@ def parse_gen_text(gen_text: str) -> float:
         return 0.0
 
 
+@st.cache_data(show_spinner=False)
 def parse_json_import(json_str: str) -> list:
     """Parse JSON string and extract pet data. Returns list of dicts with essential fields only."""
     try:
@@ -473,6 +475,7 @@ def parse_json_import(json_str: str) -> list:
         return results
     except (json.JSONDecodeError, ValueError) as e:
         return []
+
 
 
 def build_pet_namestock_map() -> dict:
@@ -2139,6 +2142,7 @@ Return ONLY valid JSON, no markdown:
                         if st.button("Huỷ bỏ", use_container_width=True):
                             st.session_state.ai_show_dialog = False
                             st.session_state.ai_batch_results = []
+                            st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1
                             st.rerun()
 
                     with col_save:
@@ -2221,12 +2225,15 @@ Return ONLY valid JSON, no markdown:
             with st.expander("📋 JSON Import — Nhập từ JSON", expanded=st.session_state.get("json_import_expander", False)):
                 st.caption("Dán JSON từ game vào đây để nhập dữ liệu pet nhanh chóng")
                 
+                if "json_import_key" not in st.session_state:
+                    st.session_state.json_import_key = 0
+                
                 json_input = st.text_area(
                     "Dán JSON",
                     value="",
                     height=120,
                     placeholder='[{"name":"Burguro And Fryuro","mutation":"Galaxy","gen_text":"2B/s","traits":["Galactic","Matteo Hat"],...}]',
-                    key="json_import_text",
+                    key=f"json_import_text_{st.session_state.json_import_key}",
                     label_visibility="collapsed",
                 )
 
@@ -2256,9 +2263,11 @@ Return ONLY valid JSON, no markdown:
                 @st.dialog("Kết Quả JSON — Xem trước & Chỉnh sửa", width="large")
                 def json_preview_dialog():
                     global pet_db
-                    pet_opts_dlg   = get_name_options(pet_db)
+                    # ── CACHE OPTIONS TRƯỚC ──
+                    pet_opts_dlg   = list(get_name_options(pet_db))
+                    pet_opts_lower_set = set(x.lower() for x in pet_opts_dlg)  # O(1) lookup
                     trait_opts_dlg = ["None"] + [str(n) for n in range(1, 16)]
-                    ns_opts_dlg    = [""] + get_name_options(ns_db, fallback="")
+                    ns_opts_dlg    = [""] + list(get_name_options(ns_db, fallback=""))
 
                     st.caption(f"**{len(json_results)}** mục từ JSON · Xem lại và xác nhận trước khi lưu")
 
@@ -2276,6 +2285,24 @@ Return ONLY valid JSON, no markdown:
                     else:
                         global_ns_val = ""
 
+                    # ── PRE-PROCESS: Cache similar pets detection ──
+                    similar_cache = {}
+                    if not st.session_state.df.empty:
+                        # Build pet lookup map từ inventory: {(ns, mutation, ms_range): [pet_names]}
+                        for _, row in st.session_state.df.iterrows():
+                            try:
+                                ns = str(row.get("NameStock", "")).strip()
+                                mut = str(row.get("Mutation", "Normal")).strip()
+                                ms = float(row.get("M/s", 0))
+                                pet_name = str(row.get("Tên Pet", ""))
+                                if ns and mut and ms > 0 and pet_name:
+                                    key = (ns, mut, int(ms / 50) * 50)  # Group by 50M/s range
+                                    if key not in similar_cache:
+                                        similar_cache[key] = []
+                                    similar_cache[key].append((pet_name, ms))
+                            except (TypeError, ValueError):
+                                pass
+
                     st.markdown("---")
                     edited_rows = []
                     all_valid = True
@@ -2286,13 +2313,24 @@ Return ONLY valid JSON, no markdown:
                         
                         _expander_label = f"✅ {pet_name} · {mutation}"
                         
-                        with st.expander(_expander_label, expanded=True):
+                        with st.expander(_expander_label, expanded=(i < 3)):
+                            # Top row: Delete checkbox + basic info
+                            _del_col, _info_col = st.columns([0.5, 5])
+                            with _del_col:
+                                r_delete = st.checkbox("🗑️ Xoá", key=f"dlg_json_delete_{i}", label_visibility="collapsed")
+                            
+                            with _info_col:
+                                st.caption(f"M/s: {int(res.get('M/s')) if res.get('M/s') else '?'} | Traits: {res.get('Số Trait')}")
+                            
+                            # Main form columns
                             c1d, c2d, c3d = st.columns(3)
 
                             # Tên Pet
                             json_name = str(res.get("Tên Pet") or "")
-                            if json_name and json_name.lower() not in [x.lower() for x in pet_opts_dlg]:
+                            # ──tối ưu: kiểm tra O(1) với set ──
+                            if json_name and json_name.lower() not in pet_opts_lower_set:
                                 pet_opts_dlg = [json_name] + pet_opts_dlg
+                                pet_opts_lower_set.add(json_name.lower())
                             pi = next((j for j, x in enumerate(pet_opts_dlg) if x.lower() == json_name.lower()), 0)
                             r_name = c1d.selectbox(f"Tên Pet", pet_opts_dlg, index=pi, key=f"dlg_json_name_{i}", label_visibility="collapsed")
 
@@ -2322,15 +2360,42 @@ Return ONLY valid JSON, no markdown:
                                     f'NS: <b>{_ns_display}</b> <span style="color:#4b3f6b;">(chung)</span></div>',
                                     unsafe_allow_html=True,
                                 )
+                                effective_ns = global_ns_val
                             else:
                                 r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_json_ns_{i}", label_visibility="collapsed")
+                                effective_ns = r_ns
+
+                            # ── Similar pet detection (dùng cache) ──
+                            if effective_ns and effective_ns.strip():
+                                try:
+                                    r_ms = parse_usd(r_ms_raw)
+                                    r_mut_str = str(r_mut).strip()
+                                    
+                                    if r_ms > 0:
+                                        # Lookup từ cache
+                                        key = (effective_ns.strip(), r_mut_str, int(r_ms / 50) * 50)
+                                        similar_pets = similar_cache.get(key, [])
+                                        
+                                        # Filter ±5% range
+                                        ms_range = r_ms * 0.05
+                                        similar_pets = [p for p in similar_pets if abs(p[1] - r_ms) <= ms_range]
+                                        
+                                        if similar_pets:
+                                            similar_names = ", ".join([f"{p[0]} ({p[1]:.0f}M/s)" for p in similar_pets[:3]])
+                                            if len(similar_pets) > 3:
+                                                similar_names += f" +{len(similar_pets)-3} nữa"
+                                            st.warning(f"⚠️ **Có vẻ trùng:** {similar_names}")
+                                except Exception:
+                                    pass
 
                         r_ms = parse_usd(r_ms_raw)
                         err_row = []
-                        if not r_name or r_name == "None": err_row.append("Tên Pet")
-                        if r_ms <= 0:  err_row.append("M/s")
-                        if not r_ns.strip(): err_row.append("NameStock")
-                        if err_row:
+                        if not r_delete:  # Chỉ validate nếu không xoá
+                            if not r_name or r_name == "None": err_row.append("Tên Pet")
+                            if r_ms <= 0:  err_row.append("M/s")
+                            if not r_ns.strip(): err_row.append("NameStock")
+                        
+                        if not r_delete and err_row:
                             st.info(f"⚠️ Thiếu thông tin: {', '.join(err_row)}")
                             all_valid = False
 
@@ -2340,7 +2405,8 @@ Return ONLY valid JSON, no markdown:
                             "M/s":       r_ms,
                             "Số Trait":  r_trait,
                             "NameStock": r_ns,
-                            "_valid":    len(err_row) == 0,
+                            "_delete":   r_delete,
+                            "_valid":    r_delete or len(err_row) == 0,
                         })
 
                     st.markdown("---")
@@ -2349,6 +2415,7 @@ Return ONLY valid JSON, no markdown:
                         if st.button("Huỷ bỏ", use_container_width=True):
                             st.session_state.json_show_dialog = False
                             st.session_state.json_batch_results = []
+                            st.session_state.json_import_key = st.session_state.get("json_import_key", 0) + 1
                             st.rerun()
 
                     with col_save:
@@ -2364,6 +2431,12 @@ Return ONLY valid JSON, no markdown:
                             for r in edited_rows:
                                 if not r["_valid"]:
                                     continue
+                                
+                                # ── BỎ QUA NẾU TICK XOÁ (Không thêm vào, không xoá DB) ──
+                                if r["_delete"]:
+                                    continue
+                                
+                                # ── THÊM MỚI ──
                                 existing_lower = [x.lower() for x in get_name_options(pet_db)]
                                 if r["Tên Pet"].lower() not in existing_lower:
                                     pet_db = append_row(pet_db, {"Name": r["Tên Pet"]}, LIST_SCHEMA)
@@ -2398,13 +2471,16 @@ Return ONLY valid JSON, no markdown:
                                 sb_records_to_insert.append(_db_row)
                                 saved += 1
 
-                            # Toàn bộ I/O nằm trong spinner — không có khoảng freeze nào bên ngoài
+                            # Toàn bộ I/O nằm trong spinner
                             _save_ok = False
                             with st.spinner(f"Đang lưu {saved} mục..."):
                                 sb_ok = True
-                                if USE_SUPABASE and sb_records_to_insert:
-                                    sb_ok = sb_insert_batch("inventory", sb_records_to_insert)
-
+                                
+                                # Insert mới
+                                if USE_SUPABASE:
+                                    if sb_records_to_insert:
+                                        sb_ok = sb_insert_batch("inventory", sb_records_to_insert)
+                                
                                 if sb_ok:
                                     if USE_SUPABASE:
                                         st.cache_data.clear()

@@ -6084,12 +6084,19 @@ with tab_eldo:
                 # ── State counts từ API (nhanh, 1 call) ──
                 _states = {}
                 try:
-                    _states = eld_client.get_states() or {}
+                    _raw_states = eld_client.get_states()
+                    _states = _raw_states if isinstance(_raw_states, dict) else {}
                 except Exception:
                     pass
-                _cnt_a = _states.get("activeOffers", 0)
-                _cnt_p = _states.get("pausedOffers", 0)
-                _cnt_c = _states.get("closedOffers", 0)
+                # Support both camelCase and snake_case field names
+                _cnt_a = int(_states.get("activeOffers") or _states.get("active_offers") or 0)
+                _cnt_p = int(_states.get("pausedOffers") or _states.get("paused_offers") or 0)
+                _cnt_c = int(_states.get("closedOffers") or _states.get("closed_offers") or 0)
+                # If API returned 0 for all, try counting from loaded listings data
+                if _cnt_a + _cnt_p + _cnt_c == 0 and _all_data:
+                    _cnt_a = sum(1 for x in _all_data if x.get("offerState") == "Active")
+                    _cnt_p = sum(1 for x in _all_data if x.get("offerState") == "Paused")
+                    _cnt_c = sum(1 for x in _all_data if x.get("offerState") == "Closed")
                 _cnt_all = _cnt_a + _cnt_p + _cnt_c
                 sc1, sc2, sc3, sc4 = st.columns(4)
                 sc1.metric("Tổng", _cnt_all)
@@ -6327,12 +6334,33 @@ with tab_eldo:
 
                 if "_eldo_wallet" not in st.session_state:
                     with st.spinner("Đang tải dữ liệu wallet..."):
-                        _wp = eld_client.get_payments(page_size=30)
-                        _ws = eld_client.get_order_stats()
-                        _wh = eld_client.get_historical_seller_stats()
-                        _wpend = eld_client.get_pending_sum()
+                        _wp = None
+                        _ws = None
+                        _wh = None
+                        _wpend = None
+                        try:
+                            _wp = eld_client.get_payments(page_size=30)
+                        except Exception:
+                            _wp = eld_client._req("GET", "/userpayment/me/payments",
+                                                  params={"paymentsCategory": "All", "pageSize": 30,
+                                                          "pageDirection": "Next",
+                                                          "cursorValue": "9999-99-99 99:99:99.999999999999999-9999-9999-9999-999999999999"})
+                        try:
+                            _ws = eld_client.get_order_stats()
+                        except Exception:
+                            _ws = eld_client._req("GET", "/orders/me/statesCount",
+                                                  params={"displayFilter": "DisplaySellingOrders", "orderGroup": "Regular"})
+                        try:
+                            _wh = eld_client.get_historical_seller_stats()
+                        except Exception:
+                            _wh = eld_client._req("GET", "/orders/me/statesCount",
+                                                  params={"displayFilter": "DisplaySellingOrders", "orderGroup": "Historical"})
+                        try:
+                            _wpend = eld_client.get_pending_sum()
+                        except Exception:
+                            _wpend = eld_client._req("GET", "/orders/me/pendingOrdersSum")
                         st.session_state._eldo_wallet = {
-                            "payments": (_wp or {}).get("results", []),
+                            "payments": (_wp or {}).get("results", []) if isinstance(_wp, dict) else [],
                             "stats": _ws if isinstance(_ws, dict) else {},
                             "historical": _wh if isinstance(_wh, dict) else {},
                             "pending": _wpend if isinstance(_wpend, dict) else {},

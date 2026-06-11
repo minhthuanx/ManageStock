@@ -470,11 +470,15 @@ def parse_json_import(json_str: str) -> list:
                 "Số Trait": str(len(item.get("traits", []))) if item.get("traits") else "None",
                 "NameStock": "",
                 "_ok": True,
+                "_raw": item,  # Giữ toàn bộ item gốc để dùng cho Eldorado listing
             })
         
         return results
     except (json.JSONDecodeError, ValueError) as e:
         return []
+
+
+
 
 
 
@@ -497,6 +501,135 @@ def build_pet_namestock_map() -> dict:
         except Exception:
             pass
     return pet_ns_map
+
+
+# =============================================================================
+# ELDORADO SERVER HELPERS
+# =============================================================================
+def get_eldo_port() -> int:
+    """Đọc port của Express server từ file port.txt hoặc st.secrets."""
+    # 1. Ưu tiên st.secrets
+    try:
+        port_secret = st.secrets.get("ELDO_PORT", None)
+        if port_secret:
+            return int(port_secret)
+    except Exception:
+        pass
+    # 2. Đọc từ file port.txt mà server.js ghi ra
+    import os as _os
+    appdata = _os.environ.get("APPDATA") or _os.environ.get("HOME") or "."
+    port_file = _os.path.join(appdata, "bkshub-eldorado", "port.txt")
+    try:
+        if _os.path.exists(port_file):
+            with open(port_file, "r") as f:
+                return int(f.read().strip())
+    except Exception:
+        pass
+    return 0
+
+
+def call_eldo_autolist(items: list, price_map: dict, description: str = "", delivery: str = "Minute20") -> dict | None:
+    """
+    Gọi POST /eldorado/api/autolist trên Express server để list pet lên Eldorado.
+    
+    items: list các dict từ JSON game gốc (có name, rarity, mutation, gen_value, gen_text, ms_range, ...)
+    price_map: dict { index_trong_items → price_usd } — giá USD cho từng item theo vị trí trong list
+    description: shop description
+    delivery: delivery method
+    
+    Returns dict response từ server, hoặc None nếu không connect được.
+    """
+    import requests as _req
+    port = get_eldo_port()
+    if not port:
+        return None
+
+    # Inject giá trực tiếp vào field _price của từng item
+    items_with_price = []
+    for i, item in enumerate(items):
+        it = dict(item)
+        price = price_map.get(i, 0)
+        if price > 0:
+            it["_price"] = float(price)
+        items_with_price.append(it)
+
+    payload = {
+        "items":         items_with_price,
+        "price_map":     {},       # trống vì đã inject _price vào từng item
+        "default_price": 0,
+        "delivery":      delivery,
+        "description":   description or "Fast delivery! Contact me if any issues.",
+        "auto_image":    False,
+        "quantity":      1,
+    }
+    try:
+        url = f"http://127.0.0.1:{port}/eldorado/api/autolist"
+        resp = _req.post(url, json=payload, timeout=120)
+        return resp.json()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+
+def check_eldo_status() -> dict:
+    """Kiểm tra trạng thái kết nối Eldorado. Trả về {'ok': bool, 'username': str}."""
+    import requests as _req
+    port = get_eldo_port()
+    if not port:
+        return {"ok": False, "error": "Không tìm thấy port server"}
+    try:
+        resp = _req.get(f"http://127.0.0.1:{port}/eldorado/api/status", timeout=5)
+        return resp.json()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def call_eldo_connect(cookies: str, user_agent: str = "") -> dict:
+    """
+    Đăng nhập Eldorado qua POST /eldorado/api/connect.
+    cookies: chuỗi cookie đầy đủ từ browser (copy từ DevTools → Network)
+    """
+    import requests as _req
+    port = get_eldo_port()
+    if not port:
+        return {"ok": False, "error": "Không tìm thấy port server. Mở app Electron trước."}
+    try:
+        payload = {"cookies": cookies.strip()}
+        if user_agent.strip():
+            payload["userAgent"] = user_agent.strip()
+        resp = _req.post(f"http://127.0.0.1:{port}/eldorado/api/connect", json=payload, timeout=15)
+        return resp.json()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def call_eldo_disconnect() -> dict:
+    """Đăng xuất Eldorado qua POST /eldorado/api/disconnect."""
+    import requests as _req
+    port = get_eldo_port()
+    if not port:
+        return {"ok": False, "error": "Không tìm thấy port server"}
+    try:
+        resp = _req.post(f"http://127.0.0.1:{port}/eldorado/api/disconnect", json={}, timeout=8)
+        return resp.json()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def call_eldo_refresh() -> dict:
+    """Refresh Eldorado token qua POST /eldorado/api/refresh."""
+    import requests as _req
+    port = get_eldo_port()
+    if not port:
+        return {"ok": False, "error": "Không tìm thấy port server"}
+    try:
+        resp = _req.post(f"http://127.0.0.1:{port}/eldorado/api/refresh", json={}, timeout=15)
+        return resp.json()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+
 
 
 def fmt_vnd(v: float) -> str:
@@ -2412,6 +2545,117 @@ Return ONLY valid JSON, no markdown:
                             "_valid":    r_delete or len(err_row) == 0,
                         })
 
+                    # ══════════════════════════════════════════════════════
+                    # ── LIST LÊN ELDORADO ──
+                    # ══════════════════════════════════════════════════════
+                    st.markdown("---")
+
+                    # Kiểm tra server
+                    _eldo_port = get_eldo_port()
+
+                    # Toggle: có muốn list lên Eldorado không?
+                    _do_list = st.toggle(
+                        "🛒 Đồng thời list lên Eldorado",
+                        value=st.session_state.get("json_do_list", False),
+                        key="json_do_list_toggle",
+                        help="Sau khi lưu DB, tự động tạo listing trên Eldorado.gg cho các pet hợp lệ",
+                    )
+                    st.session_state["json_do_list"] = _do_list
+
+                    # Nếu bật listing: hiện UI nhập giá + kiểm tra kết nối
+                    _list_items_indexed = []  # list (original_index, raw_item)
+                    _price_map = {}           # { original_index → price }
+
+                    if _do_list:
+                        if not _eldo_port:
+                            st.warning(
+                                "⚠️ Chưa phát hiện Express server đang chạy.\n\n"
+                                "Mở app từ Electron để kết nối, hoặc thêm `ELDO_PORT` vào `.streamlit/secrets.toml`.",
+                                icon="⚡",
+                            )
+                        else:
+                            # Kiểm tra kết nối Eldorado một lần (cache trong session)
+                            _eldo_conn = st.session_state.get("_eldo_conn_cache", None)
+                            if _eldo_conn is None:
+                                _eldo_conn = check_eldo_status()
+                                st.session_state["_eldo_conn_cache"] = _eldo_conn
+
+                            if not _eldo_conn.get("ok"):
+                                st.warning(
+                                    f"⚠️ Eldorado chưa đăng nhập — {_eldo_conn.get('error', 'Chưa kết nối')}.\n\n"
+                                    "Kết nối cookies trong tab Eldorado Manager trước. Vẫn có thể **chỉ lưu DB** nếu tắt toggle.",
+                                    icon="🔑",
+                                )
+                            else:
+                                st.success(
+                                    f"✅ Eldorado: **{_eldo_conn.get('username', '?')}** — Sẵn sàng list",
+                                    icon="🛒",
+                                )
+
+                            st.markdown(
+                                '<div style="font-size:0.8rem;color:#9d8fbf;margin-bottom:4px;">'
+                                '💲 Nhập giá ($) cho từng pet (bỏ trống hoặc 0 để bỏ qua listing con đó)'
+                                '</div>',
+                                unsafe_allow_html=True,
+                            )
+
+                            # Đếm index thực trong json_results (không đếm deleted)
+                            _orig_idx = 0
+                            for i, res in enumerate(json_results):
+                                _raw = res.get("_raw", {})
+                                if not _raw:
+                                    _orig_idx += 1
+                                    continue
+
+                                # Tham chiếu tới edited_row tương ứng
+                                _erow = edited_rows[i] if i < len(edited_rows) else {}
+                                if _erow.get("_delete"):
+                                    _orig_idx += 1
+                                    continue
+                                if not _erow.get("_valid", False):
+                                    _orig_idx += 1
+                                    continue
+
+                                _pet_label = f"{_erow.get('Tên Pet','?')} · {_erow.get('Mutation','?')} · {_raw.get('gen_text','?')}"
+                                _pc1, _pc2 = st.columns([3, 1])
+                                _pc1.caption(_pet_label)
+                                _price_val = _pc2.number_input(
+                                    "Giá $",
+                                    min_value=0.0,
+                                    step=0.01,
+                                    format="%.2f",
+                                    key=f"eldo_price_{i}",
+                                    label_visibility="collapsed",
+                                )
+                                if _price_val > 0:
+                                    _price_map[_orig_idx] = float(_price_val)
+                                    _list_items_indexed.append((_orig_idx, _raw))
+                                _orig_idx += 1
+
+                            if _list_items_indexed:
+                                st.info(
+                                    f"📋 Sẽ list **{len(_list_items_indexed)}** pet lên Eldorado · "
+                                    f"Giá từ **${min(_price_map.values()):.2f}** đến **${max(_price_map.values()):.2f}**",
+                                )
+                            else:
+                                st.caption("Nhập giá ít nhất 1 pet để bật listing.")
+
+                    # ── SHOP DESCRIPTION (optional, collapsed) ──
+                    _shop_desc_val = st.session_state.get("_shop_desc", "")
+                    if _do_list and _eldo_port:
+                        with st.expander("📝 Shop description (tùy chọn)", expanded=False):
+                            _custom_desc = st.text_area(
+                                "Mô tả listing",
+                                value=_shop_desc_val[:500] if _shop_desc_val else "",
+                                height=80,
+                                key="json_eldo_desc",
+                                label_visibility="collapsed",
+                                placeholder="Fast delivery! Contact me if any issues.",
+                            )
+                    else:
+                        _custom_desc = _shop_desc_val
+
+                    # ── NÚT HỦY + LƯU ──
                     st.markdown("---")
                     col_cancel, col_save = st.columns([1, 2])
                     with col_cancel:
@@ -2423,7 +2667,11 @@ Return ONLY valid JSON, no markdown:
 
                     with col_save:
                         valid_count = sum(1 for r in edited_rows if r["_valid"])
-                        save_label = f"Lưu {valid_count} / {len(edited_rows)} mục hợp lệ"
+                        _list_count = len(_list_items_indexed) if _do_list else 0
+                        if _do_list and _list_count > 0:
+                            save_label = f"Lưu {valid_count} mục + List {_list_count} lên Eldorado"
+                        else:
+                            save_label = f"Lưu {valid_count} / {len(edited_rows)} mục hợp lệ"
                         if st.button(save_label, type="primary", use_container_width=True, disabled=valid_count == 0):
                             saved = 0
                             current_df = st.session_state.df
@@ -2474,9 +2722,9 @@ Return ONLY valid JSON, no markdown:
                                 sb_records_to_insert.append(_db_row)
                                 saved += 1
 
-                            # Toàn bộ I/O nằm trong spinner
+                            # ── BƯỚC 1: LƯU DATABASE (giữ nguyên logic cũ) ──
                             _save_ok = False
-                            with st.spinner(f"Đang lưu {saved} mục..."):
+                            with st.spinner(f"Đang lưu {saved} mục vào database..."):
                                 sb_ok = True
                                 
                                 # Insert mới
@@ -2492,14 +2740,61 @@ Return ONLY valid JSON, no markdown:
                                         current_df = apply_ngay_ton(current_df)
                                         st.session_state.df = current_df
                                     save_csv(st.session_state.df, DB_FILE)
-                                    st.session_state.json_show_dialog = False
-                                    st.session_state.json_batch_results = []
-                                    st.session_state.json_import_expander = False
                                     _save_ok = True
 
                             if _save_ok:
                                 st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
+
+                                # ── BƯỚC 2: LIST LÊN ELDORADO (nếu được bật) ──
+                                if _do_list and _list_items_indexed and _eldo_port:
+                                    _list_raw_items = [item for _, item in _list_items_indexed]
+                                    # Re-map price_map theo vị trí thực trong _list_raw_items
+                                    _remapped_price = {
+                                        j: _price_map[orig_idx]
+                                        for j, (orig_idx, _) in enumerate(_list_items_indexed)
+                                    }
+                                    with st.spinner(f"🛒 Đang list {len(_list_raw_items)} pet lên Eldorado..."):
+                                        _eldo_resp = call_eldo_autolist(
+                                            items=_list_raw_items,
+                                            price_map=_remapped_price,
+                                            description=_custom_desc or _shop_desc_val,
+                                        )
+
+                                    if _eldo_resp is None:
+                                        st.warning("⚠️ Không thể kết nối Express server để list lên Eldorado. DB đã được lưu.")
+                                    elif _eldo_resp.get("ok"):
+                                        _created  = _eldo_resp.get("created", 0)
+                                        _failed   = _eldo_resp.get("failed", 0)
+                                        _skipped  = _eldo_resp.get("skipped", 0)
+                                        _errors   = _eldo_resp.get("errors", [])
+                                        if _created > 0:
+                                            st.success(
+                                                f"🎉 **Đã list {_created} pet lên Eldorado!**"
+                                                + (f"  ·  {_failed} thất bại" if _failed else "")
+                                                + (f"  ·  {_skipped} bỏ qua" if _skipped else ""),
+                                                icon="✅",
+                                            )
+                                        else:
+                                            st.warning(
+                                                f"⚠️ Không có pet nào được list thành công. "
+                                                f"Failed: {_failed}, Skipped: {_skipped}",
+                                            )
+                                        if _errors:
+                                            with st.expander(f"🔍 Chi tiết lỗi ({len(_errors)} mục)", expanded=False):
+                                                for _err in _errors:
+                                                    st.caption(f"• {_err}")
+                                    else:
+                                        _err_msg = _eldo_resp.get("error", "Unknown error")
+                                        st.error(f"❌ Eldorado listing lỗi: {_err_msg}. DB đã được lưu.")
+                                        # Xóa cache kết nối để check lại lần sau
+                                        st.session_state.pop("_eldo_conn_cache", None)
+
+                                # Đóng dialog sau khi xong
+                                st.session_state.json_show_dialog = False
+                                st.session_state.json_batch_results = []
+                                st.session_state.json_import_expander = False
                                 st.rerun()
+
 
                 json_preview_dialog()
 
@@ -5566,8 +5861,120 @@ with tab_pack:
     # TAB 5: CÀI ĐẶT (Chỉ danh mục)
     # ─────────────────────────────────────────────────────────────────────────────
 with tab_settings:
+    # ══════════════════════════════════════════════════════════════════════
+    # ELDORADO ACCOUNT — Đăng nhập / Kết nối
+    # ══════════════════════════════════════════════════════════════════════
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🛒 Kết Nối Eldorado</div>', unsafe_allow_html=True)
+
+        _ep = get_eldo_port()
+
+        if not _ep:
+            st.warning(
+                "⚡ Chưa phát hiện Electron server đang chạy. "
+                "Mở app từ Electron trước, hoặc cấu hình `ELDO_PORT` trong `.streamlit/secrets.toml`.",
+                icon="⚡",
+            )
+        else:
+            # ── Trạng thái hiện tại ──
+            _es = check_eldo_status()
+            _is_connected = _es.get("ok", False)
+
+            _sc1, _sc2, _sc3 = st.columns([2, 1, 1])
+
+            if _is_connected:
+                _username = _es.get("username") or "?"
+                _feedback = _es.get("feedback", 0)
+                _pos      = _es.get("pos", 0)
+                _neg      = _es.get("neg", 0)
+                _avatar   = _es.get("avatar", "")
+
+                _sc1.success(f"✅ Đã kết nối: **{_username}**  ·  ⭐ {_pos}▲ / {_neg}▼", icon="🛒")
+
+                if _sc2.button("🔄 Refresh Token", use_container_width=True, key="btn_eldo_refresh"):
+                    with st.spinner("Đang refresh..."):
+                        _rr = call_eldo_refresh()
+                    if _rr.get("ok"):
+                        st.toast(f"✅ Token đã refresh — {_rr.get('username', '')}", icon="🔄")
+                        st.session_state.pop("_eldo_conn_cache", None)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Refresh thất bại: {_rr.get('error', 'Unknown')}")
+
+                if _sc3.button("🔌 Ngắt kết nối", use_container_width=True, key="btn_eldo_disconnect"):
+                    with st.spinner("Đang ngắt kết nối..."):
+                        _dr = call_eldo_disconnect()
+                    st.toast("🔌 Đã ngắt kết nối Eldorado", icon="🔌")
+                    st.session_state.pop("_eldo_conn_cache", None)
+                    st.rerun()
+            else:
+                _err_msg = _es.get("error", "Chưa đăng nhập")
+                _sc1.warning(f"⚠️ Chưa kết nối — {_err_msg}", icon="🔑")
+
+            st.markdown("---")
+
+            # ── Form đăng nhập ──
+            st.markdown(
+                '<div style="font-size:0.85rem;font-weight:600;color:#c084fc;margin-bottom:0.4rem;">'
+                '🔑 Đăng nhập bằng Cookie Eldorado</div>',
+                unsafe_allow_html=True,
+            )
+            st.caption(
+                "Lấy cookie từ browser: mở **eldorado.gg** → F12 → Network → "
+                "click bất kỳ request → Headers → **Cookie** → Copy toàn bộ chuỗi."
+            )
+
+            with st.form("form_eldo_connect", clear_on_submit=False):
+                _cookie_input = st.text_area(
+                    "Cookie string",
+                    height=100,
+                    placeholder="__Host-EldoradoIdToken=eyJ...; __Host-XSRF-TOKEN=abc...; cf_clearance=xyz...",
+                    label_visibility="collapsed",
+                    key="eldo_cookie_input",
+                )
+                _ua_input = st.text_input(
+                    "User-Agent (tùy chọn)",
+                    placeholder="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36...",
+                    label_visibility="collapsed",
+                    key="eldo_ua_input",
+                    help="Để trống nếu không cần. Lấy từ DevTools: navigator.userAgent",
+                )
+                _conn_btn = st.form_submit_button(
+                    "🔐 Kết nối Eldorado",
+                    type="primary",
+                    use_container_width=True,
+                    disabled=not _ep,
+                )
+
+            if _conn_btn:
+                if not _cookie_input.strip():
+                    st.error("❌ Vui lòng nhập cookie string.")
+                elif len(_cookie_input.strip()) < 100:
+                    st.warning("⚠️ Cookie string có vẻ quá ngắn. Hãy copy toàn bộ Cookie header.")
+                else:
+                    with st.spinner("Đang kết nối Eldorado..."):
+                        _cr = call_eldo_connect(_cookie_input.strip(), _ua_input.strip())
+                    if _cr.get("ok"):
+                        _uname = _cr.get("username", "?")
+                        st.success(f"🎉 Kết nối thành công! Tài khoản: **{_uname}**", icon="✅")
+                        st.session_state.pop("_eldo_conn_cache", None)
+                        st.rerun()
+                    else:
+                        _cerr = _cr.get("error", "Unknown error")
+                        st.error(
+                            f"❌ Kết nối thất bại: {_cerr}\n\n"
+                            "**Kiểm tra lại:**\n"
+                            "- Cookie còn hạn không? Thử đăng nhập lại eldorado.gg rồi copy cookie mới.\n"
+                            "- Cookie có đủ dài không (>3000 ký tự)?\n"
+                            "- `__Host-EldoradoIdToken` và `__Host-XSRF-TOKEN` có trong cookie không?"
+                        )
+
+    # ══════════════════════════════════════════════════════════════════════
+    # QUẢN LÝ DANH MỤC
+    # ══════════════════════════════════════════════════════════════════════
     with st.container(border=True):
         st.markdown('<div class="sec-heading">Quản Lý Danh Mục</div>', unsafe_allow_html=True)
+
 
         cat_cols = st.columns(3)
 

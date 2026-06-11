@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual env
+venv/
+.venv/
+env/
+
+# Secrets & session (NEVER commit)
+.eldorado_cookies.enc
+.eldorado_key
+.env
+
+# Supabase secrets
+.secrets/
+.streamlit/secrets.toml
+
+# Node.js
+node_modules/
+package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Temp
+*.tmp
+*.bak
+backups/
+test_brackets.py

@@ -470,6 +470,7 @@ def parse_json_import(json_str: str) -> list:
                 "Số Trait": str(len(item.get("traits", []))) if item.get("traits") else "None",
                 "NameStock": "",
                 "_ok": True,
+                "_original_json": item,
             })
         
         return results
@@ -2254,6 +2255,13 @@ Return ONLY valid JSON, no markdown:
                         st.session_state.json_show_dialog = True
                         st.rerun()
 
+                if st.session_state.get("json_saved_output"):
+                    st.success("🎉 Đã lọc các pet được lưu thành công!")
+                    st.code(st.session_state.json_saved_output, language="json")
+                    if st.button("Xóa kết quả này"):
+                        st.session_state.json_saved_output = ""
+                        st.rerun()
+
             # =========================================================
             # JSON DIALOG PREVIEW + EDIT
             # =========================================================
@@ -2430,14 +2438,18 @@ Return ONLY valid JSON, no markdown:
                             sb_records_to_insert = []
                             _ts_batch   = now_iso()
                             _ngay_batch = now_str()
+                            saved_original_json = []
 
-                            for r in edited_rows:
+                            for i, r in enumerate(edited_rows):
                                 if not r["_valid"]:
                                     continue
                                 
                                 # ── BỎ QUA NẾU TICK XOÁ (Không thêm vào, không xoá DB) ──
                                 if r["_delete"]:
                                     continue
+                                
+                                if "_original_json" in json_results[i]:
+                                    saved_original_json.append(json_results[i]["_original_json"])
                                 
                                 # ── THÊM MỚI ──
                                 existing_lower = [x.lower() for x in get_name_options(pet_db)]
@@ -2498,6 +2510,7 @@ Return ONLY valid JSON, no markdown:
                                     _save_ok = True
 
                             if _save_ok:
+                                st.session_state.json_saved_output = json.dumps(saved_original_json, ensure_ascii=False, separators=(',', ':'))
                                 st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
                                 st.rerun()
 

@@ -1,920 +1,6728 @@
-"""
-Eldorado.gg API Client — pure Python (no JS server dependency).
-Manages cookie auth, listing CRUD, image upload for "Steal a Brainrot" (game 259).
-"""
-
 import json
 import os
 import re
-import time
-import uuid
-from pathlib import Path
-from urllib.parse import urlencode
+import shutil
+import time as _time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone, timedelta
 
-import requests as _requests
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+import streamlit as st
 
-# ─── Constants ───────────────────────────────────────────────────────────────
+try:
+    from st_aggrid import AgGrid, GridOptionsBuilder, ColumnsAutoSizeMode, GridUpdateMode, JsCode
+    _HAS_AGGRID = True
+except ImportError:
+    _HAS_AGGRID = False
 
-BASE = "https://www.eldorado.gg/api"
-GAME_ID = "259"
-CATEGORY = "CustomItem"
+# --- SUPABASE ---
+from supabase import create_client, Client
 
-COOKIE_FILE = ".eldorado_cookies.enc"
-VAULT_KEY_FILE = ".eldorado_key"
+# --- ELDORADO ---
+try:
+    from eldorado_client import EldoradoClient, DELIVERY_MAP, DELIVERY_REV, COOKIE_FILE
+    _HAS_ELDORADO = True
+except ImportError:
+    _HAS_ELDORADO = False
 
-DELIVERY_MAP = {
-    "5 min": "Minute5",
-    "10 min": "Minute10",
-    "20 min": "Minute20",
-    "30 min": "Minute30",
-    "1 hour": "Hour1",
-    "2 hours": "Hour2",
-    "4 hours": "Hour4",
-    "8 hours": "Hour8",
-    "12 hours": "Hour12",
-    "24 hours": "Hour24",
-}
-DELIVERY_REV = {v: k for k, v in DELIVERY_MAP.items()}
-
-MUTATION_EMOJI = {
-    "cursed": "\U0001f52e",
-    "divine": "✨",
-    "gold": "⭐",
-    "diamond": "\U0001f48e",
-    "bloodrot": "\U0001fa78",
-    "candy": "\U0001f36c",
-    "lava": "\U0001f30b",
-    "galaxy": "\U0001f30c",
-    "yin-yang": "☯️",
-    "radioactive": "☢️",
-    "rainbow": "\U0001f308",
-    "celestial": "\U0001f31f",
-    "frozen": "❄️",
-    "shadow": "\U0001f311",
-    "blazing": "\U0001f525",
-    "toxic": "☠️",
-    "electric": "⚡",
-    "void": "\U0001f573️",
-    "phantom": "\U0001f47b",
-    "cyber": "\U0001f916",
-}
-ZAP = "⚡"
-
-UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/130.0.0.0 Safari/537.36"
+# =============================================================================
+# PAGE CONFIG (must be first Streamlit call)
+# =============================================================================
+st.set_page_config(
+    page_title="Management Dashboard",
+    page_icon="👻",
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
-HEADERS_BASE = {
-    "User-Agent": UA,
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Content-Type": "application/json",
-    "Origin": "https://www.eldorado.gg",
-    "Referer": "https://www.eldorado.gg/",
+# =============================================================================
+# TIMEZONE VN
+# =============================================================================
+VN_TZ = timezone(timedelta(hours=7))
+
+def now_vn() -> datetime:
+    return datetime.now(VN_TZ)
+
+def now_str() -> str:
+    return now_vn().strftime("%d/%m/%Y %H:%M")
+
+def now_iso() -> str:
+    return now_vn().isoformat()
+
+# =============================================================================
+# SUPABASE INIT
+# =============================================================================
+supabase_client: Client | None = None
+USE_SUPABASE = False
+
+@st.cache_resource(show_spinner=False)
+def _get_supabase() -> tuple["Client | None", bool]:
+    """Tạo và cache Supabase client – tránh kết nối lại mỗi lần rerun."""
+    try:
+        if "SUPABASE_URL" in st.secrets and "SUPABASE_KEY" in st.secrets:
+            url = st.secrets["SUPABASE_URL"]
+            key = st.secrets["SUPABASE_KEY"]
+        elif "supabase" in st.secrets:
+            url = st.secrets["supabase"]["url"]
+            key = st.secrets["supabase"]["key"]
+        else:
+            return None, False
+        return create_client(url, key), True
+    except Exception as e:
+        st.toast(f"⚠️ Không thể kết nối Supabase: {e}", icon="⚠️")
+        return None, False
+
+def _init_supabase():
+    global supabase_client, USE_SUPABASE
+    supabase_client, USE_SUPABASE = _get_supabase()
+
+_init_supabase()
+
+# =============================================================================
+# COLUMN MAPPING (Python display name → Supabase snake_case)
+# =============================================================================
+COL_MAP = {
+    "STT":           "stt",
+    "Tên Pet":       "ten_pet",
+    "M/s":           "ms",
+    "Mutation":      "mutation",
+    "Số Trait":      "so_trait",
+    "NameStock":     "namestock",
+    "Giá Nhập":      "gia_nhap",
+    "Giá Bán":       "gia_ban",
+    "Lợi Nhuận":     "loi_nhuan",
+    "Doanh Thu":     "doanh_thu",
+    "Ngày Nhập":     "ngay_nhap",
+    "Ngày Bán":      "ngay_ban",
+    "Auto Title":    "auto_title",
+    "Trạng Thái":    "trang_thai",
+    "time_nhap":     "time_nhap",
+    "time_ban":      "time_ban",
+    "Ngày Tồn":      "ngay_ton",
+    "Place":         "place",
+    # bulk
+    "ID":                   "id",
+    "Tên Lô":               "ten_lo",
+    "Số Lượng Gốc":         "so_luong_goc",
+    "Còn Lại":              "con_lai",
+    "Giá Nhập Tổng":        "gia_nhap_tong",
+    "Doanh Thu Tích Lũy":   "doanh_thu_tich_luy",
+    "Số Lượng Bán":         "so_luong_ban",
+    "Lợi Nhuận Giao Dịch":  "loi_nhuan_giao_dich",
+    "Doanh Thu Giao Dịch":  "doanh_thu_giao_dich",
+    # NOTE: Không thêm "id": "id" ở đây vì sẽ gây collision với "ID": "id"
+    # và làm hỏng REVERSE_MAP cho bulk_inventory (ID=0 toàn bộ)
+}
+REVERSE_MAP = {v: k for k, v in COL_MAP.items()}
+
+def to_db(record: dict) -> dict:
+    """Convert display-name dict → snake_case for Supabase."""
+    out = {}
+    for k, v in record.items():
+        if k == "index":
+            continue
+        mapped = COL_MAP.get(k, k.lower().replace(" ", "_").replace("/", "_"))
+        # convert NaN / None safely
+        if isinstance(v, float) and pd.isna(v):
+            v = None
+        # Xử lý lỗi Supabase khi truyền chuỗi rỗng/None/nan vào cột Timestamp
+        if mapped in ("time_nhap", "time_ban"):
+            if not v or str(v).strip() in ("", "None", "nan", "NaT", "null", "-"):
+                v = None
+        # Đảm bảo id/ngay_ton luôn là int (Supabase integer/bigint từ chối float như 1.0)
+        if mapped in ("id", "ngay_ton") and v is not None:
+            try:
+                v = int(float(v))
+            except (ValueError, TypeError):
+                v = None
+        out[mapped] = v
+    return out
+
+def from_db(df: pd.DataFrame) -> pd.DataFrame:
+    """Rename snake_case columns → display names."""
+    return df.rename(columns=REVERSE_MAP)
+
+# =============================================================================
+# SUPABASE CRUD
+# =============================================================================
+def sb_insert(table: str, data: dict) -> bool:
+    if not USE_SUPABASE:
+        return False
+    try:
+        r = supabase_client.table(table).insert(data).execute()
+        return bool(r.data)
+    except Exception as e:
+        st.toast(f"❌ Insert {table}: {e}", icon="❌")
+        return False
+
+def sb_insert_returning(table: str, data: dict) -> dict | None:
+    """Insert and return the inserted row (with auto-generated id). Returns None on failure."""
+    if not USE_SUPABASE:
+        return None
+    try:
+        r = supabase_client.table(table).insert(data).execute()
+        return r.data[0] if r.data else None
+    except Exception as e:
+        st.toast(f"❌ Insert {table}: {e}", icon="❌")
+        return None
+
+def sb_insert_batch(table: str, records: list[dict]) -> bool:
+    """Insert nhiều records trong 1 request duy nhất – nhanh hơn gọi sb_insert() nhiều lần."""
+    if not USE_SUPABASE or not records:
+        return False
+    try:
+        r = supabase_client.table(table).insert(records).execute()
+        return bool(r.data)
+    except Exception as e:
+        st.toast(f"❌ Batch insert {table}: {e}", icon="❌")
+        return False
+
+def sb_update(table: str, data: dict, col: str, val) -> bool:
+    if not USE_SUPABASE:
+        return False
+    try:
+        r = supabase_client.table(table).update(data).eq(col, val).execute()
+        return bool(r.data)
+    except Exception as e:
+        st.toast(f"❌ Update {table}: {e}", icon="❌")
+        return False
+
+def sb_delete(table: str, col: str, val) -> bool:
+    if not USE_SUPABASE:
+        return False
+    try:
+        supabase_client.table(table).delete().eq(col, val).execute()
+        return True
+    except Exception as e:
+        st.toast(f"❌ Delete {table}: {e}", icon="❌")
+        return False
+
+def sb_select(table: str, order: str = "stt") -> pd.DataFrame:
+    if not USE_SUPABASE:
+        return pd.DataFrame()
+    try:
+        r = supabase_client.table(table).select("*").order(order).limit(-1).execute()
+        if r.data:
+            return from_db(pd.DataFrame(r.data))
+        return pd.DataFrame()
+    except Exception as e:
+        st.toast(f"❌ Select {table}: {e}", icon="❌")
+        return pd.DataFrame()
+
+def sb_upsert(table: str, records: list[dict], on_conflict: str = None) -> bool:
+    if not USE_SUPABASE or not records:
+        return False
+    try:
+        if on_conflict:
+            supabase_client.table(table).upsert(records, on_conflict=on_conflict).execute()
+        else:
+            supabase_client.table(table).upsert(records).execute()
+        return True
+    except Exception as e:
+        st.toast(f"❌ Upsert {table}: {e}", icon="❌")
+        return False
+
+def find_duplicates(table: str) -> pd.DataFrame:
+    """Trả về DataFrame các row bị dup hoàn toàn (trừ id) để user xem trước.”"""
+    if not USE_SUPABASE:
+        return pd.DataFrame()
+    try:
+        r = supabase_client.table(table).select("*").limit(-1).execute()
+        if not r.data:
+            return pd.DataFrame()
+        df = pd.DataFrame(r.data)
+        data_cols = [c for c in df.columns if c != "id"]
+        if not data_cols:
+            return pd.DataFrame()
+        return df[df.duplicated(subset=data_cols, keep=False)].sort_values(data_cols)
+    except Exception as e:
+        st.toast(f"❌ find_duplicates {table}: {e}", icon="❌")
+        return pd.DataFrame()
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+DB_FILE       = "inventory.csv"
+BULK_FILE     = "bulk_inventory.csv"
+BULK_HISTORY  = "bulk_history.csv"
+PET_LIST_FILE = "pet_list.csv"
+NS_LIST_FILE  = "namestock_list.csv"
+TRAIT_LIST    = "traits_list.csv"
+OWNER_NS_FILE = "owner_namestock.txt"  # Format: username:NameStock per line
+BACKUP_DIR    = "backups"
+EXCHANGE_RATE = 20400
+
+MAIN_SCHEMA = {
+    "STT":         0,
+    "id":          0,
+    "Tên Pet":     "",
+    "M/s":         0.0,
+    "Mutation":    "Normal",
+    "Số Trait":    "None",
+    "NameStock":   "",
+    "Giá Nhập":    0.0,
+    "Giá Bán":     0.0,
+    "Lợi Nhuận":   0.0,
+    "Doanh Thu":   0.0,
+    "Ngày Nhập":   "",
+    "Ngày Bán":    "-",
+    "Auto Title":  "",
+    "Trạng Thái":  "Còn hàng",
+    "time_nhap":   "",
+    "time_ban":    "",
+    "Ngày Tồn":    0,
+    "Place":       "",
 }
 
-# MS bracket mapping (mirrors server.js genToMs fallback, thresholds in RAW units)
-_MS_BRACKETS = [
-    (20_000_000_000, "20-plus-bs"),   # 20B
-    (10_000_000_000, "10-1999-bs"),   # 10B
-    (5_000_000_000, "5-999-bs"),      # 5B
-    (1_000_000_000, "1-499-bs"),      # 1B
-    (750_000_000, "750-99999-ms"),    # 750M
-    (500_000_000, "500-74999-ms"),    # 500M
-    (250_000_000, "250-49999-ms"),    # 250M
-    (100_000_000, "100-24999-ms"),    # 100M
-    (50_000_000, "50-9999-ms"),       # 50M
-    (25_000_000, "25-4999-ms"),       # 25M
-    (1_000_000, "1-2499-ms"),         # 1M
-    (1_000, "0-99999-ks"),            # 1K
+BULK_SCHEMA = {
+    "ID":                  0,
+    "Tên Lô":              "",
+    "Số Lượng Gốc":        0,
+    "Còn Lại":             0,
+    "Ngày Nhập":           "",
+    "Giá Nhập Tổng":       0.0,
+    "Doanh Thu Tích Lũy":  0.0,
+    "Lợi Nhuận":           0.0,
+    "Trạng Thái":          "Available",
+    "Auto Title":          "",
+    "NameStock":           "",
+}
+
+HISTORY_SCHEMA = {
+    "Ngày Bán":             "",
+    "Tên Lô":               "",
+    "Số Lượng Bán":         0,
+    "Lợi Nhuận Giao Dịch":  0.0,
+    "Doanh Thu Giao Dịch":  0.0,
+}
+
+LIST_SCHEMA = {"Name": ""}
+
+MUTATION_OPTIONS = [
+    "Normal", "Gold", "Diamond", "Bloodrot", "Candy",
+    "Divine", "Lava", "Galaxy", "Yin-Yang", "Radioactive",
+    "Cursed", "Rainbow", "Cyber",
 ]
 
+# =============================================================================
+# HELPERS
+# =============================================================================
+def normalize_df(df: pd.DataFrame, schema: dict) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(columns=schema.keys())
+    df = df.dropna(how="all").copy()
+    for col, default in schema.items():
+        if col not in df.columns:
+            df[col] = default
+    df = df[list(schema.keys())]
+    for col, default in schema.items():
+        if isinstance(default, (int, float)):
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(default)
+        else:
+            df[col] = df[col].fillna(default).astype(str)
+    return df
 
-# ─── Vault (AES-256-GCM encryption for cookie persistence) ──────────────────
 
-class Vault:
-    """AES-256-GCM encrypt/decrypt for cookie persistence using pycryptodome."""
-    def __init__(self, key_hex=None):
-        if key_hex is None:
-            key_hex = self._load_or_create_key()
-        self._key = bytes.fromhex(key_hex)
+def load_csv(file: str, schema: dict) -> pd.DataFrame:
+    if not os.path.exists(file):
+        return pd.DataFrame(columns=schema.keys())
+    try:
+        return normalize_df(pd.read_csv(file), schema)
+    except Exception:
+        return pd.DataFrame(columns=schema.keys())
 
-    def _load_or_create_key(self):
-        p = Path(VAULT_KEY_FILE)
-        if p.exists():
-            return p.read_text().strip()
-        import secrets
-        key = secrets.token_hex(32)
-        p.write_text(key)
-        return key
 
-    def seal(self, plaintext):
-        if not plaintext:
-            return b""
-        from Crypto.Cipher import AES
-        nonce = os.urandom(12)
-        cipher = AES.new(self._key, AES.MODE_GCM, nonce=nonce)
-        ct = cipher.encrypt(plaintext.encode())
-        tag = cipher.digest()
-        # Store as: nonce(12) + authTag(16) + ciphertext
-        return nonce + tag + ct
+def save_csv(df: pd.DataFrame, file: str) -> None:
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    ts = now_vn().strftime("%Y%m%d_%H%M%S")
+    bak = os.path.join(BACKUP_DIR, f"{os.path.basename(file)}_{ts}.bak")
+    if os.path.exists(file):
+        shutil.copy2(file, bak)
+        # keep only 10 most recent backups per file
+        existing = sorted([f for f in os.listdir(BACKUP_DIR) if f.startswith(os.path.basename(file))])
+        for old in existing[:-10]:
+            try:
+                os.remove(os.path.join(BACKUP_DIR, old))
+            except Exception:
+                pass
+    tmp = f"{file}.tmp"
+    try:
+        df.to_csv(tmp, index=False, encoding="utf-8-sig")
+        os.replace(tmp, file)
+    except Exception as e:
+        st.toast(f"❌ Lưu CSV lỗi: {e}", icon="❌")
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
-    def open(self, data):
-        if not data:
-            return ""
+
+def next_id(df: pd.DataFrame, col: str) -> int:
+    if df.empty:
+        return 1
+    return int(pd.to_numeric(df[col], errors="coerce").fillna(0).max() + 1)
+
+
+def reindex(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    df = df.reset_index(drop=True).copy()
+    if col in df.columns:
+        df[col] = range(1, len(df) + 1)
+    return df
+
+
+def parse_vnd(s: str) -> float:
+    """Parse giá VNĐ — hỗ trợ shorthand:
+      150k → 150,000 | 1.5tr / 1.5m → 1,500,000 | 2tỷ / 2b → 2,000,000,000
+      Dấu chấm/phẩy phân cách hàng nghìn đều được chấp nhận: 1.500.000 hoặc 1,500,000
+    """
+    raw = str(s).strip().lower().replace(" ", "")
+    if not raw:
+        return 0.0
+    # Xác định hệ số từ suffix
+    multiplier = 1
+    for suffix, mult in [("tỷ", 1_000_000_000), ("b", 1_000_000_000),
+                         ("tr", 1_000_000), ("m", 1_000_000),
+                         ("k", 1_000)]:
+        if raw.endswith(suffix):
+            raw = raw[:-len(suffix)]
+            multiplier = mult
+            break
+    # Nếu có nhiều dấu chấm/phẩy → phân cách hàng nghìn, bỏ hết
+    # Nếu chỉ 1 dấu chấm/phẩy và có chữ số sau → dấu thập phân
+    dot_count   = raw.count(".")
+    comma_count = raw.count(",")
+    if dot_count + comma_count > 1:
+        # Nhiều dấu → separator hàng nghìn, strip hết
+        raw = raw.replace(".", "").replace(",", "")
+    elif comma_count == 1 and dot_count == 0:
+        # Dấu phẩy đơn → thập phân (kiểu VN) hoặc hàng nghìn
+        parts = raw.split(",")
+        if len(parts[1]) == 3 and parts[1].isdigit():
+            # "1,500" → hàng nghìn
+            raw = raw.replace(",", "")
+        else:
+            raw = raw.replace(",", ".")
+    elif dot_count == 1 and comma_count == 0:
+        pass  # Dấu chấm đơn → giữ nguyên làm thập phân
+    else:
+        raw = re.sub(r"[^0-9]", "", raw)
+    try:
+        return float(raw) * multiplier if raw else 0.0
+    except ValueError:
+        return 0.0
+
+
+def parse_usd(s: str) -> float:
+    s_str = str(s).upper()
+    cleaned = re.sub(r"[^0-9.]", "", s_str)
+    try:
+        val = float(cleaned) if cleaned else 0.0
+        if "B" in s_str: # Nếu là Billion thì nhân 1000 để đưa về đơn vị Millions
+            val *= 1000
+        return val
+    except ValueError:
+        return 0.0
+
+
+# =============================================================================
+# JSON IMPORT HELPERS
+# =============================================================================
+@st.cache_data(show_spinner=False)
+def parse_gen_text(gen_text: str) -> float:
+    """Extract M/s value from gen_text field (e.g., '2B/s' → 2000, '675M/s' → 675, '55M/s' → 55)."""
+    if not gen_text:
+        return 0.0
+    try:
+        gen_str = str(gen_text).strip().upper()
+        # Remove spaces and /s suffix
+        gen_str = gen_str.replace(" ", "").replace("/S", "")
+        
+        # Find multiplier
+        multiplier = 1
+        if "B" in gen_str:
+            gen_str = gen_str.replace("B", "")
+            multiplier = 1000
+        elif "M" in gen_str:
+            gen_str = gen_str.replace("M", "")
+            multiplier = 1
+        elif "K" in gen_str:
+            gen_str = gen_str.replace("K", "")
+            multiplier = 0.001
+        
+        value = float(gen_str) if gen_str else 0.0
+        return value * multiplier
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def parse_json_import(json_str: str) -> list:
+    """Parse JSON string and extract pet data. Returns list of dicts with essential fields only.
+    Maps owner → NameStock via _owner_ns_map."""
+    try:
+        data = json.loads(json_str)
+        if not isinstance(data, list):
+            return []
+
+        # Load owner→NameStock mapping
+        _on_map = st.session_state.get("_owner_ns_map", {})
+
+        results = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+
+            pet_name = str(item.get("name", ""))
+            if not pet_name.strip():
+                continue
+
+            # Use gen_value for precise M/s if available
+            gen_val = item.get("gen_value")
+            if gen_val is not None:
+                try:
+                    ms_val = float(gen_val) / 1000000.0
+                    # Nếu >= 1 tỷ (1000M/s) thì lấy theo gen_text
+                    if ms_val >= 1000:
+                        ms_val = parse_gen_text(item.get("gen_text", ""))
+                except:
+                    ms_val = parse_gen_text(item.get("gen_text", ""))
+            else:
+                ms_val = parse_gen_text(item.get("gen_text", ""))
+
+            # Map owner → NameStock
+            _owner = str(item.get("owner", "")).strip()
+            _ns_from_owner = _on_map.get(_owner.lower(), "") if _owner else ""
+
+            results.append({
+                "Tên Pet": pet_name,
+                "Mutation": str(item.get("mutation", "Normal")).strip() or "Normal",
+                "M/s": ms_val,
+                "Số Trait": str(len(item.get("traits", []))) if item.get("traits") else "None",
+                "NameStock": _ns_from_owner,
+                "_ok": True,
+                "_original_json": item,
+            })
+
+        return results
+    except (json.JSONDecodeError, ValueError) as e:
+        return []
+
+
+
+def build_pet_namestock_map() -> dict:
+    """Build mapping of pet names to namestock. Returns dict of {pet_name: [namestock_list]}."""
+    pet_ns_map = {}
+    if not ns_db.empty and not pet_db.empty:
+        # Group by pet name from current inventory to suggest namestock
         try:
-            from Crypto.Cipher import AES
-            nonce = data[:12]
-            tag = data[12:28]
-            ct = data[28:]
-            cipher = AES.new(self._key, AES.MODE_GCM, nonce=nonce)
-            return cipher.decrypt_and_verify(ct, tag).decode()
+            # Tạo map từ dữ liệu hiện tại
+            for _, row in st.session_state.df.iterrows() if hasattr(st.session_state, 'df') and not st.session_state.df.empty else []:
+                pet = str(row.get("Tên Pet", "")).strip()
+                ns = str(row.get("NameStock", "")).strip()
+                if pet and ns:
+                    if pet not in pet_ns_map:
+                        pet_ns_map[pet] = set()
+                    pet_ns_map[pet].add(ns)
+            # Convert sets to lists
+            pet_ns_map = {k: sorted(list(v)) for k, v in pet_ns_map.items()}
         except Exception:
-            return ""
+            pass
+    return pet_ns_map
 
 
-# ─── EldoradoClient ──────────────────────────────────────────────────────────
+def fmt_vnd(v: float) -> str:
+    return f"₫{v:,.0f}"
 
-class EldoradoClient:
-    def __init__(self, log_fn=None):
-        self._vault = Vault()
-        self._log = log_fn or (lambda msg: print(msg))
 
-        # Cookie state
-        self._raw = ""
-        self._xsrf = ""
-        self.device_id = ""
-        self.session_id = ""
-        self._headers = dict(HEADERS_BASE)
+_SEARCH_KEYS = ["sell_search_q", "inv_table_search", "copy_title_search", "bulk_sell_search", "bulk_table_search"]
 
-        # Auth state
-        self.logged_in = False
-        self.username = ""
-        self.userId = ""
-        self.avatar = ""
-        self.feedback = 0
-        self.pos = 0
-        self.neg = 0
-        self.last_auth_error = None
-        self.talk_token = ""
+def _clear_searches():
+    """Bump search version counter → widgets recreate with empty values on next rerun."""
+    st.session_state["_search_ver"] = st.session_state.get("_search_ver", 0) + 1
 
-        # Game cache
-        self._game_cache = {"envs": [], "attrs": [], "loaded": False}
+def _sv() -> str:
+    """Return current search version suffix for widget keys."""
+    return str(st.session_state.get("_search_ver", 0))
 
-        # Session
-        self._session = _requests.Session()
+def fmt_short(v: float) -> str:
+    """Format ₫1.5M style for chart labels."""
+    v = float(v)
+    sign = "-" if v < 0 else ""
+    abs_v = abs(v)
+    if abs_v >= 1_000_000:
+        return f"{sign}₫{abs_v/1_000_000:.3f}M"
+    if abs_v >= 1_000:
+        return f"{sign}₫{abs_v/1_000:.1f}K"
+    return f"{sign}₫{int(abs_v):,}"
 
-        # Load persisted cookies
-        self._load_cookies()
 
-    # ── Cookie handling ──────────────────────────────────────────────────
+def get_name_options(db: pd.DataFrame, fallback: str = "None") -> list:
+    if db.empty:
+        return [fallback]
+    vals = db["Name"].astype(str).str.strip()
+    vals = vals[vals != ""]
+    return vals.drop_duplicates().tolist() or [fallback]
 
-    def set_cookies(self, raw):
-        """Parse raw cookie string. Extract XSRF/session/device. Force USD."""
-        parts = []
-        has_currency = False
-        for piece in raw.split(";"):
-            piece = piece.strip()
-            if "=" not in piece:
-                continue
-            k, _, v = piece.partition("=")
-            k, v = k.strip(), v.strip()
-            if k.lower() == "eldoradogg_currencypreference":
-                parts.append(f"{k}=USD")
-                has_currency = True
-            else:
-                parts.append(f"{k}={v}")
-            if k == "__Host-XSRF-TOKEN":
-                self._xsrf = v
-            elif k == "x-session-id":
-                self.session_id = v
-                self._headers["X-Session-Id"] = v
-            elif k == "x-device-id":
-                self.device_id = v
-        if not has_currency:
-            parts.append("eldoradogg_currencyPreference=USD")
-        self._raw = "; ".join(parts)
-        if self._xsrf:
-            self._headers["X-XSRF-Token"] = self._xsrf
 
-    def _cookies_dict(self):
-        d = {}
-        for piece in self._raw.split(";"):
-            piece = piece.strip()
-            if "=" in piece:
-                k, _, v = piece.partition("=")
-                d[k.strip()] = v.strip()
-        return d
+def append_row(df: pd.DataFrame, row: dict, schema: dict) -> pd.DataFrame:
+    return normalize_df(pd.concat([df, pd.DataFrame([row])], ignore_index=True), schema)
 
-    def save_cookies(self):
-        if self._raw:
-            Path(COOKIE_FILE).write_bytes(self._vault.seal(self._raw))
 
-    def _load_cookies(self):
-        p = Path(COOKIE_FILE)
-        if p.exists():
+# =============================================================================
+# AUTO TITLE
+# =============================================================================
+MUTATION_ICONS = {
+    "gold": "👑", "diamond": "💎", "bloodrot": "🩸", "candy": "🍬",
+    "divine": "✨", "lava": "🌋", "galaxy": "🌌", "yin-yang": "☯️",
+    "radioactive": "☢️", "cursed": "😈", "rainbow": "🌈", "cyber": "🤖",
+}
+
+def _to_vn_iso(ts_str) -> str:
+    """Chuyển timestamp UTC từ Supabase → ISO string giờ VN (+07:00).
+    Supabase timestamptz lưu UTC nội bộ, trả về UTC khi query.
+    Hàm này đảm bảo hiển thị và tính toán luôn dùng giờ VN.
+    """
+    if not ts_str or str(ts_str).strip() in ("", "nan", "None", "null", "-"):
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(ts_str))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(VN_TZ).isoformat()
+    except Exception:
+        return str(ts_str)
+
+
+def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> str:
+    icon = MUTATION_ICONS.get(str(mutation).lower(), "🌟")
+    _t = str(trait_str).strip() if trait_str else ""
+    # Loại bỏ phần text thừa như "Trait"/"Traits" nếu đã dính vào giá trị
+    import re as _re
+    _t = _re.sub(r'\s*[Tt]raits?\s*$', '', _t).strip()
+    if _t and _t.lower() != "none" and _t != "0":
+        _label = "Trait" if _t == "1" else "Traits"
+        t_str = f" [{_t} {_label}]"
+    else:
+        t_str = ""
+    display_ms = f"{ms_value / 1000:g}B/s" if ms_value >= 1000 else f"{ms_value:g}M/s"
+    ns_str = f" {namestock}" if namestock else ""
+    if str(mutation).lower() == "normal" or not mutation:
+        return f"🌸{pet_name} {display_ms}{t_str}🌸Cheapest🚛 Fast Delivery 🚛{ns_str}"
+    return f"🌸{icon}{mutation} {pet_name} {display_ms}{t_str}{icon}🌸Cheapest🚛 Fast Delivery 🚛{ns_str}"
+
+
+# =============================================================================
+# NGÀY TỒN CALCULATION
+# =============================================================================
+def calc_ngay_ton(row) -> float:
+    """
+    - Nếu status = 'Đã bán' và có time_ban + time_nhap: chốt = time_ban - time_nhap
+    - Ngược lại: now_vn() - time_nhap
+    - Fallback: dùng Ngày Nhập (text) nếu time_nhap rỗng
+    - Trả về float (ngày thập phân) để hiển thị giờ/phút chính xác
+    """
+    def _parse_ts(ts_str) -> datetime | None:
+        if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+            return None
+        try:
+            # ISO format from Supabase
+            dt = datetime.fromisoformat(str(ts_str))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=VN_TZ)
+            return dt
+        except Exception:
+            return None
+
+    def _parse_text_date(d_str) -> datetime | None:
+        if not d_str or str(d_str).strip() in ("", "nan", "None", "-"):
+            return None
+        for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y"):
             try:
-                raw = self._vault.open(p.read_bytes())
-                if raw:
-                    self.set_cookies(raw)
+                dt = datetime.strptime(str(d_str).strip(), fmt)
+                return dt.replace(tzinfo=VN_TZ)
             except Exception:
                 pass
+        return None
 
-    # ── Core HTTP ────────────────────────────────────────────────────────
+    status = str(row.get("Trạng Thái", ""))
+    t_nhap = _parse_ts(row.get("time_nhap", "")) or _parse_text_date(row.get("Ngày Nhập", ""))
+    if t_nhap is None:
+        return 0.0
 
-    def _req(self, method, path, *, retries=2, json_data=None, params=None,
-             data=None, extra_headers=None, timeout=30, is_refresh=False):
-        url = path if path.startswith("http") else BASE + path
-        if params:
-            qs = urlencode({k: v for k, v in params.items() if v is not None})
-            url += ("&" if "?" in url else "?") + qs
+    if "Đã bán" in status:
+        t_ban = _parse_ts(row.get("time_ban", "")) or _parse_text_date(row.get("Ngày Bán", ""))
+        if t_ban:
+            return max(0.0, (t_ban - t_nhap).total_seconds() / 86400)
 
-        headers = dict(self._headers)
-        if extra_headers:
-            headers.update(extra_headers)
-        headers["Cookie"] = self._raw
+    return max(0.0, (now_vn() - t_nhap).total_seconds() / 86400)
 
-        kwargs = {"method": method, "url": url, "headers": headers, "timeout": timeout}
-        if json_data is not None:
-            kwargs["json"] = json_data
-        if data is not None:
-            kwargs["data"] = data
 
+def fmt_ngay_ton(v) -> str:
+    """Hiển thị thời gian tồn: phút / giờ / ngày."""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return "-"
+    total_sec = v * 86400
+    if total_sec < 60:
+        return "vừa nhập"
+    total_min = int(total_sec // 60)
+    if total_min < 60:
+        return f"{total_min}p"
+    total_h = total_min // 60
+    rem_min = total_min % 60
+    if total_h < 24:
+        return f"{total_h}g{rem_min}p" if rem_min else f"{total_h}g"
+    days = int(v)
+    rem_h = int((v - days) * 24)
+    return f"{days} ngày {rem_h}g" if rem_h else f"{days} ngày"
+
+
+def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply ngay_ton calculation to all rows."""
+    if df.empty:
+        return df
+    df = df.copy()
+    df["Ngày Tồn"] = df.apply(calc_ngay_ton, axis=1)
+    return df
+
+
+# =============================================================================
+# PAGINATION HELPER - Fetch dữ liệu theo batch để vượt qua giới hạn 1000 rows
+# =============================================================================
+def _fetch_all_with_pagination(table_name: str, order_col: str, batch_size: int = 1000) -> list:
+    """Fetch toàn bộ dữ liệu từ table bằng pagination, vượt qua giới hạn 1000 rows của Supabase.
+    Args:
+        table_name: Tên bảng trong Supabase
+        order_col: Cột để sắp xếp dữ liệu
+        batch_size: Số hàng fetch mỗi lần (mặc định 1000)
+    Returns:
+        List toàn bộ dữ liệu từ table
+    """
+    if not USE_SUPABASE or not supabase_client:
+        return []
+    
+    all_data = []
+    offset = 0
+    
+    while True:
         try:
-            resp = self._session.request(**kwargs)
-        except _requests.exceptions.Timeout:
-            return {"error": "Request timed out", "status": 0}
-        except _requests.exceptions.ConnectionError as e:
-            return {"error": f"Connection error: {e}", "status": 0}
+            # Fetch batch tiếp theo sử dụng .range() để vượt qua giới hạn
+            r = (supabase_client
+                 .table(table_name)
+                 .select("*")
+                 .order(order_col)
+                 .range(offset, offset + batch_size - 1)  # range là 0-indexed, inclusive
+                 .execute())
+            
+            if not r.data:
+                # Không có dữ liệu trong batch này, kết thúc
+                break
+            
+            all_data.extend(r.data)
+            
+            # Nếu batch nhỏ hơn batch_size, đã fetch hết dữ liệu
+            if len(r.data) < batch_size:
+                break
+            
+            offset += batch_size
+        except Exception as e:
+            st.toast(f"⚠️ Lỗi khi fetch {table_name} (offset {offset}): {e}", icon="⚠️")
+            break
+    
+    return all_data
 
-        # ── Update cookies from Set-Cookie ──
-        cookies_dict = self._cookies_dict()
-        changed = False
-        for header_val in resp.headers.get("Set-Cookie", "").split(","):
-            header_val = header_val.strip()
-            if "=" not in header_val:
-                continue
-            kv = header_val.split(";")[0].strip()
-            if "=" not in kv:
-                continue
-            ck, _, cv = kv.partition("=")
-            ck, cv = ck.strip(), cv.strip()
-            if cookies_dict.get(ck) != cv:
-                cookies_dict[ck] = cv
-                changed = True
-        # Also handle multiple Set-Cookie headers
-        if hasattr(resp.headers, "get_list"):
-            for sc in resp.headers.get_list("Set-Cookie"):
-                if "=" not in sc:
-                    continue
-                kv = sc.split(";")[0].strip()
-                if "=" not in kv:
-                    continue
-                ck, _, cv = kv.partition("=")
-                ck, cv = ck.strip(), cv.strip()
-                if cookies_dict.get(ck) != cv:
-                    cookies_dict[ck] = cv
-                    changed = True
-        if changed:
-            new_raw = "; ".join(f"{k}={v}" for k, v in cookies_dict.items())
-            self.set_cookies(new_raw)
-
-        # ── Handle status codes ──
-        status = resp.status_code
-
-        if status == 401 and retries > 0 and not is_refresh:
-            self._log("[AUTH] 401 — attempting token refresh...")
-            if self.refresh_tokens():
-                return self._req(method, path, retries=retries - 1, json_data=json_data,
-                                 params=params, data=data, extra_headers=extra_headers,
-                                 timeout=timeout)
-            self.logged_in = False
-            return {"error": "Unauthorized — session expired", "status": 401}
-
-        if status == 401:
-            self.logged_in = False
-            return {"error": "Unauthorized", "status": 401}
-
-        if status == 403:
-            txt = resp.text[:200] if resp.text else ""
-            return {"error": f"Forbidden: {txt}", "status": 403}
-
-        if status == 404:
-            return {"error": "Not found", "status": 404}
-
-        if status == 429 and retries > 0:
-            retry_after = int(resp.headers.get("Retry-After", "5"))
-            self._log(f"[429] Rate limited, waiting {retry_after}s...")
-            time.sleep(retry_after)
-            return self._req(method, path, retries=retries - 1, json_data=json_data,
-                             params=params, data=data, extra_headers=extra_headers,
-                             timeout=timeout)
-
-        if status == 204:
-            return {"success": True}
-
-        if status >= 400:
-            txt = resp.text[:300] if resp.text else ""
-            return {"error": f"{status}: {txt}", "status": status}
-
-        # ── Parse response ──
-        text = resp.text
-        if not text:
-            return {"success": True}
-
-        if text.lstrip().startswith("<"):
-            if retries > 0:
-                self._log("[HTML] Cloudflare challenge, retrying in 3s...")
-                time.sleep(3)
-                return self._req(method, path, retries=retries - 1, json_data=json_data,
-                                 params=params, data=data, extra_headers=extra_headers,
-                                 timeout=timeout, is_refresh=is_refresh)
-            return {"error": "API returned HTML (Cloudflare challenge)", "status": status}
-
+# =============================================================================
+# LOAD DATA
+# =============================================================================
+@st.cache_data(show_spinner=False, ttl=300)
+def load_inventory() -> pd.DataFrame:
+    """Load inventory với pagination để vượt qua giới hạn 1000 rows.
+    Bypass sb_select/from_db để tránh REVERSE_MAP["id"]="ID".
+    """
+    if USE_SUPABASE:
         try:
-            return resp.json()
-        except (json.JSONDecodeError, ValueError):
-            return {"error": f"Non-JSON response: {text[:100]}", "status": status}
+            # Fetch toàn bộ dữ liệu với pagination (vượt qua giới hạn 1000 rows)
+            all_data = _fetch_all_with_pagination("inventory", "stt")
+            
+            if all_data:
+                df = pd.DataFrame(all_data)
+                # Lưu lại danh sách cột thực tế của Supabase (snake_case) để dùng khi save
+                import streamlit as _st
+                _st.session_state["_inv_sb_cols"] = set(df.columns)
+                # Rename snake_case → display name, nhưng KHÔNG đổi "id" → "ID"
+                rename_map = {c: REVERSE_MAP.get(c, c) for c in df.columns}
+                rename_map["id"] = "id"   # FORCE giữ "id" lowercase cho inventory PK
+                df = df.rename(columns=rename_map)
+                # Supabase trả time_nhap/time_ban dạng UTC → chuyển về giờ VN
+                for _tc in ["time_nhap", "time_ban"]:
+                    if _tc in df.columns:
+                        df[_tc] = df[_tc].apply(_to_vn_iso)
+                return normalize_df(df, MAIN_SCHEMA)
+        except Exception as e:
+            st.toast(f"❌ Load inventory: {e}", icon="❌")
+    return load_csv(DB_FILE, MAIN_SCHEMA)
 
-    # ── Auth ─────────────────────────────────────────────────────────────
+@st.cache_data(show_spinner=False, ttl=300)
+def load_bulk() -> pd.DataFrame:
+    """Load bulk_inventory với pagination để vượt qua giới hạn 1000 rows.
+    Bypass sb_select/from_db để xử lý đúng 'id'→'ID'.
+    """
+    if USE_SUPABASE:
+        try:
+            # Fetch toàn bộ dữ liệu với pagination
+            all_data = _fetch_all_with_pagination("bulk_inventory", "id")
+            
+            if all_data:
+                df = pd.DataFrame(all_data)
+                # Rename snake_case → display name, nhưng map "id" → "ID" rõ ràng
+                rename_map = {c: REVERSE_MAP.get(c, c) for c in df.columns}
+                rename_map["id"] = "ID"   # force uppercase cho bulk primary key
+                df = df.rename(columns=rename_map)
+                return normalize_df(df, BULK_SCHEMA)
+        except Exception as e:
+            st.toast(f"❌ Load bulk_inventory: {e}", icon="❌")
+    return load_csv(BULK_FILE, BULK_SCHEMA)
 
-    def refresh_tokens(self):
-        """Refresh auth tokens. Returns True on success."""
-        cookies = self._cookies_dict()
-        refresh_token = cookies.get("__Host-EldoradoRefreshToken")
-        if not refresh_token:
-            self._log("[TOKEN] No refresh token available")
-            return False
+@st.cache_data(show_spinner=False, ttl=300)
+def load_bulk_history() -> pd.DataFrame:
+    """Load bulk_history với pagination để vượt qua giới hạn 1000 rows.
+    Bypass sb_select/from_db để tránh id→ID rename.
+    """
+    if USE_SUPABASE:
+        try:
+            # Fetch toàn bộ dữ liệu với pagination
+            all_data = _fetch_all_with_pagination("bulk_history", "id")
+            
+            if all_data:
+                df = pd.DataFrame(all_data)
+                rename_map = {c: REVERSE_MAP.get(c, c) for c in df.columns}
+                rename_map["id"] = "id"   # giữ lowercase
+                df = df.rename(columns=rename_map)
+                return normalize_df(df, HISTORY_SCHEMA)
+        except Exception as e:
+            st.toast(f"❌ Load bulk_history: {e}", icon="❌")
+    return load_csv(BULK_HISTORY, HISTORY_SCHEMA)
 
-        minimal_cookies = (
-            f"__Host-EldoradoRefreshToken={refresh_token}; "
-            f"__Host-XSRF-TOKEN={self._xsrf or ''}"
+
+def save_inventory_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
+    """Sync inventory to Supabase using native 'id' as primary key.
+    Tách riêng UPDATE (id>0) và INSERT (id=0) để tuyệt đối tránh duplicate.
+    """
+    if not USE_SUPABASE: return
+    try:
+        # ── Lấy cột thực của Supabase (1 lần/session, bỏ qua cache) ──
+        _sb_cols = st.session_state.get("_inv_sb_cols")
+        if not _sb_cols:
+            try:
+                _probe = supabase_client.table("inventory").select("*").limit(1).execute()
+                if _probe.data:
+                    _sb_cols = set(_probe.data[0].keys())
+                    st.session_state["_inv_sb_cols"] = _sb_cols
+            except Exception:
+                pass
+        def _filter_record(rec: dict) -> dict:
+            if _sb_cols:
+                return {k: v for k, v in rec.items() if k in _sb_cols}
+            return rec
+
+        # ── 1. Xoá các dòng đã bị xoá khỏi editor ──
+        if not df_before.empty and not df_after.empty:
+            before_ids = set(df_before[df_before["id"] > 0]["id"].dropna().astype(int))
+            after_ids  = set(df_after[df_after["id"] > 0]["id"].dropna().astype(int))
+            for d_id in (before_ids - after_ids):
+                sb_delete("inventory", "id", d_id)
+
+        records = [_filter_record(to_db(r)) for r in df_after.to_dict("records")]
+
+        # ── 2. Phân loại: có ID thì UPDATE, không ID thì INSERT mới ──
+        update_records = [r for r in records if int(float(r.get("id") or 0)) > 0]
+        insert_records = [r for r in records if int(float(r.get("id") or 0)) <= 0]
+        for r in insert_records:
+            r.pop("id", None)
+
+        # UPDATE existing rows (safe – chỉ cập nhật, không tạo bản ghi mới)
+        if update_records:
+            sb_upsert("inventory", update_records, on_conflict="id")
+
+        # INSERT new rows – kiểm tra trùng bằng auto_title + time_nhap trước khi insert
+        if insert_records:
+            try:
+                existing_resp = supabase_client.table("inventory") \
+                    .select("auto_title, time_nhap").limit(-1).execute()
+                existing_keys = {
+                    (r.get("auto_title", ""), str(r.get("time_nhap", "")))
+                    for r in (existing_resp.data or [])
+                }
+            except Exception:
+                existing_keys = set()
+
+            truly_new = [
+                r for r in insert_records
+                if (r.get("auto_title", ""), str(r.get("time_nhap", ""))) not in existing_keys
+            ]
+            for r in truly_new:
+                sb_insert("inventory", r)
+    except Exception as e:
+        st.toast(f"❌ Sync inventory: {e}", icon="❌")
+
+
+def save_bulk_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
+    """Sync bulk inventory to Supabase using 'id'.
+    Tách riêng UPDATE (ID>0) và INSERT (ID=0) để tuyệt đối tránh duplicate.
+    bulk_df dùng cột 'ID' (uppercase) – khác với inventory dùng 'id' (lowercase).
+    """
+    if not USE_SUPABASE: return
+    try:
+        # ── 1. Xoá các dòng đã bị xoá khỏi editor ──
+        if not df_before.empty and not df_after.empty:
+            before_ids = set(df_before[df_before["ID"] > 0]["ID"].dropna().astype(int))
+            after_ids  = set(df_after[df_after["ID"] > 0]["ID"].dropna().astype(int))
+            for d_id in (before_ids - after_ids):
+                sb_delete("bulk_inventory", "id", d_id)
+
+        records = [to_db(r) for r in df_after.to_dict("records")]
+
+        # ── 2. Phân loại: có ID thì UPDATE, không có thì INSERT mới ──
+        update_records = [r for r in records if int(float(r.get("id") or 0)) > 0]
+        insert_records = [r for r in records if int(float(r.get("id") or 0)) <= 0]
+        for r in insert_records:
+            r.pop("id", None)
+
+        if update_records:
+            sb_upsert("bulk_inventory", update_records, on_conflict="id")
+
+        if insert_records:
+            try:
+                existing_resp = supabase_client.table("bulk_inventory") \
+                    .select("ten_lo, ngay_nhap").limit(-1).execute()
+                existing_keys = {
+                    (r.get("ten_lo", ""), str(r.get("ngay_nhap", "")))
+                    for r in (existing_resp.data or [])
+                }
+            except Exception:
+                existing_keys = set()
+
+            truly_new = [
+                r for r in insert_records
+                if (r.get("ten_lo", ""), str(r.get("ngay_nhap", ""))) not in existing_keys
+            ]
+            for r in truly_new:
+                sb_insert("bulk_inventory", r)
+    except Exception as e:
+        st.toast(f"❌ Sync bulk: {e}", icon="❌")
+
+
+# =============================================================================
+# SESSION STATE INIT
+# =============================================================================
+def _load_groq_key_from_supabase() -> str:
+    """Đọc Groq API key từ bảng app_settings trên Supabase."""
+    if not USE_SUPABASE:
+        return ""
+    try:
+        r = supabase_client.table("app_settings").select("value").eq("key", "groq_key").execute()
+        if r.data:
+            return r.data[0].get("value", "")
+    except Exception:
+        pass
+    return ""
+
+def _save_groq_key_to_supabase(api_key: str):
+    """Lưu Groq API key vào bảng app_settings (upsert theo primary key 'groq_key')."""
+    if not USE_SUPABASE:
+        return
+    try:
+        supabase_client.table("app_settings").upsert(
+            {"key": "groq_key", "value": api_key}, on_conflict="key"
+        ).execute()
+    except Exception as e:
+        st.toast(f"⚠️ Không thể lưu Groq key: {e}", icon="⚠️")
+
+def _load_pinned_resell_from_supabase() -> dict:
+    """Đọc danh sách pin re-sell từ app_settings (JSON string)."""
+    if not USE_SUPABASE:
+        return {}
+    try:
+        r = supabase_client.table("app_settings").select("value").eq("key", "pinned_resell").execute()
+        if r.data:
+            return json.loads(r.data[0].get("value", "{}"))
+    except Exception:
+        pass
+    return {}
+
+def _save_pinned_resell_to_supabase(pinned: dict):
+    """Lưu danh sách pin re-sell vào app_settings (JSON string)."""
+    if not USE_SUPABASE:
+        return
+    try:
+        supabase_client.table("app_settings").upsert(
+            {"key": "pinned_resell", "value": json.dumps(pinned, ensure_ascii=False, default=str)},
+            on_conflict="key",
+        ).execute()
+    except Exception as e:
+        st.toast(f"⚠️ Không thể lưu pin re-sell: {e}", icon="⚠️")
+
+def init_session():
+    if "initialized" not in st.session_state:
+        _sk_ph = st.empty()
+        _sk_ph.markdown(
+            '<style>@keyframes _sk{0%{background-position:200% 0}100%{background-position:-200% 0}}</style>'
+            '<div style="padding:1.2rem 0;display:flex;flex-direction:column;gap:0.65rem;">'
+            '<div style="height:22px;width:38%;border-radius:6px;background:linear-gradient(90deg,#110f1a 25%,#1a1528 50%,#110f1a 75%);background-size:200% 100%;animation:_sk 1.4s infinite;"></div>'
+            '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.55rem;margin:0.3rem 0;">'
+            + ('<div style="height:68px;border-radius:10px;background:linear-gradient(90deg,#110f1a 25%,#1a1528 50%,#110f1a 75%);background-size:200% 100%;animation:_sk 1.4s infinite;"></div>' * 4) +
+            '</div>'
+            '<div style="height:130px;border-radius:10px;background:linear-gradient(90deg,#110f1a 25%,#1a1528 50%,#110f1a 75%);background-size:200% 100%;animation:_sk 1.4s infinite;"></div>'
+            '<div style="height:13px;width:55%;border-radius:6px;background:linear-gradient(90deg,#110f1a 25%,#1a1528 50%,#110f1a 75%);background-size:200% 100%;animation:_sk 1.4s infinite;"></div>'
+            '<div style="height:13px;width:75%;border-radius:6px;background:linear-gradient(90deg,#110f1a 25%,#1a1528 50%,#110f1a 75%);background-size:200% 100%;animation:_sk 1.4s infinite;"></div>'
+            '</div>',
+            unsafe_allow_html=True,
         )
-        headers = dict(self._headers)
-        headers["X-XSRF-Token"] = self._xsrf or ""
-        headers["X-Device-Id"] = self.device_id or ""
-        headers["Cookie"] = minimal_cookies
+        # Tải song song 5 nguồn dữ liệu để giảm thời gian chờ
+        with ThreadPoolExecutor(max_workers=5) as _ex:
+            _f_inv    = _ex.submit(load_inventory)
+            _f_bulk   = _ex.submit(load_bulk)
+            _f_hist   = _ex.submit(load_bulk_history)
+            _f_groq   = _ex.submit(_load_groq_key_from_supabase)
+            _f_pinned = _ex.submit(_load_pinned_resell_from_supabase)
+            _inv_df   = _f_inv.result()
+            _bulk_r   = _f_bulk.result()
+            _hist_r   = _f_hist.result()
+            _groq_r   = _f_groq.result()
+            _pinned_r = _f_pinned.result()
+        st.session_state.df           = apply_ngay_ton(_inv_df)
+        st.session_state.bulk_df      = _bulk_r
+        st.session_state.bulk_history = _hist_r
+        # Tải Groq key đã lưu (nếu có)
+        if not st.session_state.get("groq_key") and _groq_r:
+            st.session_state.groq_key = _groq_r
+        # Tải danh sách pin re-sell đã lưu (nếu có)
+        if "pinned_resell" not in st.session_state:
+            st.session_state.pinned_resell = _pinned_r
+        _sk_ph.empty()
+        st.session_state.initialized = True
+    else:
+        # Migrate: đảm bảo df, bulk_df và bulk_history luôn có đủ cột từ schema
+        st.session_state.df = normalize_df(st.session_state.get("df", pd.DataFrame()), MAIN_SCHEMA)
+        st.session_state.bulk_df = normalize_df(st.session_state.get("bulk_df", pd.DataFrame()), BULK_SCHEMA)
+        st.session_state.bulk_history = normalize_df(st.session_state.get("bulk_history", pd.DataFrame()), HISTORY_SCHEMA)
 
-        try:
-            resp = self._session.post(
-                BASE + "/authentication/refreshTokens",
-                headers=headers,
-                json={},
-                timeout=10,
-            )
-        except Exception as e:
-            self._log(f"[TOKEN] Refresh error: {e}")
-            return False
+init_session()
 
-        if not resp.ok:
-            self._log(f"[TOKEN] Refresh failed: HTTP {resp.status_code}")
-            return False
-
-        # Check for new IdToken in Set-Cookie
-        cookies_dict = self._cookies_dict()
-        has_id_token = False
-        for sc in resp.headers.get("Set-Cookie", "").split(","):
-            kv = sc.split(";")[0].strip()
-            if "=" in kv:
-                ck, _, cv = kv.partition("=")
-                ck, cv = ck.strip(), cv.strip()
-                if ck == "__Host-EldoradoIdToken":
-                    has_id_token = True
-                cookies_dict[ck] = cv
-        if hasattr(resp.headers, "get_list"):
-            for sc in resp.headers.get_list("Set-Cookie"):
-                kv = sc.split(";")[0].strip()
-                if "=" in kv:
-                    ck, _, cv = kv.partition("=")
-                    ck, cv = ck.strip(), cv.strip()
-                    if ck == "__Host-EldoradoIdToken":
-                        has_id_token = True
-                    cookies_dict[ck] = cv
-
-        if not has_id_token:
-            self._log("[TOKEN] No new IdToken in response")
-            return False
-
-        new_raw = "; ".join(f"{k}={v}" for k, v in cookies_dict.items())
-        self.set_cookies(new_raw)
-        self.logged_in = True
-        self._log("[TOKEN] Refreshed successfully")
-        return True
-
-    def check_auth(self):
-        """Validate cookies and fetch user profile.
-        Returns dict with ok, username, pos, neg, etc."""
-        self.last_auth_error = None
-
-        # Try authorize endpoint first
-        r1 = self._req("GET", "/conversations/me/authorize")
-        if isinstance(r1, dict) and "token" in r1:
-            self.talk_token = r1["token"]
-            self.logged_in = True
-            self._profile()
-            return {"ok": True, "username": self.username, "pos": self.pos,
-                    "neg": self.neg, "userId": self.userId}
-
-        # Fallback: notifications endpoint
-        r2 = self._req("GET", "/notifications/me/unreadCount")
-        if isinstance(r2, dict) and "unreadNotificationCount" in r2:
-            self.logged_in = True
-            self._profile()
-            return {"ok": True, "username": self.username, "pos": self.pos,
-                    "neg": self.neg, "userId": self.userId}
-
-        self.last_auth_error = (
-            r1.get("error", "") if isinstance(r1, dict) else ""
-        ) or (
-            r2.get("error", "") if isinstance(r2, dict) else ""
-        ) or "Auth failed"
-        self.logged_in = False
-        return {"ok": False, "error": self.last_auth_error}
-
-    def _profile(self):
-        """Fetch user profile info after successful auth."""
-        r1 = self._req("GET", "/orders/me/reviews",
-                        params={"pageDirection": "Next", "pageSize": "1"})
-        if isinstance(r1, dict) and "userOrderInfo" in r1:
-            info = r1["userOrderInfo"]
-            self.userId = info.get("userId", "")
-            self.feedback = info.get("feedbackScore", 0)
-            self.pos = info.get("positiveCount", 0)
-            self.neg = info.get("negativeCount", 0)
-
-        r2 = self._req("GET", "/users/me")
-        if isinstance(r2, dict) and not r2.get("error"):
-            self.username = r2.get("username", "")
-            pic = r2.get("picture", {}) or {}
-            self.avatar = pic.get("smallPicture") or pic.get("mediumPicture") or pic.get("largePicture") or ""
-
-    # ── Game cache ───────────────────────────────────────────────────────
-
-    def ensure_game_cache(self):
-        """Load trade environments and attributes. Returns True on success."""
-        if self._game_cache["loaded"] and self._game_cache["envs"]:
-            return True
-
-        self._log("[GAME] Loading game data...")
-
-        lib = self._req("GET", f"/library/{GAME_ID}/{CATEGORY}", params={"locale": "en-US"})
-        if isinstance(lib, dict) and lib.get("error"):
-            return False
-
-        attrs_resp = self._req("GET", f"/library/{GAME_ID}/{CATEGORY}/attributes/offers",
-                               params={"locale": "en-US"})
-
-        # Flatten trade environments
-        raw_envs = (lib or {}).get("tradeEnvironments") or (lib or {}).get("environments") or []
-        flat = []
-        self._flatten_envs(raw_envs, [], flat)
-
-        # Parse attributes
-        attrs_raw = attrs_resp if isinstance(attrs_resp, list) else (attrs_resp or {}).get("attributes", [])
-        attrs = []
-        for a in attrs_raw:
-            attrs.append({
-                "id": a.get("id", ""),
-                "name": a.get("name") or a.get("displayName", ""),
-                "type": a.get("type") or ("Select" if a.get("selectValues") else "Numeric"),
-                "isRequired": bool(a.get("isRequired")),
-                "minValue": a.get("minValue"),
-                "maxValue": a.get("maxValue"),
-                "values": [
-                    {"id": v.get("id", ""), "name": v.get("name") or v.get("displayName", "")}
-                    for v in (a.get("selectValues") or a.get("attributeValues") or [])
-                ],
-            })
-
-        self._game_cache["envs"] = flat
-        self._game_cache["attrs"] = attrs
-        self._game_cache["loaded"] = len(flat) > 0
-        self._log(f"[GAME] Loaded: {len(flat)} envs, {len(attrs)} attrs")
-        return self._game_cache["loaded"]
-
-    def _flatten_envs(self, envs, parent_parts, out):
-        for env in envs:
-            parts = parent_parts + [env.get("value") or env.get("name", "")]
-            children = env.get("childTradeEnvironments") or []
-            if not children:
-                out.append({
-                    "id": env.get("id", ""),
-                    "parts": parts,
-                    "label": " | ".join(parts),
-                })
-            else:
-                self._flatten_envs(children, parts, out)
-
-    def find_env(self, name, rarity=""):
-        """Fuzzy-match an item name against cached trade environments.
-        Matches server.js buildEnvLookup/findEnv priority order."""
-        if not self._game_cache["loaded"]:
-            return None
-
-        def norm(s):
-            return re.sub(r"[^a-z0-9\s]", "", (s or "").lower().replace("&", "and")).strip()
-
-        name_n = norm(name)
-        rarity_n = norm(rarity)
-
-        # 1. Two-part key (name_rarity) — highest priority, matches JS envLookupRR
-        if rarity_n:
-            key2 = name_n + "_" + rarity_n
-            for env in self._game_cache["envs"]:
-                parts = env["parts"]
-                if len(parts) >= 2:
-                    env_key = norm(parts[-1]) + "_" + norm(parts[-2])
-                    if env_key == key2:
-                        return env
-
-        # 2. Exact last-part match — matches JS envLookup
-        for env in self._game_cache["envs"]:
-            parts = env["parts"]
-            if not parts:
-                continue
-            last = norm(parts[-1])
-            if last == name_n:
-                return env
-
-        # 3. Substring match
-        for env in self._game_cache["envs"]:
-            last = norm(env["parts"][-1] if env["parts"] else "")
-            if last in name_n or name_n in last:
-                return env
-
-        # 4. Word overlap (>= 2 words)
-        name_words = set(name_n.split())
-        if len(name_words) >= 2:
-            best_score = 0
-            best_env = None
-            for env in self._game_cache["envs"]:
-                env_words = set(norm(env["label"]).split())
-                overlap = len(name_words & env_words)
-                if overlap > best_score:
-                    best_score = overlap
-                    best_env = env
-            if best_score >= 2:
-                return best_env
-
-        return None
-
-    # ── Offer attributes ─────────────────────────────────────────────────
-
-    def _gen_to_ms_bracket(self, ms_value):
-        """Convert M/s value to MS bracket ID. ms_value is in M/s units."""
-        raw = ms_value * 1_000_000  # convert M/s → raw game units
-        for threshold, bracket_id in _MS_BRACKETS:
-            if raw >= threshold:
-                return bracket_id
-        return "0"
-
-    def build_offer_attributes(self, ms, mutation=""):
-        """Build offerAttributes array from MS value and mutation name."""
-        # Check dynamic attrs first
-        ms_attr = None
-        for a in self._game_cache.get("attrs", []):
-            if a["id"] == "steal-a-brainrot-ms":
-                ms_attr = a
-                break
-
-        if ms_attr and ms_attr.get("values"):
-            # Use dynamic bracket matching
-            ms_bracket = ms_attr["values"][-1]["id"]  # fallback to last (largest)
-            for val in ms_attr["values"]:
-                vid = val["id"]
-                # Parse bracket from ID (e.g. "25-4999-ms")
-                parsed = self._parse_bracket(vid)
-                if parsed and ms >= parsed[0] and ms < parsed[1]:
-                    ms_bracket = vid
-                    break
-        else:
-            ms_bracket = self._gen_to_ms_bracket(ms)
-
-        attrs = [{"id": "steal-a-brainrot-ms", "type": "Select", "value": ms_bracket}]
-
-        if mutation and mutation.lower() != "normal" and mutation.lower() != "none":
-            attrs.append({
-                "id": "steal-a-brainrot-mutations",
-                "type": "Select",
-                "value": mutation.lower(),
-            })
-        return attrs
-
-    @staticmethod
-    def _parse_bracket(bracket_id):
-        """Parse a bracket ID like '25-4999-ms' or '1-499-bs' into (low, high)."""
-        import re
-        m = re.match(r"(\d+)-(\d+)-([kmbt]s?)$", bracket_id, re.I)
-        if not m:
-            return None
-        lo, hi, unit = int(m.group(1)), int(m.group(2)), m.group(3).lower()
-        multiplier = {"ks": 1_000, "ms": 1_000_000, "bs": 1_000_000_000}.get(unit, 1)
-        return lo * multiplier, (hi + 1) * multiplier
-
-    # ── Title generation ─────────────────────────────────────────────────
-
-    def mutation_title(self, name, namestock="", trait_count="", mutation="",
-                       game="Steal a Brainrot"):
-        """Generate a listing title (max 160 chars)."""
-        emoji = MUTATION_EMOJI.get(mutation.lower(), "") if mutation else ""
-        ns_part = f" {namestock}" if namestock and namestock.lower() not in ("none", "0", "") else ""
-        mut_part = f" {mutation}" if mutation and mutation.lower() != "none" else ""
-
-        if emoji:
-            name_line = f"{emoji} {name}{ns_part} {emoji}"
-        else:
-            name_line = f"{ZAP} {name}{ns_part}"
-
-        bracket = f"【{game}"
-        if trait_count and trait_count not in ("None", "0", ""):
-            bracket += f" {trait_count} Trait"
-        bracket += f"{mut_part}】"
-
-        title = f"{name_line} {bracket} {ZAP} INSTANT DELIVERY {ZAP}"
-        return title[:160]
-
-    # ── Image upload ─────────────────────────────────────────────────────
-
-    def upload_image(self, file_bytes, filename="image.png"):
-        """Upload image to Eldorado. Returns {smallImage, largeImage, originalSizeImage} or None."""
-        boundary = "----FormBoundary" + uuid.uuid4().hex
-        body_parts = []
-        body_parts.append(f"--{boundary}\r\n".encode())
-        body_parts.append(f'Content-Disposition: form-data; name="image"; filename="{filename}"\r\n'.encode())
-        body_parts.append(b"Content-Type: image/png\r\n\r\n")
-        body_parts.append(file_bytes)
-        body_parts.append(f"\r\n--{boundary}--\r\n".encode())
-        body = b"".join(body_parts)
-
-        cookies_str = "; ".join(f"{k}={v}" for k, v in self._cookies_dict().items())
-        headers = dict(self._headers)
-        headers["X-XSRF-Token"] = self._xsrf or ""
-        headers["X-Device-Id"] = self.device_id or ""
-        headers["X-Correlation-Id"] = str(uuid.uuid4())
-        headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
-        headers["Cookie"] = cookies_str
-        # Remove default Content-Type for multipart
-        if "Content-Type" in headers:
-            pass  # overwritten above
-
-        try:
-            resp = self._session.post(
-                BASE + "/files/me/Offer",
-                headers=headers,
-                data=body,
-                timeout=60,
-            )
-        except Exception as e:
-            self._log(f"[IMG] Upload error: {e}")
-            return None
-
-        if resp.status_code == 429:
-            return {"_rate_limit": True}
-
-        if resp.status_code == 200:
+# ── Eldorado Client ──────────────────────────────────────────────────────
+if _HAS_ELDORADO:
+    if "eldorado_client" not in st.session_state:
+        _eld_c = EldoradoClient(log_fn=lambda msg: None)
+        st.session_state.eldorado_client = _eld_c
+        # Auto-login nếu có cookie đã lưu (file .eldorado_cookies.enc)
+        if _eld_c._raw:
             try:
-                result = resp.json()
-                paths = result.get("localPaths", [])
-                if len(paths) >= 3:
-                    return {
-                        "smallImage": paths[0].replace("/offerimages/", ""),
-                        "largeImage": paths[1].replace("/offerimages/", ""),
-                        "originalSizeImage": paths[2].replace("/offerimages/", ""),
+                _auth = _eld_c.check_auth()
+                if not _auth.get("ok") and _eld_c.refresh_tokens():
+                    _eld_c.check_auth()
+            except Exception:
+                pass
+    eld_client = st.session_state.eldorado_client
+else:
+    eld_client = None
+
+# ── Eldorado Settings (loaded from Supabase app_settings) ────────────────
+def _load_eld_settings():
+    if not USE_SUPABASE:
+        return {}
+    try:
+        r = supabase_client.table("app_settings").select("value").eq("key", "eldorado_settings").execute()
+        if r.data:
+            return json.loads(r.data[0].get("value", "{}"))
+    except Exception:
+        pass
+    return {}
+
+def _save_eld_settings(settings: dict):
+    if not USE_SUPABASE:
+        return
+    try:
+        supabase_client.table("app_settings").upsert(
+            {"key": "eldorado_settings", "value": json.dumps(settings, ensure_ascii=False)}
+        ).execute()
+    except Exception:
+        pass
+
+def _save_eld_cookie_to_sb(cookie_str: str):
+    if not USE_SUPABASE or not cookie_str:
+        return
+    try:
+        supabase_client.table("app_settings").upsert(
+            {"key": "eldorado_cookie", "value": cookie_str}
+        ).execute()
+    except Exception:
+        pass
+
+def _load_eld_cookie_from_sb() -> str:
+    if not USE_SUPABASE:
+        return ""
+    try:
+        r = supabase_client.table("app_settings").select("value").eq("key", "eldorado_cookie").execute()
+        if r.data:
+            return r.data[0].get("value", "")
+    except Exception:
+        pass
+    return ""
+
+def _clear_eld_cookie_from_sb():
+    if not USE_SUPABASE:
+        return
+    try:
+        supabase_client.table("app_settings").delete().eq("key", "eldorado_cookie").execute()
+    except Exception:
+        pass
+
+if "eld_settings" not in st.session_state:
+    st.session_state.eld_settings = _load_eld_settings()
+
+df           = st.session_state.df
+bulk_df      = st.session_state.bulk_df
+bulk_history = st.session_state.bulk_history
+
+pet_db   = load_csv(PET_LIST_FILE, LIST_SCHEMA)
+ns_db    = load_csv(NS_LIST_FILE,  LIST_SCHEMA)
+trait_db = load_csv(TRAIT_LIST,    LIST_SCHEMA)
+
+# ── Owner → NameStock mapping ──
+def _load_owner_ns_map() -> dict:
+    """Load owner:NameStock mapping from txt file. Format: username:NameStock per line."""
+    _m = {}
+    if os.path.exists(OWNER_NS_FILE):
+        try:
+            for line in open(OWNER_NS_FILE, "r", encoding="utf-8"):
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if ":" in line:
+                    _k, _v = line.split(":", 1)
+                    _k, _v = _k.strip().lower(), _v.strip()
+                    if _k and _v:
+                        _m[_k] = _v
+        except Exception:
+            pass
+    return _m
+
+def _save_owner_ns_map(m: dict):
+    try:
+        with open(OWNER_NS_FILE, "w", encoding="utf-8") as f:
+            for k, v in sorted(m.items()):
+                f.write(f"{k}:{v}\n")
+    except Exception:
+        pass
+
+st.session_state["_owner_ns_map"] = _load_owner_ns_map()
+
+# =============================================================================
+# GLOBAL CSS - Mobile-first, dark premium
+# =============================================================================
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ─── Root variables ─── */
+:root {
+  --bg:        #0a0a0f;
+  --surface:   #110f1a;
+  --surface2:  #1a1528;
+  --border:    #2d2540;
+  --accent:    #c084fc;
+  --accent2:   #e879f9;
+  --green:     #86efac;
+  --red:       #f472b6;
+  --text:      #f0e6ff;
+  --muted:     #9d8fbf;
+  --radius:    12px;
+}
+
+/* ─── Base ─── */
+*, *::before, *::after { box-sizing: border-box; }
+html {
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+}
+body {
+  overflow-anchor: none;
+}
+html, body, [data-testid="stAppViewContainer"] {
+  font-family: 'Inter', sans-serif !important;
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-feature-settings: "tnum" 1, "cv01" 1, "ss01" 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+[data-testid="stHeader"] { background: transparent !important; }
+[data-testid="stSidebar"] { background: var(--surface) !important; border-right: 1px solid var(--border); }
+.block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; }
+
+/* ─── Main content area — nền tím trung tâm ─── */
+[data-testid="stAppViewContainer"] > section.main > div.block-container {
+  background: var(--surface2) !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(192,132,252,0.15) !important;
+  box-shadow: 0 0 60px rgba(192,132,252,0.07) inset !important;
+}
+
+div[data-testid="stMetricValue"] { font-size: clamp(1rem, 2.5vw, 1.4rem) !important; font-weight: 700 !important; color: var(--text) !important; }
+div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--muted) !important; letter-spacing: 0.03em; text-transform: uppercase; }
+
+/* ─── Buttons ─── */
+.stButton > button {
+  border-radius: 8px !important;
+  font-size: 0.84rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+  transition: all 0.15s ease !important;
+  width: 100%;
+}
+.stButton > button[kind="primary"] {
+  background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
+  color: #0a0a0f !important;
+  border: none !important;
+}
+.stButton > button[kind="primary"]:hover {
+  box-shadow: 0 6px 24px rgba(192,132,252,0.5) !important;
+  filter: brightness(1.1) !important;
+}
+
+/* ─── Tabs ─── */
+[data-testid="stTabs"] > div:first-child {
+  gap: 0 !important;
+  border-bottom: 2px solid var(--border) !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+/* ẩn thanh gạch mặc định của Streamlit (đỏ/hồng) */
+[data-testid="stTabs"] [role="tablist"] > div[data-baseweb="tab-highlight"],
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] { display: none !important; }
+[data-testid="stTab"] {
+  border-radius: 0 !important;
+  padding: 0.65rem 1.2rem !important;
+  font-weight: 500 !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--muted) !important;
+  border: none !important;
+  background: transparent !important;
+  transition: color 0.15s ease !important;
+  position: relative !important;
+  outline: none !important;
+}
+/* đường kẻ gradient indicator bằng pseudo-element */
+[data-testid="stTab"]::after {
+  content: '' !important;
+  display: block !important;
+  position: absolute !important;
+  bottom: -2px !important;
+  left: 10% !important;
+  width: 80% !important;
+  height: 3px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(90deg, var(--accent), var(--accent2)) !important;
+  opacity: 0 !important;
+  transform: scaleX(0.4) !important;
+  transition: opacity 0.2s ease, transform 0.2s ease !important;
+}
+[data-testid="stTab"][aria-selected="true"] {
+  color: var(--text) !important;
+  font-weight: 700 !important;
+  background: transparent !important;
+}
+[data-testid="stTab"][aria-selected="true"]::after {
+  opacity: 1 !important;
+  transform: scaleX(1) !important;
+}
+[data-testid="stTab"]:hover:not([aria-selected="true"]) {
+  color: var(--text) !important;
+  background: transparent !important;
+}
+[data-testid="stTab"]:hover::after {
+  opacity: 0.35 !important;
+  transform: scaleX(0.7) !important;
+}
+
+/* ─── Inputs ─── */
+.stTextInput input, .stNumberInput input, .stSelectbox select {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  color: var(--text) !important;
+}
+.stTextInput input:focus, .stNumberInput input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(192,132,252,0.2) !important;
+}
+
+/* ─── Containers — purple tint frames ─── */
+[data-testid="stVerticalBlockBorderWrapper"] {
+  /* Override CSS variable Streamlit uses to draw the border */
+  --border-color-default: rgba(192,132,252,0.55) !important;
+  border-color: rgba(192,132,252,0.55) !important;
+  background: linear-gradient(160deg, rgba(192,132,252,0.07) 0%, rgba(17,15,26,0.97) 55%) !important;
+  border-radius: var(--radius) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(192,132,252,0.15),
+    0 6px 32px rgba(0,0,0,0.35) !important;
+}
+/* Target the intermediate div Streamlit sometimes inserts */
+[data-testid="stVerticalBlockBorderWrapper"] > div {
+  --border-color-default: rgba(192,132,252,0.55) !important;
+  border-color: rgba(192,132,252,0.55) !important;
+}
+/* Force inner block transparent so wrapper purple shows through */
+[data-testid="stVerticalBlockBorderWrapper"] > [data-testid="stVerticalBlock"] {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* ─── Tab content — clean panel ─── */
+[data-testid="stTabContent"] {
+  background: rgba(17,15,26,0.6) !important;
+  border: 1px solid rgba(192,132,252,0.12) !important;
+  border-top: none !important;
+  border-radius: 0 0 var(--radius) var(--radius) !important;
+  padding: 1rem !important;
+  min-height: 100vh !important;
+}
+
+/* ─── DataFrames — material glass ─── */
+.stDataFrame {
+  border-radius: var(--radius) !important;
+  overflow: hidden !important;
+  border: 1px solid var(--border) !important;
+  border-top: 2px solid rgba(192,132,252,0.5) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3) !important;
+  background: var(--surface) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+.stDataFrame:hover {
+  border-color: rgba(192,132,252,0.3) !important;
+  border-top-color: var(--accent) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 0 transparent !important;
+}
+/* toolbar icons */
+[data-testid="stElementToolbar"] {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+}
+[data-testid="stElementToolbarButton"] svg { color: var(--muted) !important; }
+[data-testid="stElementToolbarButton"]:hover svg { color: var(--accent) !important; }
+
+/* ─── Status badges ─── */
+.badge-sold   { color: var(--green); font-weight: 600; }
+.badge-stock  { color: var(--accent); font-weight: 600; }
+
+/* ─── Hero banner — glassmorphism ─── */
+.hero-banner {
+  background: linear-gradient(135deg, rgba(192,132,252,0.08) 0%, rgba(232,121,249,0.05) 50%, rgba(192,132,252,0.08) 100%);
+  border: 1px solid rgba(192,132,252,0.2);
+  backdrop-filter: blur(12px);
+  border-radius: var(--radius);
+  padding: 0.9rem 1.2rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.hero-banner .logo { font-size: 2rem; }
+.hero-banner h1 { margin: 0; font-size: clamp(1.1rem, 3vw, 1.5rem); font-weight: 700; letter-spacing: -0.01em; }
+.hero-banner p  { margin: 0; color: var(--muted); font-size: 0.82rem; }
+
+/* ─── Stats row ─── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.9rem;
+  text-align: center;
+  transition: all 0.2s;
+}
+.stat-card:hover { border-color: var(--accent); box-shadow: 0 8px 24px rgba(192,132,252,0.2); }
+.stat-card .val  { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+.stat-card .lbl  { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; letter-spacing: 0.04em; }
+
+/* ─── Section headings ─── */
+.sec-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 2rem 0 1rem !important;
+  padding: 0;
+  width: 100%;
+  position: relative;
+}
+.sec-heading::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--accent), var(--accent2));
+  flex-shrink: 0;
+}
+.sec-heading::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(192,132,252,0.3) 0%, transparent 100%);
+  margin-left: 0.4rem;
+}
+
+/* ─── Section card panels — wrap stat content ─── */
+.stat-panel {
+  background: linear-gradient(145deg, rgba(192,132,252,0.07) 0%, rgba(17,15,26,0.95) 100%);
+  border: 1px solid rgba(192,132,252,0.2);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.2rem 0.8rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(192,132,252,0.08);
+}
+
+/* ─── Metric cards — left stripe style ─── */
+div[data-testid="stMetric"] {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-left: 3px solid var(--accent) !important;
+  border-radius: var(--radius) !important;
+  padding: 0.7rem 0.9rem !important;
+  transition: all 0.2s;
+  box-shadow: 0 2px 12px rgba(192,132,252,0.05) !important;
+}
+div[data-testid="stMetric"]:hover {
+  border-color: var(--accent) !important;
+  border-left-color: var(--accent2) !important;
+  box-shadow: 0 6px 24px rgba(192,132,252,0.22) !important;
+}
+
+/* ─── Expanders — purple tinted border ─── */
+[data-testid="stExpander"] {
+  border: 1px solid rgba(192,132,252,0.28) !important;
+  border-radius: var(--radius) !important;
+  background: linear-gradient(135deg, rgba(192,132,252,0.06) 0%, var(--surface) 55%) !important;
+  overflow: hidden !important;
+  box-shadow: 0 2px 16px rgba(192,132,252,0.07) !important;
+}
+[data-testid="stExpander"] summary {
+  padding: 0.6rem 0.9rem !important;
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+  letter-spacing: 0.01em !important;
+  color: var(--text) !important;
+  background: transparent !important;
+  border: none !important;
+}
+[data-testid="stExpander"] summary:hover { color: var(--accent) !important; }
+
+/* ─── Progress bar ─── */
+[data-testid="stProgressBar"] > div > div {
+  background: linear-gradient(90deg, var(--accent), var(--accent2)) !important;
+  border-radius: 999px !important;
+}
+[data-testid="stProgressBar"] > div {
+  background: var(--surface2) !important;
+  border-radius: 999px !important;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ─── Mobile responsive ─── */
+@media (max-width: 768px) {
+  .block-container { padding: 0.4rem 0.4rem 3rem !important; }
+  div[data-testid="stMetricValue"] { font-size: 0.95rem !important; }
+  div[data-testid="stMetricLabel"] { font-size: 0.68rem !important; }
+  .stat-card .val { font-size: 0.95rem; }
+  [data-testid="stTab"] { padding: 0.3rem 0.5rem !important; font-size: 0.7rem !important; letter-spacing: 0.02em !important; }
+  .hero-banner { padding: 0.6rem 0.8rem; gap: 0.5rem; }
+  .hero-banner .logo { font-size: 1.5rem; }
+  .hero-banner h1 { font-size: 1rem !important; }
+  .hero-banner p { font-size: 0.72rem; }
+  .sec-heading { font-size: 0.88rem; margin: 0.7rem 0 0.4rem; }
+
+  /* Columns stack vertically on mobile */
+  [data-testid="stHorizontalBlock"] {
+    flex-wrap: wrap !important;
+    gap: 0.3rem !important;
+  }
+  [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    min-width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  /* Forms compact */
+  .stForm { padding: 0.5rem !important; }
+  .stButton > button { padding: 0.5rem 0.8rem !important; font-size: 0.82rem !important; }
+
+  /* DataEditor scroll hint */
+  .stDataFrame { max-height: 350px !important; }
+  [data-testid="stDataFrameResizable"] { font-size: 0.75rem !important; }
+
+  /* Expanders compact */
+  [data-testid="stExpander"] summary { font-size: 0.85rem !important; padding: 0.4rem 0.6rem !important; }
+
+  /* Selectbox / inputs */
+  .stTextInput input, .stNumberInput input { font-size: 0.85rem !important; padding: 0.4rem 0.6rem !important; }
+  .stSelectbox [data-baseweb="select"] { font-size: 0.85rem !important; }
+
+  /* Radio buttons (filters) wrap better */
+  [data-testid="stRadio"] > div { flex-wrap: wrap !important; gap: 0.2rem !important; }
+  [data-testid="stRadio"] label { font-size: 0.75rem !important; padding: 0.25rem 0.5rem !important; }
+
+  /* Sidebar overlay */
+  [data-testid="stSidebar"] { min-width: 260px !important; }
+
+  /* Plotly charts */
+  .js-plotly-plot { min-height: 250px !important; }
+}
+
+/* ─── Copy description button ─── */
+.copy-desc-btn {
+  background: linear-gradient(135deg, #c084fc, #e879f9) !important;
+  color: #0a0a0f !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
+.copy-desc-btn:hover {
+  box-shadow: 0 4px 24px rgba(192,132,252,0.5) !important;
+}
+
+/* ─── Toast override ─── */
+[data-testid="stToast"] { font-size: 0.85rem !important; border-radius: 10px !important; }
+
+/* ─── Alert / Notification boxes ─── */
+[data-testid="stAlert"] {
+  border-radius: var(--radius) !important;
+  border-width: 1px !important;
+  font-size: 0.84rem !important;
+  padding: 0.65rem 0.9rem !important;
+}
+/* info */
+[data-testid="stAlert"][kind="info"],
+div[data-testid="stInfo"] > div {
+  background: rgba(192,132,252,0.07) !important;
+  border-color: rgba(192,132,252,0.3) !important;
+  color: var(--text) !important;
+}
+/* success */
+[data-testid="stAlert"][kind="success"],
+div[data-testid="stSuccess"] > div {
+  background: rgba(134,239,172,0.07) !important;
+  border-color: rgba(134,239,172,0.3) !important;
+  color: var(--text) !important;
+}
+/* warning */
+[data-testid="stAlert"][kind="warning"],
+div[data-testid="stWarning"] > div {
+  background: rgba(251,191,36,0.07) !important;
+  border-color: rgba(251,191,36,0.25) !important;
+  color: var(--text) !important;
+}
+/* error */
+[data-testid="stAlert"][kind="error"],
+div[data-testid="stError"] > div {
+  background: rgba(244,114,182,0.07) !important;
+  border-color: rgba(244,114,182,0.3) !important;
+  color: var(--text) !important;
+}
+
+/* ─── Secondary / default buttons ─── */
+.stButton > button[kind="secondary"] {
+  background: transparent !important;
+  color: var(--muted) !important;
+  border: 1px solid var(--border) !important;
+}
+.stButton > button[kind="secondary"]:hover {
+  background: rgba(192,132,252,0.07) !important;
+  border-color: rgba(192,132,252,0.45) !important;
+  color: var(--text) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.stButton > button[kind="tertiary"] {
+  background: transparent !important;
+  color: var(--muted) !important;
+  border: none !important;
+}
+.stButton > button[kind="tertiary"]:hover {
+  color: var(--accent) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ─── Form container ─── */
+[data-testid="stForm"] {
+  background: rgba(192,132,252,0.08) !important;
+  border: 1px solid rgba(192,132,252,0.28) !important;
+  border-radius: var(--radius) !important;
+  padding: 1rem !important;
+  box-shadow: 0 2px 16px rgba(192,132,252,0.08) !important;
+}
+
+/* ─── Selectbox / multiselect styled ─── */
+[data-baseweb="select"] > div:first-child {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  color: var(--text) !important;
+}
+[data-baseweb="select"] > div:first-child:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(192,132,252,0.2) !important;
+}
+[data-baseweb="popover"] [data-baseweb="menu"] {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+}
+[data-baseweb="popover"] [role="option"]:hover {
+  background: rgba(192,132,252,0.1) !important;
+}
+[data-baseweb="tag"] {
+  background: rgba(192,132,252,0.15) !important;
+  color: var(--accent) !important;
+  border: none !important;
+  border-radius: 6px !important;
+}
+
+/* ─── Caption / small text ─── */
+[data-testid="stCaptionContainer"] p {
+  color: var(--muted) !important;
+  font-size: 0.76rem !important;
+}
+
+/* ─── Divider ─── */
+hr {
+  border: none !important;
+  border-top: 1px solid var(--border) !important;
+  margin: 0.8rem 0 !important;
+}
+
+/* ─── Sidebar section headings ─── */
+[data-testid="stSidebar"] .sidebar-heading {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0.5rem 0 0.3rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.4rem;
+  display: block;
+}
+
+/* ─── Radio → pill chip style ─── */
+[data-testid="stRadio"] > div {
+  gap: 0.3rem !important;
+  flex-wrap: wrap !important;
+}
+[data-testid="stRadio"] label {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 999px !important;
+  padding: 0.25rem 0.75rem !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  color: var(--muted) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  white-space: nowrap !important;
+}
+[data-testid="stRadio"] label:has(input:checked) {
+  background: rgba(192,132,252,0.15) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  font-weight: 600 !important;
+}
+[data-testid="stRadio"] label:hover {
+  border-color: var(--accent) !important;
+  color: var(--text) !important;
+}
+/* hide the actual radio circle */
+[data-testid="stRadio"] label input[type="radio"] {
+  display: none !important;
+}
+[data-testid="stRadio"] label > div:first-child {
+  display: none !important;
+}
+
+/* ─── Tồn lâu badge ─── */
+.badge-warn {
+  background: rgba(147,51,234,0.25);
+  color: var(--accent2);
+  border: 1px solid rgba(147,51,234,0.4);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-left: 8px;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Hide Streamlit branding ─── */
+#MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
+
+/* ─── Ambient background orbs ─── */
+[data-testid="stAppViewContainer"] { overflow-x: hidden; }
+body::before {
+  content: '';
+  position: fixed;
+  top: -200px; left: -200px;
+  width: 700px; height: 700px;
+  background: radial-gradient(circle, rgba(192,132,252,0.07) 0%, transparent 65%);
+  pointer-events: none; z-index: 0;
+}
+body::after {
+  content: '';
+  position: fixed;
+  bottom: -180px; right: -180px;
+  width: 650px; height: 650px;
+  background: radial-gradient(circle, rgba(232,121,249,0.05) 0%, transparent 65%);
+  pointer-events: none; z-index: 0;
+}
+
+/* ─── Skeleton shimmer ─── */
+.sk-line {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s infinite;
+}
+@keyframes sk-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Toast enhanced ─── */
+[data-testid="stToast"] {
+  background: var(--surface2) !important;
+  border: 1px solid rgba(192,132,252,0.22) !important;
+  border-radius: 12px !important;
+  font-size: 0.85rem !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(192,132,252,0.08) !important;
+  backdrop-filter: blur(16px) !important;
+  color: var(--text) !important;
+}
+[data-testid="stToastContainer"] {
+  bottom: 2rem !important;
+  right: 1.5rem !important;
+}
+
+/* ─── Empty state ─── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  gap: 0.45rem;
+  text-align: center;
+}
+.empty-state .es-icon { font-size: 2.4rem; opacity: 0.45; }
+.empty-state .es-title { font-size: 0.95rem; font-weight: 600; color: var(--muted); }
+.empty-state .es-sub { font-size: 0.78rem; color: var(--muted); opacity: 0.65; }
+
+/* ─── Button loading spinner ─── */
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+.btn-busy {
+  opacity: 0.65 !important;
+  pointer-events: none !important;
+  cursor: wait !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Hero banner – tính stats nhanh
+_hb_con_hang = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
+_badge_count  = int(_hb_con_hang[pd.to_numeric(_hb_con_hang["Ngày Tồn"], errors="coerce").fillna(0) >= 7].shape[0])
+_hb_con_hang_count = len(_hb_con_hang)
+_hb_da_ban_le  = int(df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False).sum())
+_hb_da_ban_bk  = int(pd.to_numeric(bulk_history["Số Lượng Bán"], errors="coerce").fillna(0).sum()) if not bulk_history.empty and "Số Lượng Bán" in bulk_history.columns else 0
+_hb_da_ban     = _hb_da_ban_le + _hb_da_ban_bk
+_hb_today  = now_vn().date()
+
+def _hb_is_today(ts):
+    if not ts or str(ts).strip() in ("","nan","None","-"): return False
+    try:
+        dt = datetime.fromisoformat(str(ts))
+        if dt.tzinfo is None: dt = dt.replace(tzinfo=VN_TZ)
+        return dt.astimezone(VN_TZ).date() == _hb_today
+    except: return False
+
+def _hb_bulk_is_today(d_str):
+    if not d_str or str(d_str).strip() in ("","nan","None","-"): return False
+    try:
+        return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date() == _hb_today
+    except: return False
+
+_hb_sold_today  = df[df["time_ban"].apply(_hb_is_today)] if "time_ban" in df.columns else pd.DataFrame(columns=df.columns)
+_hb_profit_le   = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if "Lợi Nhuận" in _hb_sold_today.columns else 0.0
+_hb_bulk_today  = bulk_history[bulk_history["Ngày Bán"].apply(_hb_bulk_is_today)] if (not bulk_history.empty and "Ngày Bán" in bulk_history.columns) else pd.DataFrame()
+_hb_profit_bulk = float(pd.to_numeric(_hb_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if (not _hb_bulk_today.empty and "Lợi Nhuận Giao Dịch" in _hb_bulk_today.columns) else 0.0
+_hb_profit_today = _hb_profit_le + _hb_profit_bulk
+
+_badge_html = f'<span class="badge-warn">&#9888; {_badge_count} tồn lâu</span>' if _badge_count > 0 else ""
+st.markdown(f"""
+<div class="hero-banner" style="flex-wrap:wrap;gap:0.9rem;">
+  <div style="display:flex;align-items:center;gap:0.75rem;flex:1;min-width:180px;">
+    <div class="logo">👻</div>
+    <div>
+      <h1 style="margin:0;">Management Dashboard{_badge_html}</h1>
+      <p style="margin:0;">Copyright &copy; 2026 MINHTHUAN. All rights reserved.</p>
+    </div>
+  </div>
+  <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+    <div style="background:rgba(134,239,172,0.08);border:1px solid rgba(134,239,172,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
+      <div style="font-size:1.15rem;font-weight:700;color:#86efac;line-height:1.2;">{_hb_con_hang_count}</div>
+      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Còn hàng</div>
+    </div>
+    <div style="background:rgba(192,132,252,0.08);border:1px solid rgba(192,132,252,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
+      <div style="font-size:1.15rem;font-weight:700;color:#c084fc;line-height:1.2;">{_hb_da_ban}</div>
+      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Đã bán</div>
+    </div>
+    <div style="background:rgba(232,121,249,0.08);border:1px solid rgba(232,121,249,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
+      <div style="font-size:1.1rem;font-weight:700;color:#e879f9;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
+      <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Hôm nay</div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+# =============================================================================
+# SIDEBAR
+# =============================================================================
+with st.sidebar:
+    st.markdown("---")
+    st.caption(f"🕐 {now_vn().strftime('%d/%m/%Y %H:%M')} (VN)")
+    if USE_SUPABASE:
+        st.success("Kết nối · Supabase Cloud", icon="✅")
+    else:
+        st.warning("Offline · Chế độ CSV cục bộ")
+
+    # ── Tồn kho real-time ──
+    _con_hang = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
+    _von_le   = float(pd.to_numeric(_con_hang["Giá Nhập"], errors="coerce").fillna(0).sum())
+    _von_lo   = float(pd.to_numeric(
+        bulk_df[bulk_df["Trạng Thái"].astype(str)=="Available"]["Giá Nhập Tổng"], errors="coerce"
+    ).fillna(0).sum())
+    st.markdown('<span class="sidebar-heading">Tồn kho hiện tại</span>', unsafe_allow_html=True)
+    st.metric("Có thể bán", f"{len(_con_hang):,} đơn vị", delta=None)
+    st.metric("Vốn tồn — lẻ", fmt_vnd(_von_le))
+    st.metric("Vốn tồn — lô", fmt_vnd(_von_lo))
+    st.caption(f"Tổng vốn lưu động: **{fmt_vnd(_von_le+_von_lo)}**")
+    st.markdown("---")
+
+    # ── Dashboard hôm nay ──
+    _today_date = now_vn().date()
+    def _is_today_ban(ts_str):
+        if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+            return False
+        try:
+            dt = datetime.fromisoformat(str(ts_str))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=VN_TZ)
+            return dt.astimezone(VN_TZ).date() == _today_date
+        except Exception:
+            return False
+    _sold_today = df[df["time_ban"].apply(_is_today_ban)] if "time_ban" in df.columns else pd.DataFrame(columns=df.columns)
+    _today_count = len(_sold_today)
+    _profit_le = float(pd.to_numeric(_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if "Lợi Nhuận" in _sold_today.columns else 0.0
+    # Cộng lợi nhuận lô pack hôm nay
+    def _is_today_bulk(d_str):
+        if not d_str or str(d_str).strip() in ("", "nan", "None", "-"): return False
+        try: return datetime.strptime(str(d_str).strip(), "%d/%m/%Y %H:%M").date() == _today_date
+        except: return False
+    _bulk_today = bulk_history[bulk_history["Ngày Bán"].apply(_is_today_bulk)] if (not bulk_history.empty and "Ngày Bán" in bulk_history.columns) else pd.DataFrame(columns=bulk_history.columns)
+    _profit_bulk = float(pd.to_numeric(_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if "Lợi Nhuận Giao Dịch" in _bulk_today.columns else 0.0
+    _today_profit = _profit_le + _profit_bulk
+    st.markdown('<span class="sidebar-heading">Hôm nay</span>', unsafe_allow_html=True)
+    _td1, _td2 = st.columns(2)
+    _td1.metric("Giao dịch", f"{_today_count}")
+    _td2.metric("Lợi nhuận", fmt_vnd(_today_profit))
+
+    # ── #22 Mục tiêu lãi ngày ──
+    if "daily_profit_target" not in st.session_state:
+        st.session_state["daily_profit_target"] = 5_000_000
+    st.number_input("Mục tiêu lợi nhuận (₫)", min_value=0, step=500_000,
+                    key="daily_profit_target", format="%d")
+    _daily_target_val = st.session_state["daily_profit_target"]
+    if _daily_target_val > 0:
+        _goal_pct = max(0, min(_today_profit / _daily_target_val, 1.0))
+        st.progress(_goal_pct, text=f"{fmt_vnd(_today_profit)} / {fmt_vnd(_daily_target_val)} ({_goal_pct*100:.0f}%)")
+    st.markdown("---")
+
+    # ── Copy Shop Description ──
+    _SHOP_DESC = """👻Welcome to Nova Bolt - The Safest Way to Trade! 👻
+
+Don't risk your items with "base-stealing" transfers. While others make you "steal" items from base to base, we use the "Trade Machine" for every order! 🚀
+
+✅ Best Prices 💸
+
+✅ Zero Risk (Trade Machine) 🔒
+
+✅ Instant Delivery 🚚⚡
+
+How to get your Brainrot 📦:
+
+1️⃣ Send Username: Please provide your username after payment.
+
+2️⃣ Stay Online: Stay active in-game to receive your trade invite.
+
+3️⃣ Accept Invite: Our team will send you a request via the Trade Machine.
+
+4️⃣ Confirm Trade: We transfer your Brainrot directly through the secure trade interface.
+
+5️⃣ Secure the Loot: Once accepted, your Brainrot is 100% secured in your base—no risk of being intercepted!
+
+Why Nova Bolt is Different?
+
+In Steal a Brainrot, manual transfers are slow and dangerous. We skip the "stealing" hassle entirely! By utilizing the in-game Trade function, we guarantee your pets are protected during the entire process. No shared servers required, no risks taken.
+
+Secure. Professional. Super Fast. 👻⚡"""
+    st.session_state["_shop_desc"] = _SHOP_DESC
+    st.markdown("---")
+
+    if st.button("Đồng Bộ Dữ Liệu", use_container_width=True):
+        st.cache_data.clear()
+        del st.session_state["initialized"]
+        st.rerun()
+
+    # ── Auto-refresh cố định 5 phút ──
+    import streamlit.components.v1 as _cmp_ar
+    _cmp_ar.html(
+        '<script>'
+        '(function(){'
+        '  setTimeout(function(){'
+        '    var btns = window.parent.document.querySelectorAll("button[kind=\'secondary\']");'
+        '    var found = Array.from(btns).find(function(b){return b.innerText.includes("D\u1eef Li\u1ec7u");});'
+        '    if(found){found.click();} else {window.parent.location.reload();}'
+        '  }, 300000);'
+        '})();'
+        '</script>',
+        height=0,
+    )
+    st.caption("Tự động đồng bộ · mỗi 5 phút")
+
+# =============================================================================
+# MAIN TABS
+# =============================================================================
+tab_kho, tab_pack, tab_chart, tab_ton, tab_eldo, tab_settings = st.tabs([
+    "📦 Kho Lẻ", "🗃️ Lô Pack", "📊 Thống Kê", "⏳ Tồn Lâu", "🎮 Eldorado", "⚙️ Cài Đặt",
+])
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 1: KHO (Nhập + Bán + Bảng tồn kho)
+# ─────────────────────────────────────────────────────────────────────────────
+with tab_kho:
+    col_in, col_sell = st.columns([1.15, 1], gap="medium")
+
+    # ── NHẬP KHO ──
+    with col_in:
+        with st.container(border=True):
+            st.markdown('<div class="sec-heading">Nhập Kho</div>', unsafe_allow_html=True)
+
+            # =========================================================
+            # AI VISION – Key setup + multi-image + dialog preview
+            # =========================================================
+            # Giữ expander mở khi có file đã upload hoặc có kết quả đang hiển thị
+            _ai_ukey = st.session_state.get("ai_uploader_key", 0)
+            _ai_has_files   = bool(st.session_state.get(f"ai_batch_upload_{_ai_ukey}", []))
+            _ai_has_results = bool(st.session_state.get("ai_batch_results", []) or st.session_state.get("ai_show_dialog", False))
+            if _ai_has_files or _ai_has_results:
+                st.session_state.ai_expander = True
+
+            with st.expander("AI Vision — Nhập tự động", expanded=st.session_state.get("ai_expander", False)):
+
+                # ── STEP 1: API KEY ──
+                ai_key = st.session_state.get("groq_key", "")
+                if ai_key:
+                    # Key đã được cấu hình — hiển thị masked + nút cập nhật
+                    _masked = ai_key[:6] + "*" * (len(ai_key) - 10) + ai_key[-4:] if len(ai_key) > 10 else "****"
+                    _kc1, _kc2 = st.columns([3, 1])
+                    _kc1.success(f"API đã kết nối · {_masked}")
+                    if _kc2.button("Thay đổi", use_container_width=True, key="btn_change_groq"):
+                        st.session_state.groq_key = ""
+                        st.rerun()
+                else:
+                    ai_key_input = st.text_input(
+                        "🔑 Groq API Key",
+                        type="password",
+                        value="",
+                        placeholder="gsk_...",
+                        help="Lấy miễn phí tại console.groq.com/keys",
+                    )
+                    if ai_key_input and ai_key_input.strip():
+                        st.session_state.groq_key = ai_key_input.strip()
+                        _save_groq_key_to_supabase(ai_key_input.strip())
+                        st.toast("✅ Đã lưu Groq Key vĩnh viễn!", icon="🔑")
+                        st.rerun()
+                    st.info("Nhập Groq API Key để bật nhận dạng hình ảnh AI (Llama 3.2 90B Vision · miễn phí).")
+                    ai_key = ""
+
+                # ── STEP 2: MULTI-IMAGE UPLOAD ── (hiện khi đã có Groq key)
+                if ai_key:
+                    st.markdown("**Tải lên ảnh sản phẩm**")
+                    if "ai_uploader_key" not in st.session_state:
+                        st.session_state.ai_uploader_key = 0
+                        
+                    batch_imgs = st.file_uploader(
+                        "Chọn ảnh",
+                        type=["png", "jpg", "jpeg", "webp"],
+                        accept_multiple_files=True,
+                        label_visibility="collapsed",
+                        key=f"ai_batch_upload_{st.session_state.ai_uploader_key}",
+                    )
+
+                    if batch_imgs:
+                        st.caption(f"🖼️ Đã chọn **{len(batch_imgs)}** ảnh — {', '.join(f.name[:18] for f in batch_imgs[:3])}{'...' if len(batch_imgs) > 3 else ''}")
+
+                        scan_btn = st.button(
+                            f"Phân tích {len(batch_imgs)} ảnh",
+                            type="primary",
+                            use_container_width=True,
+                            key="btn_ai_scan_batch",
+                        )
+
+                        if scan_btn:
+                            import requests
+                            import base64
+                            import time
+                            
+                            results = []
+                            progress = st.progress(0, text="Đang khởi tạo...")
+                            
+                            prompt = """Screenshot from Roblox game "Steal a Brainrot". Find the dark rounded INFO CARD near the pet.
+The card has the pet NAME at the top and the large $M/s speed value is OUTSIDE the card.
+Return ONLY valid JSON, no markdown:
+{
+  "Tên Pet": "exact pet name from the card",
+  "Mutation": "Gold|Diamond|Divine|Rainbow|Bloodrot|Candy|Lava|Galaxy|Yin-Yang|Radioactive|Cursed|Celestial|Normal",
+  "Tốc độ": "speed in Millions as plain number: $700M/s→700  $1.2B/s→1200  $55M/s→55  $500K/s→0.5"
+}"""
+
+                            headers = {
+                                "Authorization": f"Bearer {ai_key}",
+                                "Content-Type": "application/json"
+                            }
+                            
+                            # Tự động lấy danh sách Model (tránh vụ model cũ bị xoá/decommissioned)
+                            target_model = None
+                            all_models = []
+                            try:
+                                m_resp = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {ai_key}"})
+                                if m_resp.status_code == 200:
+                                    m_data = m_resp.json()
+                                    all_models = [m["id"] for m in m_data.get("data", [])]
+                                    vision_models = [m for m in all_models if any(k in m.lower() for k in ["vision", "scout", "pixtral", "vl"])]
+                                    if vision_models:
+                                        target_model = next((m for m in vision_models if "90b" in m.lower() or "scout" in m.lower()), vision_models[0])
+                            except Exception:
+                                pass
+                            
+                            if not target_model:
+                                st.error(f"❌ Không tìm thấy Model Đọc Ảnh nào khả dụng cho Key của bạn! Danh sách model Groq trả về hiện tại: {', '.join(all_models)}")
+                                st.stop()
+                                
+                            st.toast(f"Model: {target_model}", icon="🦙")
+
+                            # Đọc và encode tất cả ảnh trước (I/O)
+                            _img_data = []
+                            for img_f in batch_imgs:
+                                img_f.seek(0)
+                                _img_data.append({
+                                    "name": img_f.name,
+                                    "b64": base64.b64encode(img_f.read()).decode("utf-8"),
+                                    "mime": img_f.type or "image/jpeg",
+                                })
+
+                            import threading
+                            _lock = threading.Lock()
+                            _done_count = [0]
+
+                            def _analyze_one(item):
+                                _payload = {
+                                    "model": target_model,
+                                    "messages": [
+                                        {
+                                            "role": "system",
+                                            "content": "You are a game data extractor. Output ONLY valid JSON, no markdown, no extra text."
+                                        },
+                                        {
+                                            "role": "user",
+                                            "content": [
+                                                {"type": "text", "text": prompt},
+                                                {"type": "image_url", "image_url": {"url": f"data:{item['mime']};base64,{item['b64']}"}}
+                                            ]
+                                        }
+                                    ],
+                                    "temperature": 0.0,
+                                    "max_tokens": 128
+                                }
+                                MAX_RETRY = 3
+                                last_err = ""
+                                for _attempt in range(MAX_RETRY):
+                                    try:
+                                        resp = requests.post(
+                                            "https://api.groq.com/openai/v1/chat/completions",
+                                            json=_payload, headers=headers, timeout=30
+                                        )
+                                        if resp.status_code == 429:
+                                            time.sleep(15 + _attempt * 5)
+                                            continue
+                                        if resp.status_code != 200:
+                                            last_err = f"API {resp.status_code}: {resp.text[:150]}"
+                                            break
+                                        txt = resp.json()["choices"][0]["message"]["content"].strip()
+                                        json_str = txt
+                                        if "```json" in txt:
+                                            json_str = txt.split("```json")[-1].split("```")[0].strip()
+                                        elif "{" in txt:
+                                            json_str = txt[txt.find("{"):txt.rfind("}")+1]
+                                        parsed = json.loads(json_str)
+                                        with _lock:
+                                            _done_count[0] += 1
+                                        return {
+                                            "_filename": item["name"],
+                                            "_ok": True,
+                                            "Tên Pet":   parsed.get("Tên Pet", ""),
+                                            "Mutation":  parsed.get("Mutation", "Normal"),
+                                            "M/s":       parsed.get("Tốc độ", ""),
+                                            "Số Trait":  "None",
+                                            "NameStock": "",
+                                            "Giá Nhập":  "",
+                                        }
+                                    except (json.JSONDecodeError, KeyError) as _je:
+                                        last_err = f"Parse error: {_je}"
+                                        if _attempt < MAX_RETRY - 1:
+                                            time.sleep(2)
+                                        continue
+                                    except Exception as _e:
+                                        last_err = str(_e)
+                                        break
+                                with _lock:
+                                    _done_count[0] += 1
+                                return {
+                                    "_filename": item["name"], "_ok": False, "_error": last_err,
+                                    "Tên Pet": "", "Mutation": "Normal", "M/s": "",
+                                    "Số Trait": "None", "NameStock": "", "Giá Nhập": "",
+                                }
+
+                            # Chạy song song, tối đa 4 luồng
+                            from concurrent.futures import ThreadPoolExecutor, as_completed
+                            _futures_map = {}
+                            with ThreadPoolExecutor(max_workers=4) as _pool:
+                                for _item in _img_data:
+                                    _futures_map[_pool.submit(_analyze_one, _item)] = _item["name"]
+                                for _fut in as_completed(_futures_map):
+                                    results.append(_fut.result())
+                                    _n = _done_count[0]
+                                    progress.progress(
+                                        int(_n / len(_img_data) * 100),
+                                        text=f"⚡ Đã xong {_n}/{len(_img_data)} ảnh..."
+                                    )
+                            # Sắp xếp lại theo thứ tự ảnh gốc
+                            _order = {d["name"]: i for i, d in enumerate(_img_data)}
+                            results.sort(key=lambda r: _order.get(r["_filename"], 999))
+                            
+                            progress.progress(100, text="Hoàn thành phân tích!")
+                            st.session_state.ai_batch_results = results
+                            st.session_state.ai_show_dialog = True
+                            st.rerun()
+
+            # =========================================================
+            # DIALOG PREVIEW + EDIT (hiện khi có kết quả AI)
+            # =========================================================
+            if st.session_state.get("ai_show_dialog") and st.session_state.get("ai_batch_results"):
+                results = st.session_state.ai_batch_results
+
+                @st.dialog("Kết Quả AI — Xem trước & Chỉnh sửa", width="large")
+                def ai_preview_dialog():
+                    global pet_db
+                    pet_opts_dlg   = get_name_options(pet_db)
+                    # Số Trait là con số đếm (1-15), không phụ thuộc vào file CSV
+                    trait_opts_dlg = ["None"] + [str(n) for n in range(1, 16)]
+                    ns_opts_dlg    = [""] + get_name_options(ns_db, fallback="")
+
+                    st.caption(f"**{len(results)}** ảnh đã phân tích · Xem lại và xác nhận trước khi lưu")
+
+                    # ── NameStock chung cho cả batch ──
+                    _gn1, _gn2 = st.columns([1, 3])
+                    use_global_ns = _gn1.checkbox("NameStock chung", key="dlg_global_ns_check",
+                                                   help="Áp dụng cùng 1 NameStock cho tất cả pet trong batch này")
+                    if use_global_ns:
+                        global_ns_val = _gn2.selectbox(
+                            "NameStock áp dụng cho tất cả",
+                            ns_opts_dlg,
+                            key="dlg_global_ns_val",
+                            label_visibility="collapsed",
+                        )
+                    else:
+                        global_ns_val = ""
+
+                    st.markdown("---")
+                    edited_rows = []
+                    all_valid = True
+
+                    for i, res in enumerate(results):
+                        fname = res.get("_filename", f"Image {i+1}")
+                        is_ok = res.get("_ok", False)
+
+                        _expander_label = (
+                            f"❌ {fname} — Lỗi nhận dạng" if not is_ok
+                            else f"✅ {fname} — {str(res.get('Tên Pet','?'))} · {str(res.get('Mutation','Normal'))} · {str(res.get('M/s','?'))}M/s"
+                        )
+                        with st.expander(_expander_label, expanded=True):
+                            if not is_ok:
+                                st.warning(f"Không thể đọc ảnh này · {res.get('_error','')} · Có thể nhập thủ công.")
+
+                            img_col, form_col = st.columns([1, 3.5])
+
+                            with img_col:
+                                u_key = st.session_state.get("ai_uploader_key", 0)
+                                current_files = st.session_state.get(f"ai_batch_upload_{u_key}", [])
+                                matched_img = next((f for f in current_files if f.name == fname), None)
+                                if matched_img:
+                                    st.image(matched_img, use_container_width=True)
+                                else:
+                                    st.caption("Không thể tải ảnh")
+
+                            with form_col:
+                                c1d, c2d, c3d = st.columns(3)
+
+                                ai_name = str(res.get("Tên Pet") or "")
+                                if ai_name and ai_name.lower() not in [x.lower() for x in pet_opts_dlg]:
+                                    pet_opts_dlg = [ai_name] + pet_opts_dlg
+                                pi = next((j for j, x in enumerate(pet_opts_dlg) if x.lower() == ai_name.lower()), 0)
+                                r_name = c1d.selectbox(f"Tên Pet", pet_opts_dlg, index=pi, key=f"dlg_name_{i}")
+
+                                ai_mut_v = str(res.get("Mutation") or "Normal")
+                                mi = next((j for j, m in enumerate(MUTATION_OPTIONS) if m.lower() == ai_mut_v.lower()), 0)
+                                r_mut = c2d.selectbox(f"Mutation", MUTATION_OPTIONS, index=mi, key=f"dlg_mut_{i}")
+
+                                r_ms_raw = c3d.text_input(f"M/s", value=str(res.get("M/s") or ""), key=f"dlg_ms_{i}")
+
+                                c4d, c5d, c6d = st.columns(3)
+                                ai_trait = str(res.get("Số Trait") or "None").strip()
+                                # Tự thêm vào list nếu model trả giá trị ngoài 1-15
+                                if ai_trait not in trait_opts_dlg:
+                                    trait_opts_dlg = trait_opts_dlg + [ai_trait]
+                                ti = next((j for j, t in enumerate(trait_opts_dlg) if t.lower() == ai_trait.lower()), 0)
+                                r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, index=ti, key=f"dlg_trait_{i}")
+
+                                # NameStock: dùng global nếu checkbox bật, ngược lại dùng per-row
+                                if use_global_ns:
+                                    r_ns = global_ns_val
+                                    _ns_display = global_ns_val if global_ns_val else "—"
+                                    c5d.markdown(
+                                        f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#a78bfa;">'
+                                        f'NS: <b>{_ns_display}</b> <span style="color:#4b3f6b;">(chung)</span></div>',
+                                        unsafe_allow_html=True,
+                                    )
+                                else:
+                                    r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_ns_{i}")
+
+                                r_cost = c6d.text_input(f"Giá nhập", placeholder="150k / 1.5tr / 1500000", key=f"dlg_cost_{i}")
+
+                            r_ms = parse_usd(r_ms_raw)
+                            err_row = []
+                            if not r_name or r_name == "None": err_row.append("Tên Pet")
+                            if r_ms <= 0:  err_row.append("M/s")
+                            if not r_ns.strip(): err_row.append("NameStock")
+                            if parse_vnd(r_cost) <= 0: err_row.append("Giá nhập")
+                            if err_row:
+                                st.info(f"Thiếu thông tin: {', '.join(err_row)}")
+                                all_valid = False
+
+                            edited_rows.append({
+                                "Tên Pet":   r_name,
+                                "Mutation":  r_mut,
+                                "M/s":       r_ms,
+                                "Số Trait":  r_trait,
+                                "NameStock": r_ns,
+                                "Giá Nhập":  parse_vnd(r_cost),
+                                "_valid":    len(err_row) == 0,
+                            })
+
+                    st.markdown("---")
+                    col_cancel, col_save = st.columns([1, 2])
+                    with col_cancel:
+                        if st.button("Huỷ bỏ", use_container_width=True):
+                            st.session_state.ai_show_dialog = False
+                            st.session_state.ai_batch_results = []
+                            st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1
+                            st.rerun()
+
+                    with col_save:
+                        valid_count = sum(1 for r in edited_rows if r["_valid"])
+                        save_label = f"Lưu {valid_count} / {len(edited_rows)} mục hợp lệ"
+                        if st.button(save_label, type="primary", use_container_width=True, disabled=valid_count == 0):
+                            saved = 0
+                            current_df = st.session_state.df
+                            sb_records_to_insert = []
+                            _ts_batch   = now_iso()
+                            _ngay_batch = now_str()
+
+                            for r in edited_rows:
+                                if not r["_valid"]:
+                                    continue
+                                existing_lower = [x.lower() for x in get_name_options(pet_db)]
+                                if r["Tên Pet"].lower() not in existing_lower:
+                                    pet_db = append_row(pet_db, {"Name": r["Tên Pet"]}, LIST_SCHEMA)
+                                    save_csv(pet_db, PET_LIST_FILE)
+
+                                stt = next_id(current_df, "STT")
+                                new_row = {
+                                    "STT":        stt,
+                                    "Tên Pet":    r["Tên Pet"],
+                                    "M/s":        float(r["M/s"]),
+                                    "Mutation":   r["Mutation"],
+                                    "Số Trait":   r["Số Trait"],
+                                    "NameStock":  r["NameStock"],
+                                    "Giá Nhập":   float(r["Giá Nhập"]),
+                                    "Giá Bán":    0.0,
+                                    "Lợi Nhuận":  0.0,
+                                    "Doanh Thu":  0.0,
+                                    "Ngày Nhập":  _ngay_batch,
+                                    "Ngày Bán":   "-",
+                                    "Auto Title": generate_auto_title(
+                                        r["Tên Pet"], r["Mutation"], r["Số Trait"], r["M/s"], r["NameStock"]
+                                    ),
+                                    "Trạng Thái": "Còn hàng",
+                                    "time_nhap":  _ts_batch,
+                                    "time_ban":   "",
+                                    "Ngày Tồn":   0,
+                                    "Place":      "",
+                                }
+                                current_df = append_row(current_df, new_row, MAIN_SCHEMA)
+                                _db_row = to_db(new_row)
+                                _db_row.pop("id", None)
+                                sb_records_to_insert.append(_db_row)
+                                saved += 1
+
+                            # Toàn bộ I/O nằm trong spinner — không có khoảng freeze nào bên ngoài
+                            _save_ok = False
+                            with st.spinner(f"Đang lưu {saved} mục..."):
+                                sb_ok = True
+                                if USE_SUPABASE and sb_records_to_insert:
+                                    sb_ok = sb_insert_batch("inventory", sb_records_to_insert)
+
+                                if sb_ok:
+                                    if USE_SUPABASE:
+                                        st.cache_data.clear()
+                                        st.session_state.df = apply_ngay_ton(load_inventory())
+                                    else:
+                                        current_df = apply_ngay_ton(current_df)
+                                        st.session_state.df = current_df
+                                    save_csv(st.session_state.df, DB_FILE)
+                                    st.session_state.ai_show_dialog = False
+                                    st.session_state.ai_batch_results = []
+                                    st.session_state.ai_uploader_key = st.session_state.get("ai_uploader_key", 0) + 1
+                                    st.session_state.ai_expander = False
+                                    _save_ok = True
+
+                            if _save_ok:
+                                st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
+                                st.rerun()
+
+                ai_preview_dialog()
+
+            # =========================================================
+            # JSON IMPORT — Nhập từ JSON
+            # =========================================================
+            with st.expander("📋 JSON Import — Nhập từ JSON", expanded=st.session_state.get("json_import_expander", False)):
+                st.caption("Dán JSON từ game vào đây để nhập dữ liệu pet nhanh chóng")
+                
+                if "json_import_key" not in st.session_state:
+                    st.session_state.json_import_key = 0
+                
+                json_input = st.text_area(
+                    "Dán JSON",
+                    value="",
+                    height=120,
+                    placeholder='[{"name":"Burguro And Fryuro","mutation":"Galaxy","gen_text":"2B/s","traits":["Galactic","Matteo Hat"],...}]',
+                    key=f"json_import_text_{st.session_state.json_import_key}",
+                    label_visibility="collapsed",
+                )
+
+                parse_btn = st.button(
+                    "Phân tích JSON",
+                    type="primary",
+                    use_container_width=True,
+                    key="btn_json_parse",
+                    disabled=not json_input.strip(),
+                )
+
+                if parse_btn and json_input.strip():
+                    json_results = parse_json_import(json_input)
+                    if not json_results:
+                        st.error("❌ Lỗi: Không thể phân tích JSON. Kiểm tra định dạng lại.")
+                    else:
+                        st.session_state.json_batch_results = json_results
+                        st.session_state.json_show_dialog = True
+
+            # =========================================================
+            # JSON DIALOG PREVIEW + EDIT
+            # =========================================================
+            if st.session_state.get("json_show_dialog") and st.session_state.get("json_batch_results"):
+                json_results = st.session_state.json_batch_results
+
+                @st.dialog("Kết Quả JSON — Xem trước & Chỉnh sửa", width="large")
+                def json_preview_dialog():
+                    global pet_db
+                    # ── CACHE OPTIONS TRƯỚC ──
+                    pet_opts_dlg   = list(get_name_options(pet_db))
+                    pet_opts_lower_set = set(x.lower() for x in pet_opts_dlg)  # O(1) lookup
+                    trait_opts_dlg = ["None"] + [str(n) for n in range(1, 16)]
+                    ns_opts_dlg    = [""] + list(get_name_options(ns_db, fallback=""))
+
+                    st.caption(f"**{len(json_results)}** mục từ JSON · Xem lại và xác nhận trước khi lưu")
+
+                    if st.button("🗑️ Xoá ngay các mục đang chọn", use_container_width=True):
+                        kept = []
+                        for i, res in enumerate(json_results):
+                            if not st.session_state.get(f"dlg_json_delete_{i}", False):
+                                kept.append(res)
+                        if len(kept) < len(json_results):
+                            st.session_state.json_batch_results = kept
+                            for k in list(st.session_state.keys()):
+                                if k.startswith("dlg_json_delete_"):
+                                    del st.session_state[k]
+                            st.rerun()
+                        else:
+                            st.warning("Bạn chưa tick chọn mục nào để xoá!")
+
+                    # ── NameStock chung cho cả batch ──
+                    _gn1, _gn2 = st.columns([1, 3])
+                    use_global_ns = _gn1.checkbox("NameStock chung", key="dlg_json_global_ns_check",
+                                                   help="Áp dụng cùng 1 NameStock cho tất cả pet trong batch này")
+                    if use_global_ns:
+                        global_ns_val = _gn2.selectbox(
+                            "NameStock áp dụng cho tất cả",
+                            ns_opts_dlg,
+                            key="dlg_json_global_ns_val",
+                            label_visibility="collapsed",
+                        )
+                    else:
+                        global_ns_val = ""
+
+                    # ── PRE-PROCESS: Cache similar pets detection ──
+                    similar_cache = {}
+                    if not st.session_state.df.empty:
+                        # Build pet lookup map từ inventory: {(ns, mutation, ms_range): [(pet_name, ms, ns), ...]}
+                        for _, row in st.session_state.df.iterrows():
+                            try:
+                                ns = str(row.get("NameStock", "")).strip()
+                                mut = str(row.get("Mutation", "Normal")).strip()
+                                ms = float(row.get("M/s", 0))
+                                pet_name = str(row.get("Tên Pet", ""))
+                                if ns and mut and ms > 0 and pet_name:
+                                    key = (ns, mut, int(ms / 50) * 50)  # Group by 50M/s range
+                                    if key not in similar_cache:
+                                        similar_cache[key] = []
+                                    similar_cache[key].append((pet_name, ms, ns))  # ← STORE NameStock too
+                            except (TypeError, ValueError):
+                                pass
+
+                    st.markdown("---")
+                    edited_rows = []
+                    all_valid = True
+
+                    for i, res in enumerate(json_results):
+                        pet_name = res.get("Tên Pet", f"Item {i+1}")
+                        mutation = res.get("Mutation", "Normal")
+                        
+                        _expander_label = f"✅ {pet_name} · {mutation}"
+                        
+                        with st.expander(_expander_label, expanded=True):
+                            # Top row: Delete checkbox + basic info
+                            _del_col, _info_col = st.columns([0.5, 5])
+                            with _del_col:
+                                r_delete = st.checkbox("🗑️ Xoá", key=f"dlg_json_delete_{i}", label_visibility="collapsed")
+                            
+                            with _info_col:
+                                ms_val = res.get('M/s')
+                                st.caption(f"M/s: {f'{ms_val:g}' if ms_val else '?'} | Traits: {res.get('Số Trait')}")
+                            
+                            # Main form columns
+                            c1d, c2d, c3d = st.columns(3)
+
+                            # Tên Pet
+                            json_name = str(res.get("Tên Pet") or "")
+                            # ──tối ưu: kiểm tra O(1) với set ──
+                            if json_name and json_name.lower() not in pet_opts_lower_set:
+                                pet_opts_dlg = [json_name] + pet_opts_dlg
+                                pet_opts_lower_set.add(json_name.lower())
+                            pi = next((j for j, x in enumerate(pet_opts_dlg) if x.lower() == json_name.lower()), 0)
+                            r_name = c1d.selectbox(f"Tên Pet", pet_opts_dlg, index=pi, key=f"dlg_json_name_{i}", label_visibility="collapsed")
+
+                            # Mutation
+                            json_mut_v = str(res.get("Mutation") or "Normal")
+                            mi = next((j for j, m in enumerate(MUTATION_OPTIONS) if m.lower() == json_mut_v.lower()), 0)
+                            r_mut = c2d.selectbox(f"Mutation", MUTATION_OPTIONS, index=mi, key=f"dlg_json_mut_{i}", label_visibility="collapsed")
+
+                            # M/s
+                            val_ms = res.get("M/s")
+                            str_ms = f"{val_ms:g}" if val_ms else ""
+                            r_ms_raw = c3d.text_input(f"M/s", value=str_ms, key=f"dlg_json_ms_{i}", label_visibility="collapsed")
+
+                            c4d, c5d, c6d = st.columns([1, 1, 1])
+                            
+                            # Số Trait
+                            json_trait = str(res.get("Số Trait") or "None").strip()
+                            if json_trait not in trait_opts_dlg:
+                                trait_opts_dlg = trait_opts_dlg + [json_trait]
+                            ti = next((j for j, t in enumerate(trait_opts_dlg) if t.lower() == json_trait.lower()), 0)
+                            r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, index=ti, key=f"dlg_json_trait_{i}", label_visibility="collapsed")
+
+                            # NameStock: dùng global nếu checkbox bật, ngược lại dùng per-row
+                            if use_global_ns:
+                                r_ns = global_ns_val
+                                _ns_display = global_ns_val if global_ns_val else "—"
+                                c5d.markdown(
+                                    f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#a78bfa;">'
+                                    f'NS: <b>{_ns_display}</b> <span style="color:#4b3f6b;">(chung)</span></div>',
+                                    unsafe_allow_html=True,
+                                )
+                                effective_ns = global_ns_val
+                            else:
+                                r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_json_ns_{i}", label_visibility="collapsed")
+                                effective_ns = r_ns
+
+                            # Giá Nhập
+                            r_cost_raw = c6d.text_input(f"Giá nhập", value="", placeholder="VD: 150k", key=f"dlg_json_cost_{i}", label_visibility="collapsed")
+
+                            # ── Auto Title preview ──
+                            _temp_ms = parse_usd(r_ms_raw)
+                            _preview_title = generate_auto_title(r_name, r_mut, r_trait, _temp_ms, effective_ns if effective_ns else "")
+                            st.caption(f"**Auto Title:** {_preview_title[:80]}{'...' if len(_preview_title) > 80 else ''}")
+
+                            # ── Similar pet detection (dùng cache) ──
+                            if effective_ns and effective_ns.strip():
+                                try:
+                                    r_ms = parse_usd(r_ms_raw)
+                                    r_mut_str = str(r_mut).strip()
+                                    
+                                    if r_ms > 0:
+                                        # Lookup từ cache
+                                        key = (effective_ns.strip(), r_mut_str, int(r_ms / 50) * 50)
+                                        similar_pets = similar_cache.get(key, [])
+                                        
+                                        # Exact Match (100%) + EXPLICIT CHECK NameStock
+                                        similar_pets = [
+                                            p for p in similar_pets 
+                                            if p[1] == r_ms and p[2] == effective_ns.strip()
+                                        ]
+                                        
+                                        if similar_pets:
+                                            similar_names = ", ".join([f"{p[0]} ({p[1]:.1f}M/s)" for p in similar_pets[:3]])
+                                            if len(similar_pets) > 3:
+                                                similar_names += f" +{len(similar_pets)-3} nữa"
+                                            st.warning(f"⚠️ **Có vẻ trùng (cùng {effective_ns}):** {similar_names}")
+                                except Exception as e:
+                                    pass
+
+                        r_ms = parse_usd(r_ms_raw)
+                        r_cost = parse_vnd(r_cost_raw)
+                        err_row = []
+                        if not r_delete:  # Chỉ validate nếu không xoá
+                            if not r_name or r_name == "None": err_row.append("Tên Pet")
+                            if r_ms <= 0:  err_row.append("M/s")
+                            if not r_ns.strip(): err_row.append("NameStock")
+                            if r_cost <= 0: err_row.append("Giá nhập")
+                        
+                        if not r_delete and err_row:
+                            st.info(f"⚠️ Thiếu thông tin: {', '.join(err_row)}")
+                            all_valid = False
+
+                        edited_rows.append({
+                            "Tên Pet":   r_name,
+                            "Mutation":  r_mut,
+                            "M/s":       r_ms,
+                            "Số Trait":  r_trait,
+                            "NameStock": r_ns,
+                            "Giá Nhập":  r_cost,
+                            "_delete":   r_delete,
+                            "_valid":    r_delete or len(err_row) == 0,
+                            "_auto_title": generate_auto_title(r_name, r_mut, r_trait, r_ms, effective_ns if effective_ns else ""),
+                        })
+
+                    st.markdown("---")
+                    col_cancel, col_save = st.columns([1, 2])
+                    with col_cancel:
+                        if st.button("Huỷ bỏ", use_container_width=True):
+                            st.session_state.json_show_dialog = False
+                            st.session_state.json_batch_results = []
+                            st.session_state.json_import_key = st.session_state.get("json_import_key", 0) + 1
+                            st.rerun()
+
+                    with col_save:
+                        valid_count = sum(1 for r in edited_rows if r["_valid"])
+                        save_label = f"Lưu {valid_count} / {len(edited_rows)} mục hợp lệ"
+                        if st.button(save_label, type="primary", use_container_width=True, disabled=valid_count == 0):
+                            saved = 0
+                            current_df = st.session_state.df
+                            sb_records_to_insert = []
+                            _ts_batch   = now_iso()
+                            _ngay_batch = now_str()
+                            saved_original_json = []
+                            unsaved_original_json = []
+
+                            for i, r in enumerate(edited_rows):
+                                if not r["_valid"]:
+                                    if "_original_json" in json_results[i]:
+                                        unsaved_original_json.append(json_results[i]["_original_json"])
+                                    continue
+                                
+                                # ── BỎ QUA NẾU TICK XOÁ (Không thêm vào, không xoá DB) ──
+                                if r["_delete"]:
+                                    if "_original_json" in json_results[i]:
+                                        unsaved_original_json.append(json_results[i]["_original_json"])
+                                    continue
+                                
+                                if "_original_json" in json_results[i]:
+                                    saved_original_json.append(json_results[i]["_original_json"])
+                                
+                                # ── THÊM MỚI ──
+                                existing_lower = [x.lower() for x in get_name_options(pet_db)]
+                                if r["Tên Pet"].lower() not in existing_lower:
+                                    pet_db = append_row(pet_db, {"Name": r["Tên Pet"]}, LIST_SCHEMA)
+                                    save_csv(pet_db, PET_LIST_FILE)
+
+                                stt = next_id(current_df, "STT")
+                                new_row = {
+                                    "STT":        stt,
+                                    "Tên Pet":    r["Tên Pet"],
+                                    "M/s":        float(r["M/s"]),
+                                    "Mutation":   r["Mutation"],
+                                    "Số Trait":   r["Số Trait"],
+                                    "NameStock":  r["NameStock"],
+                                    "Giá Nhập":   float(r.get("Giá Nhập", 0.0)),
+                                    "Giá Bán":    0.0,
+                                    "Lợi Nhuận":  0.0,
+                                    "Doanh Thu":  0.0,
+                                    "Ngày Nhập":  _ngay_batch,
+                                    "Ngày Bán":   "-",
+                                    "Auto Title": generate_auto_title(
+                                        r["Tên Pet"], r["Mutation"], r["Số Trait"], r["M/s"], r["NameStock"]
+                                    ),
+                                    "Trạng Thái": "Còn hàng",
+                                    "time_nhap":  _ts_batch,
+                                    "time_ban":   "",
+                                    "Ngày Tồn":   0,
+                                    "Place":      "",
+                                }
+                                current_df = append_row(current_df, new_row, MAIN_SCHEMA)
+                                _db_row = to_db(new_row)
+                                _db_row.pop("id", None)
+                                sb_records_to_insert.append(_db_row)
+                                saved += 1
+
+                            # Toàn bộ I/O nằm trong spinner
+                            _save_ok = False
+                            with st.spinner(f"Đang lưu {saved} mục..."):
+                                sb_ok = True
+                                
+                                # Insert mới
+                                if USE_SUPABASE:
+                                    if sb_records_to_insert:
+                                        sb_ok = sb_insert_batch("inventory", sb_records_to_insert)
+                                
+                                if sb_ok:
+                                    if USE_SUPABASE:
+                                        st.cache_data.clear()
+                                        st.session_state.df = apply_ngay_ton(load_inventory())
+                                    else:
+                                        current_df = apply_ngay_ton(current_df)
+                                        st.session_state.df = current_df
+                                    save_csv(st.session_state.df, DB_FILE)
+                                    st.session_state.json_show_dialog = False
+                                    st.session_state.json_batch_results = []
+                                    st.session_state.json_import_expander = False
+                                    _save_ok = True
+
+                            if _save_ok:
+                                st.session_state.json_saved_output = json.dumps(saved_original_json, ensure_ascii=False, indent=2)
+                                # Store items for potential Eldorado push
+                                _push_items = [r for r in edited_rows if r.get("_valid") and not r.get("_delete")]
+                                if _push_items:
+                                    st.session_state.json_just_saved = _push_items
+                                # Auto-push if enabled
+                                _eld_set = st.session_state.get("eld_settings", {})
+                                if (_eld_set.get("auto_push") and eld_client
+                                        and eld_client.logged_in and _push_items):
+                                    st.session_state.show_eld_push = True
+                                st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
+                                st.rerun()
+
+                json_preview_dialog()
+
+            if st.session_state.get("json_saved_output"):
+                st.success("🎉 Đã lưu thành công!")
+                
+                if st.session_state.json_saved_output != "[]":
+                    if st.button("📦 Trích xuất JSON các pet ĐÃ ĐƯỢC LƯU"):
+                        st.session_state.show_saved_json = True
+                    
+                    if st.session_state.get("show_saved_json"):
+                        st.code(st.session_state.json_saved_output, language="json")
+                else:
+                    st.info("Không có pet nào được lưu.")
+
+                if st.button("❌ Xóa toàn bộ kết quả này", key="btn_clear_json_results"):
+                    st.session_state.json_saved_output = ""
+                    st.session_state.json_unsaved_output = ""
+                    st.session_state.show_saved_json = False
+                    st.session_state.show_unsaved_json = False
+                    st.rerun()
+
+            # =========================================================
+            # ELDORADO PUSH SECTION (post-import)
+            # =========================================================
+            if (_HAS_ELDORADO and st.session_state.get("show_eld_push")
+                    and st.session_state.get("json_just_saved")):
+                _push_items = st.session_state.json_just_saved
+                _eld_s = st.session_state.get("eld_settings", {})
+
+                with st.expander("🎮 Push lên Eldorado", expanded=True):
+                    if not (eld_client and eld_client.logged_in):
+                        st.warning("Chưa kết nối Eldorado. Vào tab Cài Đặt để kết nối.")
+                    else:
+                        st.caption(f"**{len(_push_items)}** mục sẵn sàng push lên Eldorado")
+
+                        if not st.session_state.get("eld_push_configured"):
+                            # Ensure game cache is loaded
+                            if not st.session_state.get("eld_game_loaded"):
+                                with st.spinner("Đang tải game data từ Eldorado..."):
+                                    loaded = eld_client.ensure_game_cache()
+                                    st.session_state.eld_game_loaded = loaded
+                                if not loaded:
+                                    st.error("Không thể tải game data. Kiểm tra lại cookie.")
+                                    st.stop()
+
+                            _def_price = float(_eld_s.get("default_price", 0.50))
+                            _def_del = _eld_s.get("default_delivery", "20 min")
+                            _def_desc = _eld_s.get("default_desc", "Fast delivery! Contact me if any issues.")
+                            _del_keys = list(DELIVERY_MAP.keys())
+                            _def_del_idx = _del_keys.index(_def_del) if _def_del in _del_keys else 2
+
+                            _push_cfg = []
+                            for _pi, _item in enumerate(_push_items):
+                                _pname = _item.get("Tên Pet", f"Item {_pi+1}")
+                                _pmut = _item.get("Mutation", "Normal")
+                                _pms = _item.get("M/s", 0)
+                                _pns = _item.get("NameStock", "")
+
+                                pc1, pc2, pc3 = st.columns([3, 1, 1])
+                                _auto_title = _item.get("_auto_title", "")
+                                _disp_title = _auto_title[:50] + ("..." if len(_auto_title) > 50 else "")
+                                pc1.markdown(f"**{_pname}** · {_pmut} · {f'{_pms:g}' if _pms else '?'} M/s")
+                                if _auto_title:
+                                    pc1.caption(f"📝 {_disp_title}")
+                                _pprice = pc2.number_input(
+                                    "USD", min_value=0.10, max_value=9999.0,
+                                    value=_def_price, step=0.05, format="%.2f",
+                                    key=f"eld_push_price_{_pi}", label_visibility="collapsed"
+                                )
+                                _pdel = pc3.selectbox(
+                                    "Giao", _del_keys, index=_def_del_idx,
+                                    key=f"eld_push_del_{_pi}", label_visibility="collapsed"
+                                )
+
+                                # Optional image upload
+                                _pimg = st.file_uploader(
+                                    f"Ảnh cho {_pname} (tuỳ chọn)",
+                                    type=["png", "jpg", "jpeg", "webp"],
+                                    key=f"eld_push_img_{_pi}",
+                                    label_visibility="collapsed",
+                                )
+
+                                _push_cfg.append({
+                                    "item": _item, "price": _pprice,
+                                    "delivery": DELIVERY_MAP[_pdel], "image_file": _pimg,
+                                    "description": _def_desc,
+                                    "auto_title": _item.get("_auto_title", ""),
+                                })
+
+                            st.session_state._eld_push_config = _push_cfg
+                            st.session_state.eld_push_configured = True
+
+                        # Push button
+                        _cfgs = st.session_state.get("_eld_push_config", [])
+                        if _cfgs:
+                            st.markdown("---")
+                            if st.button(
+                                f"🚀 Push {_cfgs.__len__()} mục lên Eldorado",
+                                type="primary", use_container_width=True,
+                                key="btn_eld_push_all"
+                            ):
+                                _progress = st.progress(0, text="Bắt đầu push...")
+                                _results = {"ok": 0, "fail": 0, "errors": []}
+
+                                for _ci, _cfg in enumerate(_cfgs):
+                                    _item = _cfg["item"]
+                                    _pname = _item.get("Tên Pet", "?")
+                                    _progress.progress(
+                                        _ci / len(_cfgs),
+                                        text=f"Pushing {_pname} ({_ci+1}/{len(_cfgs)})..."
+                                    )
+
+                                    try:
+                                        # Upload image if provided
+                                        _img_data = None
+                                        if _cfg.get("image_file"):
+                                            _img_bytes = _cfg["image_file"].read()
+                                            _img_data = eld_client.upload_image(
+                                                _img_bytes, _cfg["image_file"].name or "image.png"
+                                            )
+                                            if _img_data and _img_data.get("_rate_limit"):
+                                                _img_data = None
+                                                st.warning(f"⚠️ Rate limited on image upload for {_pname}")
+
+                                        # Build title từ auto_title đã tạo ở dialog
+                                        _title = _item.get("_auto_title", "") or eld_client.mutation_title(
+                                            _pname,
+                                            _item.get("NameStock", ""),
+                                            str(_item.get("Số Trait", "None")),
+                                            _item.get("Mutation", ""),
+                                        )
+
+                                        _resp = eld_client.create_listing(
+                                            title=_title,
+                                            description=_cfg.get("description", "Fast delivery!"),
+                                            price=_cfg["price"],
+                                            ms=float(_item.get("M/s", 0)),
+                                            mutation=_item.get("Mutation", "Normal"),
+                                            namestock=_item.get("NameStock", ""),
+                                            delivery_time=_cfg["delivery"],
+                                            image_data=_img_data,
+                                        )
+
+                                        if _resp and not _resp.get("error"):
+                                            _results["ok"] += 1
+                                        else:
+                                            _results["fail"] += 1
+                                            _err = _resp.get("error", "unknown") if isinstance(_resp, dict) else str(_resp)
+                                            _results["errors"].append(f"{_pname}: {_err[:80]}")
+                                    except Exception as _e:
+                                        _results["fail"] += 1
+                                        _results["errors"].append(f"{_pname}: {str(_e)[:80]}")
+
+                                    # Rate limit delay between items
+                                    if _ci < len(_cfgs) - 1:
+                                        _time.sleep(0.5)
+
+                                _progress.progress(1.0, text="Hoàn thành!")
+                                if _results["ok"]:
+                                    st.success(f"✅ Push thành công: {_results['ok']}/{len(_cfgs)}")
+                                if _results["fail"]:
+                                    st.error(f"❌ Thất bại: {_results['fail']}/{len(_cfgs)}")
+                                    for _err in _results["errors"]:
+                                        st.caption(f"• {_err}")
+
+                                # Clean up push state
+                                st.session_state.show_eld_push = False
+                                st.session_state.json_just_saved = []
+                                st.session_state.eld_push_configured = False
+                                st.session_state._eld_push_config = []
+
+                            # Cancel button
+                            if st.button("Huỷ Push", use_container_width=True, key="btn_eld_push_cancel"):
+                                st.session_state.show_eld_push = False
+                                st.session_state.json_just_saved = []
+                                st.session_state.eld_push_configured = False
+                                st.session_state._eld_push_config = []
+                                st.rerun()
+
+            # =========================================================
+            # NHẬP THỦ CÔNG (Always visible)
+            # =========================================================
+            st.markdown("**Nhập Thủ Công**")
+            pet_opts   = get_name_options(pet_db)
+            trait_opts = ["None"] + get_name_options(trait_db)
+            ns_opts    = [""] + get_name_options(ns_db, fallback="")
+
+            # ── #12 Clone button ──
+            _last_pet = st.session_state.get("last_saved_pet")
+            if _last_pet:
+                if st.button(f"Nhập tương tự: {_last_pet.get('p_name','')}", use_container_width=True, key="btn_clone_pet"):
+                    st.session_state.nhap_prefill = _last_pet.copy()
+                    st.rerun()
+            _prefill = st.session_state.get("nhap_prefill", {})
+
+            with st.form("form_nhap_le", clear_on_submit=True):
+                _pi_pet = next((i for i, x in enumerate(pet_opts) if x == _prefill.get("p_name", "")), 0)
+                p_name = st.selectbox("Tên Pet", pet_opts, index=_pi_pet)
+                c1, c2, c3 = st.columns(3)
+                ms_raw   = c1.text_input("M/s", placeholder="VD: 975", value=_prefill.get("ms_raw", ""))
+                _pi_mut = next((i for i, m in enumerate(MUTATION_OPTIONS) if m == _prefill.get("p_mut", "")), 0)
+                p_mut    = c2.selectbox("Mutation", MUTATION_OPTIONS, index=_pi_mut)
+                _pi_trait = next((i for i, t in enumerate(trait_opts) if t == _prefill.get("p_trait", "")), 0)
+                p_trait  = c3.selectbox("Số Trait", trait_opts, index=_pi_trait)
+                c4, c5 = st.columns([1.5, 1])
+                _pi_ns = next((i for i, n in enumerate(ns_opts) if n == _prefill.get("p_ns", "")), 0)
+                p_ns       = c4.selectbox("NameStock", ns_opts, index=_pi_ns)
+                p_cost_raw = c5.text_input("Giá nhập (VNĐ)", placeholder="150k / 1.5tr / 1.500.000")
+                submitted = st.form_submit_button("Lưu Hàng", type="primary", use_container_width=True)
+
+            if submitted:
+                ms = parse_usd(ms_raw)
+                cost = parse_vnd(p_cost_raw)
+                errs = []
+                if p_name == "None": errs.append("Chọn tên Pet")
+                if ms <= 0:          errs.append("M/s phải > 0")
+                if cost <= 0:        errs.append("Giá nhập phải > 0")
+                if not p_ns.strip(): errs.append("Chọn NameStock")
+                if errs:
+                    for e in errs: st.error(f"❌ {e}")
+                else:
+                    # Guard chống double-submit: kiểm tra xem dữ liệu y hệt đã lưu chưa
+                    submit_key = f"nhap_le_{p_name}_{ms}_{cost}_{p_ns}"
+                    if st.session_state.get("last_nhap_key") == submit_key:
+                        st.warning("Mục này đã được lưu. Tải lại trang nếu cần.")
+                        st.stop()
+                    st.session_state.last_nhap_key = submit_key
+                    st.session_state.pop("nhap_prefill", None)  # Xóa prefill sau khi submit hợp lệ
+                    stt = next_id(df, "STT")
+                    ts  = now_iso()
+                    row = {
+                        "STT":        stt,
+                        "Tên Pet":    p_name,
+                        "M/s":        ms,
+                        "Mutation":   p_mut,
+                        "Số Trait":   p_trait,
+                        "NameStock":  p_ns,
+                        "Giá Nhập":   cost,
+                        "Giá Bán":    0.0,
+                        "Lợi Nhuận":  0.0,
+                        "Doanh Thu":  0.0,
+                        "Ngày Nhập":  now_str(),
+                        "Ngày Bán":   "-",
+                        "Auto Title": generate_auto_title(p_name, p_mut, p_trait, ms, p_ns),
+                        "Trạng Thái": "Còn hàng",
+                        "time_nhap":  ts,
+                        "time_ban":   "",
+                        "Ngày Tồn":   0,
+                        "Place":      "",
                     }
-                self._log(f"[IMG] 200 but no localPaths: {json.dumps(result)[:100]}")
-            except Exception:
-                pass
-        else:
-            self._log(f"[IMG] HTTP {resp.status_code}: {resp.text[:120]}")
+                    df = append_row(df, row, MAIN_SCHEMA)
+                    df = apply_ngay_ton(df)
+                    st.session_state.df = df
+                    if USE_SUPABASE:
+                        p_payload = to_db(row)
+                        p_payload.pop("id", None)
+                        sb_insert("inventory", p_payload)
+                        # Sync ID from DB
+                        st.cache_data.clear()
+                        st.session_state.df = apply_ngay_ton(load_inventory())
+                        
+                    st.session_state.last_saved_pet = {
+                        "p_name": p_name, "ms_raw": ms_raw,
+                        "p_mut": p_mut, "p_trait": p_trait, "p_ns": p_ns,
+                    }
+                    st.toast("Đã lưu thành công", icon="✅")
+                    st.caption("Sao chép tiêu đề:")
+                    st.code(row["Auto Title"], language="text")
+                    _clear_searches()
+                    st.rerun()
 
-        return None
+    # ── BÁN LẺ ──
+    with col_sell:
+        with st.container(border=True):
+            st.markdown('<div class="sec-heading">Bán Pet Lẻ</div>', unsafe_allow_html=True)
 
-    # ── Listing CRUD ─────────────────────────────────────────────────────
+            # ── UNDO banner ──
+            if st.session_state.get("last_sale_undo", {}).get("type") == "single":
+                _undo = st.session_state["last_sale_undo"]
+                _ub1, _ub2 = st.columns([3, 1])
+                _ub1.info(f"↩️ Vừa bán: **{_undo['label']}**  —  Bán nhầm? Hoàn tác ngay!")
+                if _ub2.button("↩️ Hoàn tác", key="undo_single_btn", use_container_width=True):
+                    _ud = st.session_state.pop("last_sale_undo")
+                    _df2 = st.session_state.df.copy()
+                    _uid_col = "id" if _ud["sell_id"] > 0 else "stt"
+                    _uid_val = _ud["sell_id"] if _ud["sell_id"] > 0 else _ud["sel_stt"]
+                    _idx_list2 = _df2.index[_df2["STT"] == _ud["sel_stt"]].tolist()
+                    if _idx_list2:
+                        _recs2 = _df2.to_dict("records")
+                        _ip2 = _df2.index.get_loc(_idx_list2[0])
+                        _recs2[_ip2]["Giá Bán"]    = _ud["old_gia_ban"]
+                        _recs2[_ip2]["Doanh Thu"]  = _ud["old_doanh_thu"]
+                        _recs2[_ip2]["Lợi Nhuận"]  = _ud["old_loi_nhuan"]
+                        _recs2[_ip2]["Trạng Thái"] = _ud["old_trang_thai"]
+                        _recs2[_ip2]["Ngày Bán"]   = _ud["old_ngay_ban"]
+                        _recs2[_ip2]["time_ban"]   = _ud["old_time_ban"]
+                        _recs2[_ip2]["Place"]      = _ud["old_place"]
+                        _df2 = apply_ngay_ton(normalize_df(pd.DataFrame(_recs2), MAIN_SCHEMA))
+                        st.session_state.df = _df2
+                        if USE_SUPABASE:
+                            sb_update("inventory", {
+                                "gia_ban":    _ud["old_gia_ban"] if _ud["old_gia_ban"] else None,
+                                "doanh_thu":  _ud["old_doanh_thu"] if _ud["old_doanh_thu"] else None,
+                                "loi_nhuan":  _ud["old_loi_nhuan"] if _ud["old_loi_nhuan"] else None,
+                                "ngay_ban":   _ud["old_ngay_ban"] if _ud["old_ngay_ban"] else None,
+                                "trang_thai": _ud["old_trang_thai"],
+                                "time_ban":   _ud["old_time_ban"] if _ud["old_time_ban"] else None,
+                                "place":      _ud["old_place"] if _ud["old_place"] else None,
+                                "ngay_ton":   _ud["old_ngay_ton"],
+                            }, _uid_col, _uid_val)
+                            st.cache_data.clear()
+                    st.toast("Đã hoàn tác giao dịch", icon="↩️")
+                    st.rerun()
 
-    def create_listing(self, title, description, price, ms, mutation="",
-                       namestock="", delivery_time="Minute20", image_data=None,
-                       quantity=1, game_id=GAME_ID, category=CATEGORY):
-        """Create a new listing. Returns API response dict."""
-        trade_env = self.find_env(namestock or "")
-        if not trade_env:
-            return {"error": f"No trade env match for '{namestock}'"}
+            active = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False, regex=False)]
+            q = st.text_input("Tìm kiếm", placeholder="STT, tên, mutation, namestock...", key=f"sell_search_q_{_sv()}")
 
-        offer_attrs = self.build_offer_attributes(ms, mutation)
+            if not active.empty:
+                if q.strip():
+                    _q_toks = re.split(r'[\s\-]+', q.strip().lower())
+                    _q_toks = [t for t in _q_toks if t]
+                    _q_cols = ["STT", "Tên Pet", "Mutation", "NameStock", "Số Trait", "Auto Title", "Place"]
+                    _q_hay = active[[c for c in _q_cols if c in active.columns]].astype(str) \
+                        .apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
+                    _q_combined = _q_hay.apply(lambda row: ' '.join(row), axis=1)
+                    _q_mask = pd.Series([True] * len(active), index=active.index)
+                    for _qt in _q_toks:
+                        _q_mask &= _q_combined.str.contains(_qt, regex=False, na=False)
+                    filt = active[_q_mask]
+                else:
+                    filt = active
+                if not filt.empty:
+                    _stt_map = {int(r["STT"]): r for _, r in filt.iterrows()}
+                    def _pet_fmt(stt):
+                        r = _stt_map[stt]
+                        auto_t = str(r.get("Auto Title", "") or "")
+                        # Lấy phần trước boilerplate
+                        short = auto_t.split("🌸Cheapest")[0].lstrip("🌸").strip()
+                        if not short:
+                            short = str(r.get("Tên Pet", ""))
+                        ns = str(r.get("NameStock", "") or "").strip()
+                        gia_nhap = float(r.get("Giá Nhập", 0) or 0)
+                        ngay_ton = int(float(r.get("Ngày Tồn", 0) or 0))
+                        ns_part  = f" · {ns}" if ns else ""
+                        ton_part = f" · tồn {ngay_ton}d" if ngay_ton > 0 else ""
+                        return f"#{stt}  {short}{ns_part}  ·  {fmt_short(gia_nhap)}{ton_part}"
+                    sel = st.selectbox(
+                        "Chọn Pet",
+                        list(_stt_map.keys()),
+                        format_func=_pet_fmt,
+                        label_visibility="collapsed",
+                    )
+                    sel_stt = sel
+                    sel_row = filt[filt["STT"] == sel_stt].iloc[0]
+                    # Hiển thị Auto Title đầy đủ để copy
+                    _at_le = str(sel_row.get("Auto Title", "") or "")
+                    if _at_le:
+                        st.code(_at_le, language="text")
 
-        payload = {
-            "augmentedGame": {
-                "gameId": str(game_id),
-                "category": category,
-                "tradeEnvironmentId": trade_env["id"],
-                "offerAttributes": offer_attrs,
-            },
-            "details": {
-                "pricing": {
-                    "quantity": quantity,
-                    "pricePerUnit": {"amount": float(price), "currency": "USD"},
-                    "volumeDiscounts": [],
-                },
-                "description": description or "Fast delivery! Contact me if any issues.",
-                "guaranteedDeliveryTime": delivery_time,
-                "offerTitle": title[:160],
-                "mainOfferImage": image_data or {},
-                "offerImages": [],
-            },
-        }
+                    st.caption(f"**{len(filt)}** kết quả phù hợp")
 
-        return self._req("POST", "/v1/item-management/me/offers/item", json_data=payload)
+                    with st.form(f"form_ban_le_{_sv()}", clear_on_submit=False):
+                        c1, c2 = st.columns([1.2, 1])
+                        s_price_raw = c1.text_input("Đơn giá ($)", placeholder="VD: 5.5")
+                        s_place     = c2.text_input("Kênh bán (tuỳ chọn)", placeholder="Note anything...")
+                        sell_btn    = st.form_submit_button("Xác Nhận Giao Dịch", type="primary", use_container_width=True)
 
-    def get_listings(self, page=1, page_size=40):
-        return self._req("GET", "/v1/item-management/me/offers/me/search",
-                         params={"pageIndex": page, "pageSize": page_size})
+                    # ── Step 1: save pending on first click ──
+                    if sell_btn:
+                        s_price = parse_usd(s_price_raw)
+                        if s_price <= 0:
+                            st.error("Đơn giá phải lớn hơn 0")
+                        else:
+                            st.session_state["pending_single_sale"] = {
+                                "sel_stt":       sel_stt,
+                                "auto_title":    str(sel_row.get("Auto Title", sel_row.get("Tên Pet", "?"))),
+                                "gia_nhap":      float(sel_row.get("Giá Nhập", 0) or 0),
+                                "s_price":       s_price,
+                                "s_place":       s_place,
+                                "sell_id":       int(float(sel_row.get("id", 0) or 0)),
+                                "old_gia_ban":   float(sel_row.get("Giá Bán", 0) or 0),
+                                "old_doanh_thu": float(sel_row.get("Doanh Thu", 0) or 0),
+                                "old_loi_nhuan": float(sel_row.get("Lợi Nhuận", 0) or 0),
+                                "old_trang_thai":str(sel_row.get("Trạng Thái", "Còn hàng")),
+                                "old_ngay_ban":  str(sel_row.get("Ngày Bán", "") or ""),
+                                "old_time_ban":  str(sel_row.get("time_ban", "") or ""),
+                                "old_place":     str(sel_row.get("Place", "") or ""),
+                                "old_ngay_ton":  int(float(sel_row.get("Ngày Tồn", 0) or 0)),
+                            }
+                            st.rerun()
 
-    def get_all_listings(self, category=CATEGORY):
-        all_results = []
-        for page in range(1, 21):
-            r = self._req("GET", "/v1/item-management/me/offers/me/search",
-                          params={"pageIndex": page, "pageSize": 40})
-            if not isinstance(r, dict) or not r.get("results"):
-                # Fallback endpoint
-                r = self._req("GET", "/flexibleOffers/me/search",
-                              params={"pageIndex": page, "pageSize": 40, "category": category})
-            results = (r or {}).get("results", [])
-            if not results:
-                break
-            all_results.extend(results)
-            if page >= (r or {}).get("totalPages", 1):
-                break
-        return {"results": all_results, "recordCount": len(all_results)}
+                    # ── Step 2: confirmation block ──
+                    _pnd_single = st.session_state.get("pending_single_sale")
+                    if _pnd_single and _pnd_single["sel_stt"] == sel_stt:
+                        _rev_prev = _pnd_single["s_price"] * EXCHANGE_RATE
+                        _ln_prev  = _rev_prev - _pnd_single["gia_nhap"]
+                        st.warning(
+                            f"⚠️ **Xác nhận bán** · {_pnd_single['auto_title']}\n\n"
+                            f"Giá: **${_pnd_single['s_price']}** → {fmt_vnd(_rev_prev)} · "
+                            f"Lợi nhuận: **{fmt_vnd(_ln_prev)}**"
+                        )
+                        _cf1, _cf2 = st.columns(2)
+                        _do_confirm = _cf1.button("✅ Xác nhận bán", key="confirm_sell_single", type="primary", use_container_width=True)
+                        _do_cancel  = _cf2.button("❌ Hủy", key="cancel_sell_single", use_container_width=True)
 
-    def edit_listing(self, offer_id, title=None, description=None, price=None,
-                     delivery_time=None, image_data=None, quantity=1,
-                     game_id=GAME_ID, category=CATEGORY, trade_env_id=None,
-                     offer_attributes=None):
-        """Edit an existing listing."""
-        # Fetch current offer if we need to merge fields
-        current = self._req("GET", f"/v1/item-management/me/offers/{offer_id}/private")
-        offer = {}
-        if isinstance(current, dict):
-            offer = current.get("offer") or current
+                        if _do_cancel:
+                            st.session_state.pop("pending_single_sale", None)
+                            st.rerun()
 
-        aug = offer.get("augmentedGame") or {}
-        details = offer.get("details") or {}
+                        if _do_confirm:
+                            _pnd = st.session_state.pop("pending_single_sale")
+                            _sel_stt2 = _pnd["sel_stt"]
+                            _s_price2 = _pnd["s_price"]
+                            _s_place2 = _pnd["s_place"]
+                            _ts_ban   = now_iso()
+                            _rev_vnd  = _s_price2 * EXCHANGE_RATE
+                            _idx_list = df.index[df["STT"] == _sel_stt2].tolist()
+                            if _idx_list:
+                                _iloc_pos = df.index.get_loc(_idx_list[0])
+                                _recs = df.to_dict("records")
+                                _recs[_iloc_pos]["Giá Bán"]    = float(_s_price2)
+                                _recs[_iloc_pos]["Doanh Thu"]  = float(_rev_vnd)
+                                _recs[_iloc_pos]["Lợi Nhuận"]  = float(_rev_vnd - _pnd["gia_nhap"])
+                                _recs[_iloc_pos]["Ngày Bán"]   = now_str()
+                                _recs[_iloc_pos]["Trạng Thái"] = "Đã bán"
+                                _recs[_iloc_pos]["time_ban"]   = _ts_ban
+                                _recs[_iloc_pos]["Place"]      = _s_place2
+                                df = apply_ngay_ton(normalize_df(pd.DataFrame(_recs), MAIN_SCHEMA))
+                                st.session_state.df = df
+                                if USE_SUPABASE:
+                                    _update_col = "id" if _pnd["sell_id"] > 0 else "stt"
+                                    _update_val = _pnd["sell_id"] if _pnd["sell_id"] > 0 else _sel_stt2
+                                    sb_update("inventory", {
+                                        "gia_ban":    float(_s_price2),
+                                        "doanh_thu":  float(_rev_vnd),
+                                        "loi_nhuan":  float(_rev_vnd - _pnd["gia_nhap"]),
+                                        "ngay_ban":   now_str(),
+                                        "trang_thai": "Đã bán",
+                                        "time_ban":   _ts_ban,
+                                        "place":      _s_place2,
+                                        "ngay_ton":   int(_recs[_iloc_pos]["Ngày Tồn"]),
+                                    }, _update_col, _update_val)
+                                    load_inventory.clear()  # chỉ xóa cache inventory, giữ bulk cache
+                                st.session_state["last_sale_undo"] = {
+                                    "type":          "single",
+                                    "label":         f"{_pnd['auto_title']} @ ${_pnd['s_price']}",
+                                    "sell_id":       _pnd["sell_id"],
+                                    "sel_stt":       _sel_stt2,
+                                    "old_gia_ban":   _pnd["old_gia_ban"],
+                                    "old_doanh_thu": _pnd["old_doanh_thu"],
+                                    "old_loi_nhuan": _pnd["old_loi_nhuan"],
+                                    "old_trang_thai":_pnd["old_trang_thai"],
+                                    "old_ngay_ban":  _pnd["old_ngay_ban"],
+                                    "old_time_ban":  _pnd["old_time_ban"],
+                                    "old_place":     _pnd["old_place"],
+                                    "old_ngay_ton":  _pnd["old_ngay_ton"],
+                                }
+                                st.toast("✅ Giao dịch hoàn tất · Nhấn Hoàn Tác nếu bán nhầm", icon="✅")
+                                _clear_searches()
+                                st.rerun()
+                else:
+                    st.markdown('<div class="empty-state"><div class="es-icon">🔍</div><div class="es-title">Không tìm thấy kết quả</div><div class="es-sub">Thử điều chỉnh từ khoá tìm kiếm</div></div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="empty-state"><div class="es-icon">📦</div><div class="es-title">Kho trống</div><div class="es-sub">Nhấn "Nhập Kho" bên trái để thêm hàng</div></div>', unsafe_allow_html=True)
 
-        payload = {
-            "augmentedGame": {
-                "gameId": str(game_id),
-                "category": category,
-                "tradeEnvironmentId": trade_env_id or aug.get("tradeEnvironmentId", ""),
-                "offerAttributes": offer_attributes or aug.get("offerAttributes", []),
-            },
-            "details": {
-                "pricing": {
-                    "quantity": quantity or details.get("pricing", {}).get("quantity", 1),
-                    "pricePerUnit": {
-                        "amount": float(price) if price is not None else (details.get("pricing", {}).get("pricePerUnit", {}).get("amount", 0)),
-                        "currency": "USD",
+    # ── BẢNG TỒN KHO ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">Tồn Kho Lẻ</div>', unsafe_allow_html=True)
+
+        with st.expander("Xem bảng tồn kho", expanded=True):
+            # ── THANH CÔNG CỤ ──
+            _tb1, _tb2, _tb3 = st.columns([2, 2.5, 1])
+            view_mode = _tb1.radio(
+                "Lọc trạng thái",
+                ["Đang bán", "Đã bán", "Tất cả"],
+                horizontal=True,
+                label_visibility="collapsed",
+            )
+            inv_search = _tb2.text_input(
+                "🔍 Tìm kiếm",
+                placeholder="STT, tên pet, mutation, title...",
+                label_visibility="collapsed",
+                key=f"inv_table_search_{_sv()}",
+            )
+
+            # ── Quick filter Mutation chips ──
+            _all_mutations = sorted(df["Mutation"].astype(str).str.strip().unique().tolist())
+            _all_mutations = [m for m in _all_mutations if m not in ("", "nan")]
+            _mut_options = ["Tất cả"] + _all_mutations
+            _mut_sel = st.radio(
+                "Lọc Mutation",
+                _mut_options,
+                horizontal=True,
+                label_visibility="collapsed",
+                key="inv_mut_filter",
+            )
+
+            if view_mode == "Đang bán":
+                view_df = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
+                show_all = False
+            elif view_mode == "Đã bán":
+                view_df = df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)]
+                show_all = True
+            else:
+                view_df = df.copy()
+                show_all = True
+
+            # Áp dụng quick filter mutation
+            if _mut_sel != "Tất cả":
+                view_df = view_df[view_df["Mutation"].astype(str).str.strip() == _mut_sel]
+
+            # Áp dụng tìm kiếm text – token-based: mỗi từ phải xuất hiện ở ít nhất 1 cột
+            if inv_search.strip():
+                # Chuẩn hoá: bỏ dấu '-', tách thành tokens
+                _tokens = re.split(r'[\s\-]+', inv_search.strip().lower())
+                _tokens = [t for t in _tokens if t]
+                _search_cols = ["STT","Tên Pet","Mutation","NameStock","Số Trait","Auto Title","Place"]
+                _haystack = view_df[[c for c in _search_cols if c in view_df.columns]] \
+                    .astype(str).apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
+                _combined = _haystack.apply(lambda row: ' '.join(row), axis=1)
+                mask = pd.Series([True] * len(view_df), index=view_df.index)
+                for _tok in _tokens:
+                    mask &= _combined.str.contains(_tok, regex=False, na=False)
+                view_df = view_df[mask]
+
+            # Thêm cột hiển thị "Tồn" (text) từ Ngày Tồn (float ngày)
+            view_df = view_df.copy()
+            view_df["Tồn"] = view_df["Ngày Tồn"].apply(fmt_ngay_ton)
+
+            display_cols = ["id","STT","Tên Pet","M/s","Mutation","Số Trait","NameStock",
+                            "Giá Nhập","Giá Bán","Lợi Nhuận","Ngày Nhập","Ngày Bán",
+                            "Tồn","Trạng Thái","Auto Title","Place"]
+            view_cols = [c for c in display_cols if c in view_df.columns]
+
+            # Nút xuất CSV + đếm kết quả
+            _tb3.metric("Tổng sổ", len(view_df))
+            if not view_df.empty:
+                csv_inv = view_df[view_cols].to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+                st.download_button(
+                    "⬇️ Xuất CSV",
+                    data=csv_inv,
+                    file_name=f"kho_le_{now_vn().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="dl_inv_csv",
+                )
+
+            if not view_df.empty:
+                # Khi search hoặc khi lọc mutation: coi như đang filter → dùng safe merge-back
+                _is_searching = bool(inv_search.strip()) or (_mut_sel != "Tất cả")
+                # Show editable table
+                before_edit = view_df[view_cols].copy()
+                edited = st.data_editor(
+                    before_edit,
+                    key=f"editor_inventory_{st.session_state.get('editor_inv_ver', 0)}",
+                    use_container_width=True,
+                    hide_index=True,
+                    num_rows="fixed" if _is_searching else "dynamic",
+                    disabled=["id"],
+                    column_config={
+                        "id": st.column_config.NumberColumn("Database ID", help="Mã định danh gốc từ Supabase (Read-only)", format="%d"),
+                        "Tồn": st.column_config.TextColumn("Tồn", disabled=True),
+                        "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
+                        "Giá Nhập": st.column_config.NumberColumn("Giá Nhập (VNĐ)", format="%d"),
+                        "Giá Bán": st.column_config.NumberColumn("Giá Bán ($)"),
+                        "Lợi Nhuận": st.column_config.NumberColumn("Lợi Nhuận (VNĐ)", format="%d"),
                     },
-                    "volumeDiscounts": [],
+                )
+
+                # Chỉ reindex STT khi xem "Tất cả" + không tìm kiếm → tránh STT conflict khi merge-back
+                _can_reindex = (view_mode == "Tất cả") and not _is_searching
+                after_reindexed  = reindex(normalize_df(edited.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT") if _can_reindex \
+                    else normalize_df(edited.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols})
+                before_reindexed = reindex(normalize_df(before_edit.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols}), "STT") if _can_reindex \
+                    else normalize_df(before_edit.copy(), {c: MAIN_SCHEMA.get(c, "") for c in view_cols})
+
+                # So sánh TRƯỚC khi regen auto title — tránh vòng lặp lưu vô hạn
+                # do format cũ "[1]" vs mới "[1 Trait]" khiến always-dirty
+                _compare_cols = [c for c in after_reindexed.columns if c != "Auto Title"]
+                _user_changed = not after_reindexed[_compare_cols].astype(str).equals(
+                    before_reindexed[[c for c in _compare_cols if c in before_reindexed.columns]].astype(str)
+                )
+
+                # Regenerate auto titles (chỉ để ghi, không dùng để so sánh)
+                has_title_col = "Auto Title" in after_reindexed.columns
+                if has_title_col:
+                    def _regen_title(r):
+                        return generate_auto_title(
+                            r.get("Tên Pet",""), r.get("Mutation","Normal"),
+                            r.get("Số Trait","None"),
+                            float(pd.to_numeric(r.get("M/s", 0), errors="coerce") or 0),
+                            r.get("NameStock",""),
+                        )
+                    after_reindexed["Auto Title"] = after_reindexed.apply(_regen_title, axis=1)
+
+                if _user_changed:
+                    # Merge changes back into full df
+                    full_df = st.session_state.df.copy()
+
+                    # Khôi phục time_nhap / time_ban bị mất do view_cols không hiển thị chúng
+                    if "id" in after_reindexed.columns and not full_df.empty:
+                        _ts_src = full_df[["id", "time_nhap", "time_ban"]].copy()
+                        _ts_src["_id_int"] = pd.to_numeric(_ts_src["id"], errors="coerce").fillna(0).astype(int)
+                        _ar = after_reindexed.copy()
+                        _ar["_id_int"] = pd.to_numeric(_ar["id"], errors="coerce").fillna(0).astype(int)
+                        _ar = _ar.merge(_ts_src[["_id_int", "time_nhap", "time_ban"]], on="_id_int", how="left").drop(columns=["_id_int"])
+                        after_reindexed = _ar
+
+                    if _is_searching:
+                        # Khi search: chỉ cập nhật các dòng hiển thị, giữ nguyên dòng ẩn
+                        # Normalize to int trước khi so sánh tránh "1" vs "1.0" dtype mismatch (data_editor trả về float64)
+                        visible_ids = set(pd.to_numeric(after_reindexed["id"], errors="coerce").fillna(0).astype(int).astype(str).tolist()) if "id" in after_reindexed.columns else set()
+                        hidden_rows = full_df[~pd.to_numeric(full_df["id"], errors="coerce").fillna(0).astype(int).astype(str).isin(visible_ids)]
+                        merged = pd.concat([after_reindexed, hidden_rows], ignore_index=True)
+                        full_updated = apply_ngay_ton(normalize_df(merged, MAIN_SCHEMA))
+                    elif view_mode == "Tất cả":
+                        full_updated = apply_ngay_ton(normalize_df(after_reindexed, MAIN_SCHEMA))
+                    elif view_mode == "Đã bán":
+                        # Chỉ cập nhật hàng đã bán, giữ nguyên hàng còn hàng
+                        con_hang_df = full_df[full_df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
+                        merged = pd.concat([con_hang_df, after_reindexed], ignore_index=True)
+                        full_updated = apply_ngay_ton(normalize_df(merged, MAIN_SCHEMA))
+                    else:
+                        # Chỉ cập nhật hàng còn hàng, giữ nguyên hàng đã bán
+                        sold_df = full_df[full_df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)]
+                        merged = pd.concat([after_reindexed, sold_df], ignore_index=True)
+                        full_updated = apply_ngay_ton(normalize_df(merged, MAIN_SCHEMA))
+
+                    save_inventory_supabase(full_updated, st.session_state.df)
+                    # ── Luôn reload từ Supabase để lấy ID thật, tránh id=0 gây duplicate ──
+                    if USE_SUPABASE:
+                        st.cache_data.clear()
+                        st.session_state.df = apply_ngay_ton(load_inventory())
+                    else:
+                        st.session_state.df = full_updated
+                    df = st.session_state.df
+                    # Bump version key để reset widget state, tránh vòng lặp lưu vô hạn
+                    st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
+                    st.toast("✅ Đã lưu thay đổi.", icon="💾")
+                    _clear_searches()
+                    st.rerun()
+            else:
+                st.info("Không có dữ liệu để hiển thị.")
+
+        # ── XÓA DÒNG KHO LẺ ──
+        if USE_SUPABASE and not df.empty:
+            with st.expander("🗑️ Xóa dòng khỏi Kho Lẻ", expanded=False):
+                def _safe_int(v, default=0):
+                    try: return int(float(v)) if v not in (None, "", "nan", "None") else default
+                    except: return default
+                _del_rows = df[["id","STT","Tên Pet","Mutation","NameStock"]].copy()
+                _del_labels = [
+                    f"ID {_safe_int(r['id'])} | STT {_safe_int(r['STT'])} | {r['Tên Pet']} {r['Mutation']} – {r['NameStock']}"
+                    for _, r in _del_rows.iterrows()
+                ]
+                _del_id_map = {lbl: _safe_int(r["id"]) for lbl, (_, r) in zip(_del_labels, _del_rows.iterrows())}
+                _sel_del = st.multiselect(
+                    "Chọn dòng cần xóa",
+                    options=_del_labels,
+                    placeholder="Tìm và chọn...",
+                    key="inv_del_multiselect",
+                )
+                if _sel_del:
+                    st.warning(f"⚠️ Sẽ xóa vĩnh viễn **{len(_sel_del)} dòng** khỏi Supabase. Không thể hoàn tác!")
+                    if st.button("🗑️ Xác nhận Xóa", key="inv_del_confirm", type="primary", use_container_width=True):
+                        for _lbl in _sel_del:
+                            sb_delete("inventory", "id", _del_id_map[_lbl])
+                        st.cache_data.clear()
+                        st.session_state.df = apply_ngay_ton(load_inventory())
+                        st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
+                        st.toast(f"Đã xóa {len(_sel_del)} dòng.", icon="🗑️")
+                        st.rerun()
+
+        # ── COPY AUTO TITLE NHANH ──
+        _shop_desc = st.session_state.get("_shop_desc", "")
+        import base64 as _b64
+        import streamlit.components.v1 as _cmp
+        _b64_desc = _b64.b64encode(_shop_desc.encode("utf-8")).decode("ascii") if _shop_desc else ""
+
+        _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
+        if not _copy_src.empty:
+            with st.expander("Sao chép Auto Title", expanded=False):
+                _cp_q = st.text_input("🔍 Tìm pet", placeholder="Tên, STT, mutation...", key=f"copy_title_search_{_sv()}", label_visibility="collapsed")
+
+                _cp_base = _copy_src.copy()
+
+                if _cp_q.strip():
+                    # Khi search: tìm trong toàn bộ còn hàng
+                    _cp_toks = re.split(r'[\s\-]+', _cp_q.strip().lower())
+                    _cp_toks = [t for t in _cp_toks if t]
+                    _cp_hay = _cp_base[["Tên Pet","Mutation","Auto Title","NameStock","STT"]].astype(str) \
+                        .apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
+                    _cp_combined = _cp_hay.apply(lambda r: ' '.join(r), axis=1)
+                    _cp_mask = pd.Series([True] * len(_cp_base), index=_cp_base.index)
+                    for _t in _cp_toks:
+                        _cp_mask &= _cp_combined.str.contains(_t, regex=False, na=False)
+                    _cp_filtered = _cp_base[_cp_mask]
+                    _cp_mode_label = f"{len(_cp_filtered)} kết quả tìm kiếm"
+                else:
+                    # Mặc định: chỉ pet nhập trong 1 giờ qua
+                    _now_vn = now_vn()
+                    _cutoff = _now_vn - timedelta(hours=1)
+
+                    def _is_recent(ts_str):
+                        if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+                            return False
+                        try:
+                            dt = datetime.fromisoformat(str(ts_str))
+                            if dt.tzinfo is None:
+                                dt = dt.replace(tzinfo=VN_TZ)
+                            return dt >= _cutoff
+                        except Exception:
+                            return False
+
+                    _recent_mask = _cp_base["time_nhap"].apply(_is_recent)
+                    _cp_filtered = _cp_base[_recent_mask].sort_values("STT", ascending=False)
+                    _cp_mode_label = f"{len(_cp_filtered)} pet nhập trong 1 giờ qua"
+
+                if _cp_filtered.empty:
+                    if _cp_q.strip():
+                        st.info("Không tìm thấy pet phù hợp.")
+                    else:
+                        st.caption("Chưa có pet nào được nhập trong 1 giờ qua. Dùng ô tìm kiếm để tìm bất kỳ pet nào.")
+                else:
+                    st.caption(f"📌 {_cp_mode_label}")
+                    for _ci, (_, _crow) in enumerate(_cp_filtered.iterrows()):
+                        # Luôn regen để đảm bảo định dạng mới (Trait/Traits) dù DB chưa cập nhật
+                        _display_title = generate_auto_title(
+                            _crow.get("Tên Pet", ""), _crow.get("Mutation", "Normal"),
+                            _crow.get("Số Trait", "None"),
+                            float(pd.to_numeric(_crow.get("M/s", 0), errors="coerce") or 0),
+                            _crow.get("NameStock", ""),
+                        )
+                        st.markdown(
+                            f'<div style="font-size:0.78rem;color:#9d8fbf;margin-top:0.5rem;">'
+                            f'STT <b style="color:#c084fc">{int(_crow["STT"])}</b> · '
+                            f'{_crow["Tên Pet"]} · <span style="color:#c084fc">{_crow["Mutation"]}</span>'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+                        _ct1, _ct2 = st.columns([4, 1])
+                        with _ct1:
+                            st.code(_display_title, language=None)
+                        with _ct2:
+                            if _b64_desc:
+                                _bid = "cpShop" + str(_ci)
+                                _cmp.html(
+                                    '<button id="' + _bid + '" style="width:100%;padding:8px 4px;border:none;'
+                                    'border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#c084fc,#e879f9);'
+                                    'color:#0a0a0f;font-weight:600;font-size:11px;">&#x1F47B; M&#xF4; t&#x1EA3;</button>'
+                                    '<script>(function(){'
+                                    'var btn=document.getElementById("' + _bid + '");'
+                                    'var b64="' + _b64_desc + '";'
+                                    'btn.addEventListener("click",function(){'
+                                    'var b=this;var bytes=Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0)});'
+                                    'var txt=new TextDecoder("utf-8").decode(bytes);'
+                                    'navigator.clipboard.writeText(txt)'
+                                    '.then(function(){b.innerHTML="&#x2705;";'
+                                    'setTimeout(function(){b.innerHTML="&#x1F47B; M&#xF4; t&#x1EA3;";},1500);})'
+                                    '.catch(function(){b.innerHTML="&#x274C;";});'
+                                    '});})();</script>',
+                                    height=45,
+                                )
+
+        # ── BULK SELL ──
+        _bulk_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
+        if not _bulk_src.empty:
+            with st.expander("Giao dịch hàng loạt", expanded=False):
+                # Giỏ bán tích lũy — tồn tại qua nhiều lần tìm kiếm
+                if "bulk_cart" not in st.session_state:
+                    st.session_state.bulk_cart = {}  # str(id_or_stt) → row dict
+
+                # ── BƯỚC 1: Tìm & thêm vào giỏ ──
+                st.caption("Tìm kiếm · Thêm vào giỏ · Nhập giá · Xác nhận")
+                _bs_search = st.text_input(
+                    "Tìm pet cần bán", placeholder="Tên, mutation, STT...",
+                    key=f"bulk_sell_search_{_sv()}", label_visibility="collapsed",
+                )
+                _bs_df = _bulk_src.copy()
+                if _bs_search.strip():
+                    _bs_toks = re.split(r'[\s\-]+', _bs_search.strip().lower())
+                    _bs_toks = [t for t in _bs_toks if t]
+                    _bs_hay = _bs_df[["Tên Pet","Mutation","Auto Title","NameStock","STT"]].astype(str) \
+                        .apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
+                    _bs_combined = _bs_hay.apply(lambda r: ' '.join(r), axis=1)
+                    _bs_mask = pd.Series([True]*len(_bs_df), index=_bs_df.index)
+                    for _t in _bs_toks:
+                        _bs_mask &= _bs_combined.str.contains(_t, regex=False, na=False)
+                    _bs_df = _bs_df[_bs_mask]
+
+                if _bs_df.empty and _bs_search.strip():
+                    st.info("Không tìm thấy pet phù hợp.")
+                else:
+                    _shown_bs = _bs_df.head(15)
+                    for _, _br in _shown_bs.iterrows():
+                        _bid = str(int(float(_br.get("id", 0) or 0))) if int(float(_br.get("id", 0) or 0)) > 0 else f"stt_{int(_br['STT'])}"
+                        _in_cart = _bid in st.session_state.bulk_cart
+                        _rc1, _rc2 = st.columns([4, 1])
+                        _br_ms     = _br.get("M/s", "")
+                        _br_ns     = str(_br.get("NameStock", "") or "").strip()
+                        _br_trait  = str(_br.get("Số Trait", "") or "").strip()
+                        _br_ton    = int(float(_br.get("Ngày Tồn", 0) or 0))
+                        _br_ms_str = f" · <b>{_br_ms}M/s</b>" if _br_ms else ""
+                        _br_ns_str = f" · <span style='color:#7c6fa0'>{_br_ns}</span>" if _br_ns else ""
+                        _br_trait_str = f" · Trait:{_br_trait}" if _br_trait and _br_trait.lower() != "none" else ""
+                        _br_ton_str = f" · <span style='color:#f87171'>tồn {_br_ton}d</span>" if _br_ton > 0 else ""
+                        _rc1.markdown(
+                            f'<div style="font-size:0.82rem;padding:2px 0;">'
+                            f'<b style="color:#c084fc">#{int(_br["STT"])}</b> · '
+                            f'<b>{_br["Tên Pet"]}</b> · <span style="color:#a78bfa">{_br["Mutation"]}</span>'
+                            f'{_br_ms_str}{_br_ns_str}{_br_trait_str}'
+                            f' · <span style="color:#9d8fbf">{fmt_vnd(float(_br["Giá Nhập"]))}</span>'
+                            f'{_br_ton_str}'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+                        if _in_cart:
+                            if _rc2.button("✓ Bỏ", key=f"bs_rm_{_bid}", use_container_width=True):
+                                del st.session_state.bulk_cart[_bid]
+                                st.rerun()
+                        else:
+                            if _rc2.button("➕", key=f"bs_add_{_bid}", use_container_width=True, type="primary"):
+                                st.session_state.bulk_cart[_bid] = _br.to_dict()
+                                st.rerun()
+                    if len(_bs_df) > 15:
+                        st.caption(f"Đang hiển thị 15 / {len(_bs_df)} kết quả — thu hẹp tìm kiếm để xem thêm.")
+
+                # ── BƯỚC 2: Giỏ bán ──
+                if st.session_state.bulk_cart:
+                    st.markdown("---")
+                    _ch1, _ch2 = st.columns([3, 1])
+                    _ch1.markdown(f"**🛒 Giỏ bán: {len(st.session_state.bulk_cart)} pet**")
+                    if _ch2.button("🗑️ Xóa giỏ", key="bs_clear_cart", use_container_width=True):
+                        st.session_state.bulk_cart = {}
+                        st.rerun()
+
+                    _cart_rows = []
+                    for _ck, _cv in st.session_state.bulk_cart.items():
+                        _cart_rows.append({
+                            "_cart_key":   _ck,
+                            "id":          int(float(_cv.get("id", 0) or 0)),
+                            "STT":         int(float(_cv.get("STT", 0) or 0)),
+                            "Tên Pet":     str(_cv.get("Tên Pet", "")),
+                            "Mutation":    str(_cv.get("Mutation", "")),
+                            "M/s":         str(_cv.get("M/s", "") or ""),
+                            "NameStock":   str(_cv.get("NameStock", "") or ""),
+                            "Trait":       str(_cv.get("Số Trait", "") or ""),
+                            "Tồn (ngày)":  int(float(_cv.get("Ngày Tồn", 0) or 0)),
+                            "Giá Nhập":    float(pd.to_numeric(_cv.get("Giá Nhập", 0), errors="coerce") or 0),
+                            "Giá bán ($)": 0.0,
+                            "Place":       "",
+                        })
+                    _cart_df = pd.DataFrame(_cart_rows)
+                    _cart_edited = st.data_editor(
+                        _cart_df.drop(columns=["_cart_key", "id", "STT"]),
+                        key=f"bulk_cart_editor_{st.session_state.get('editor_inv_ver', 0)}",
+                        use_container_width=True,
+                        hide_index=True,
+                        num_rows="fixed",
+                        disabled=["Tên Pet", "Mutation", "M/s", "NameStock", "Trait", "Tồn (ngày)", "Giá Nhập"],
+                        column_config={
+                            "Tên Pet":     st.column_config.TextColumn("Pet", width="medium"),
+                            "Mutation":    st.column_config.TextColumn("Mut.", width="small"),
+                            "M/s":         st.column_config.TextColumn("M/s", width="small"),
+                            "NameStock":   st.column_config.TextColumn("NS", width="small"),
+                            "Trait":       st.column_config.TextColumn("Trait", width="small"),
+                            "Tồn (ngày)":  st.column_config.NumberColumn("Tồn", format="%d", width="small"),
+                            "Giá Nhập":    st.column_config.NumberColumn("Vốn (₫)", format="%d", width="small"),
+                            "Giá bán ($)": st.column_config.NumberColumn("Giá ($)", min_value=0.0, step=0.01, format="%.2f", width="small"),
+                            "Place":       st.column_config.TextColumn("Place", width="small"),
+                        },
+                    )
+                    # Gắn lại id/stt từ cart_df gốc (data_editor không trả về các cột bị drop)
+                    _cart_edited["_cart_key"] = _cart_df["_cart_key"].values
+                    _cart_edited["id"]        = _cart_df["id"].values
+                    _cart_edited["STT"]       = _cart_df["STT"].values
+
+                    _valid_sell   = _cart_edited[_cart_edited["Giá bán ($)"] > 0]
+                    _invalid_sell = _cart_edited[_cart_edited["Giá bán ($)"] <= 0]
+                    if not _invalid_sell.empty:
+                        st.caption(f"{len(_invalid_sell)} mục chưa có giá — sẽ được bỏ qua.")
+                    if not _valid_sell.empty:
+                        st.info(f"Sẵn sàng xử lý **{len(_valid_sell)}** giao dịch · Ước tính doanh thu: **{fmt_vnd(float((_valid_sell['Giá bán ($)'] * EXCHANGE_RATE).sum()))}**")
+                        if st.button(f"Xác Nhận {len(_valid_sell)} Giao Dịch", type="primary", key="confirm_bulk_sell", use_container_width=True):
+                            ts_ban_bulk = now_iso()
+                            _full_df = st.session_state.df.copy()
+                            _updated = 0
+                            for _, _sell_row in _valid_sell.iterrows():
+                                _s_price  = float(_sell_row["Giá bán ($)"])
+                                _s_place  = str(_sell_row.get("Place", ""))
+                                _s_id     = int(float(_sell_row.get("id", 0) or 0))
+                                _s_stt    = int(float(_sell_row.get("STT", 0) or 0))
+                                _rev_vnd  = _s_price * EXCHANGE_RATE
+                                _cost_vnd = float(pd.to_numeric(_sell_row.get("Giá Nhập", 0), errors="coerce") or 0)
+                                _profit   = _rev_vnd - _cost_vnd
+                                if _s_id > 0:
+                                    _idx = _full_df.index[_full_df["id"] == _s_id].tolist()
+                                else:
+                                    _idx = _full_df.index[_full_df["STT"] == _s_stt].tolist()
+                                if _idx:
+                                    _row_idx = _idx[0]
+                                    # Ép cột numeric sang float trước khi gán tránh pandas TypeError
+                                    # khi cột bị cast sang int64 (vì tất cả giá trị đang là 0)
+                                    for _fc in ["Giá Bán", "Doanh Thu", "Lợi Nhuận"]:
+                                        if _full_df[_fc].dtype != float:
+                                            _full_df[_fc] = _full_df[_fc].astype(float)
+                                    _full_df.at[_row_idx, "Giá Bán"]    = float(_s_price)
+                                    _full_df.at[_row_idx, "Doanh Thu"]  = float(_rev_vnd)
+                                    _full_df.at[_row_idx, "Lợi Nhuận"]  = float(_profit)
+                                    _full_df.at[_row_idx, "Ngày Bán"]   = now_str()
+                                    _full_df.at[_row_idx, "Trạng Thái"] = "Đã bán"
+                                    _full_df.at[_row_idx, "time_ban"]   = ts_ban_bulk
+                                    _full_df.at[_row_idx, "Place"]      = _s_place
+                                if USE_SUPABASE:
+                                    _uc = "id" if _s_id > 0 else "stt"
+                                    _uv = _s_id if _s_id > 0 else _s_stt
+                                    sb_update("inventory", {
+                                        "gia_ban":    _s_price,
+                                        "doanh_thu":  _rev_vnd,
+                                        "loi_nhuan":  _profit,
+                                        "ngay_ban":   now_str(),
+                                        "trang_thai": "Đã bán",
+                                        "time_ban":   ts_ban_bulk,
+                                        "place":      _s_place,
+                                    }, _uc, _uv)
+                                _updated += 1
+                            _full_df = apply_ngay_ton(normalize_df(_full_df, MAIN_SCHEMA))
+                            st.session_state.df = _full_df
+                            if USE_SUPABASE:
+                                st.cache_data.clear()
+                                st.session_state.df = apply_ngay_ton(load_inventory())
+                            st.session_state.bulk_cart = {}
+                            st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
+                            st.toast(f"Hoàn tất {_updated} giao dịch", icon="✅")
+                            _clear_searches()
+                            st.rerun()
+
+        # ── RE-SELL (bán lại pet khách không lấy) ──
+        _resell_src = df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)]
+        with st.expander("🔄 Bán lại (Re-sell)", expanded=False):
+            # ── Init session states ──
+            if "pinned_resell" not in st.session_state:
+                st.session_state.pinned_resell = _load_pinned_resell_from_supabase()
+            if "resell_cart" not in st.session_state:
+                st.session_state.resell_cart = {}
+
+            # ════════════════════════════════════════════════════
+            # PHẦN 1: DANH SÁCH ĐÃ PIN — luôn hiển thị trên cùng
+            # ════════════════════════════════════════════════════
+            st.markdown(
+                '<div style="display:inline-flex;align-items:center;gap:6px;'
+                'background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);'
+                'border-radius:6px;padding:4px 10px;margin-bottom:8px;">'
+                '<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
+                'color:#a855f7;font-weight:600;">📌 Danh sách Pin</span>'
+                '<span style="font-size:0.72rem;color:#9d8fbf;">— nhấn Re-sell khi chắc chắn khách không lấy</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
+            if not st.session_state.pinned_resell and not st.session_state.resell_cart:
+                st.markdown(
+                    '<div style="text-align:center;padding:16px 8px;color:#4b3f6b;'
+                    'font-size:0.82rem;border:1px dashed rgba(168,85,247,0.2);border-radius:8px;">'
+                    '📌 Chưa có pet nào được pin<br>'
+                    '<span style="font-size:0.75rem;">Dùng ô tìm kiếm bên dưới để thêm</span>'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                _rsp1, _rsp2 = st.columns([3, 1])
+                _rsp1.caption(f"📌 {len(st.session_state.pinned_resell)} đang pin · ✅ {len(st.session_state.resell_cart)} sẵn sàng re-sell")
+                if _rsp2.button("🗑️ Xóa tất cả", key="rs_clear_pin", use_container_width=True):
+                    st.session_state.pinned_resell = {}
+                    st.session_state.resell_cart = {}
+                    _save_pinned_resell_to_supabase({})
+                    st.rerun()
+
+                for _pid in list(st.session_state.pinned_resell.keys()):
+                    _pv = st.session_state.pinned_resell[_pid]
+                    _already_in_rcart = _pid in st.session_state.resell_cart
+                    _pv_ms    = _pv.get("M/s", "")
+                    _pv_ns    = str(_pv.get("NameStock", "") or "").strip()
+                    _pv_mut   = str(_pv.get("Mutation", "") or "")
+                    _pv_ban   = str(_pv.get("Ngày Bán", "") or "").strip()
+                    _pv_ms_str  = f" · <b>{_pv_ms}M/s</b>" if _pv_ms else ""
+                    _pv_ns_str  = f" · <span style='color:#7c6fa0'>{_pv_ns}</span>" if _pv_ns else ""
+                    _pv_ban_str = f" · <span style='color:#f87171'>{_pv_ban}</span>" if _pv_ban and _pv_ban != "-" else ""
+                    _rs_badge   = " · <span style='color:#22c55e;font-weight:600;'>✅ Re-sell</span>" if _already_in_rcart else ""
+                    st.markdown(
+                        f'<div style="font-size:0.82rem;padding:4px 0 2px 0;">'
+                        f'<b style="color:#f97316">#{int(float(_pv.get("STT", 0) or 0))}</b> · '
+                        f'<b>{_pv.get("Tên Pet", "")}</b> · <span style="color:#a78bfa">{_pv_mut}</span>'
+                        f'{_pv_ms_str}{_pv_ns_str}{_pv_ban_str}{_rs_badge}'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                    _pc1, _pc2 = st.columns(2)
+                    if _already_in_rcart:
+                        if _pc1.button("↩️ Hoàn tác", key=f"rs_undo_{_pid}", use_container_width=True):
+                            st.session_state.resell_cart.pop(_pid, None)
+                            st.rerun()
+                    else:
+                        if _pc1.button("🔄 Re-sell", key=f"rs_move_{_pid}", use_container_width=True, type="primary"):
+                            st.session_state.resell_cart[_pid] = _pv
+                            st.rerun()
+                    if _pc2.button("❌ Bỏ pin", key=f"rs_del_{_pid}", use_container_width=True):
+                        st.session_state.pinned_resell.pop(_pid, None)
+                        st.session_state.resell_cart.pop(_pid, None)
+                        _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
+                        st.rerun()
+                    st.markdown('<div style="border-top:1px solid rgba(45,37,64,0.5);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
+
+            # ════════════════════════════════════════════════════
+            # PHẦN 2: TÌM & THÊM PIN (sub-expander, nằm dưới)
+            # ════════════════════════════════════════════════════
+            with st.expander("🔍 Tìm & thêm pin", expanded=False):
+                if _resell_src.empty:
+                    st.info("Chưa có pet nào được đánh dấu 'Đã bán'.")
+                else:
+                    _rs_search = st.text_input(
+                        "Tìm pet đã bán", placeholder="Tên, mutation, STT, NameStock...",
+                        key=f"resell_search_{_sv()}", label_visibility="collapsed",
+                    )
+                    _rs_df = _resell_src.copy()
+                    if _rs_search.strip():
+                        _rs_toks = re.split(r'[\s\-]+', _rs_search.strip().lower())
+                        _rs_toks = [t for t in _rs_toks if t]
+                        _rs_hay = _rs_df[["Tên Pet","Mutation","Auto Title","NameStock","STT"]].astype(str) \
+                            .apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
+                        _rs_combined = _rs_hay.apply(lambda r: ' '.join(r), axis=1)
+                        _rs_mask = pd.Series([True]*len(_rs_df), index=_rs_df.index)
+                        for _rt in _rs_toks:
+                            _rs_mask &= _rs_combined.str.contains(_rt, regex=False, na=False)
+                        _rs_df = _rs_df[_rs_mask]
+
+                    if not _rs_search.strip():
+                        st.caption("Nhập tên, mutation, STT... để tìm pet đã bán cần pin.")
+                    elif _rs_df.empty:
+                        st.info("Không tìm thấy pet phù hợp.")
+                    else:
+                        _shown_rs = _rs_df.head(15)
+                        for _, _rr in _shown_rs.iterrows():
+                            _rrid = str(int(float(_rr.get("id", 0) or 0))) if int(float(_rr.get("id", 0) or 0)) > 0 else f"stt_{int(_rr['STT'])}"
+                            _is_pinned   = _rrid in st.session_state.pinned_resell
+                            _is_in_rcart = _rrid in st.session_state.resell_cart
+                            _rr_ms      = _rr.get("M/s", "")
+                            _rr_ns      = str(_rr.get("NameStock", "") or "").strip()
+                            _rr_ngayban = str(_rr.get("Ngày Bán", "") or "").strip()
+                            _rr_ms_str  = f" · <b>{_rr_ms}M/s</b>" if _rr_ms else ""
+                            _rr_ns_str  = f" · <span style='color:#7c6fa0'>{_rr_ns}</span>" if _rr_ns else ""
+                            _rr_ban_str = f" · <span style='color:#f87171'>Bán: {_rr_ngayban}</span>" if _rr_ngayban and _rr_ngayban != "-" else ""
+                            if _is_in_rcart:
+                                _status_badge = " · <span style='color:#22c55e;font-weight:600;'>✅ Re-sell</span>"
+                            elif _is_pinned:
+                                _status_badge = " · <span style='color:#fb923c;font-weight:600;'>📌 Đã pin</span>"
+                            else:
+                                _status_badge = ""
+                            st.markdown(
+                                f'<div style="font-size:0.82rem;padding:4px 0 2px 0;">'
+                                f'<b style="color:#f97316">#{int(_rr["STT"])}</b> · '
+                                f'<b>{_rr["Tên Pet"]}</b> · <span style="color:#a78bfa">{_rr["Mutation"]}</span>'
+                                f'{_rr_ms_str}{_rr_ns_str}{_rr_ban_str}{_status_badge}'
+                                f'</div>',
+                                unsafe_allow_html=True,
+                            )
+                            if _is_pinned or _is_in_rcart:
+                                if st.button("✓ Bỏ pin", key=f"rs_unpin_{_rrid}", use_container_width=True):
+                                    st.session_state.pinned_resell.pop(_rrid, None)
+                                    st.session_state.resell_cart.pop(_rrid, None)
+                                    _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
+                                    st.rerun()
+                            else:
+                                if st.button("📌 Pin", key=f"rs_pin_{_rrid}", use_container_width=True, type="primary"):
+                                    st.session_state.pinned_resell[_rrid] = _rr.to_dict()
+                                    _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
+                                    st.rerun()
+                            st.markdown('<div style="border-top:1px solid rgba(45,37,64,0.5);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
+                        if len(_rs_df) > 15:
+                            st.caption(f"Đang hiển thị 15 / {len(_rs_df)} kết quả — thu hẹp tìm kiếm để xem thêm.")
+
+            # ── GIAI ĐOẠN 3: XÁC NHẬN RE-SELL ──
+            if st.session_state.resell_cart:
+                st.markdown("---")
+                st.markdown(
+                    '<div style="display:inline-flex;align-items:center;gap:6px;'
+                    'background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);'
+                    'border-radius:6px;padding:4px 10px;margin-bottom:6px;">'
+                    '<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
+                    'color:#22c55e;font-weight:600;">③ Xác nhận Re-sell</span>'
+                    '<span style="font-size:0.72rem;color:#9d8fbf;">— tạo bản ghi kho mới, giá nhập 1₫</span>'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+
+                # Bảng preview read-only
+                _rs_preview = []
+                for _rck, _rcv in st.session_state.resell_cart.items():
+                    _rs_preview.append({
+                        "STT gốc":      int(float(_rcv.get("STT", 0) or 0)),
+                        "Tên Pet":      str(_rcv.get("Tên Pet", "")),
+                        "Mutation":     str(_rcv.get("Mutation", "")),
+                        "M/s":          str(_rcv.get("M/s", "") or ""),
+                        "NameStock":    str(_rcv.get("NameStock", "") or ""),
+                        "Trait":        str(_rcv.get("Số Trait", "") or ""),
+                        "Bán lần 1":    str(_rcv.get("Ngày Bán", "") or ""),
+                        "Giá Nhập mới": 1,
+                    })
+                st.dataframe(
+                    pd.DataFrame(_rs_preview),
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "STT gốc":      st.column_config.NumberColumn("STT gốc", format="%d"),
+                        "Giá Nhập mới": st.column_config.NumberColumn("Giá Nhập mới (₫)", format="%d"),
+                    },
+                )
+
+                st.warning(
+                    f"⚠️ Xác nhận sẽ tạo **{len(st.session_state.resell_cart)} bản ghi mới** "
+                    f"với giá nhập **1₫** và trạng thái **Còn hàng**. "
+                    f"Bản ghi gốc (lần bán 1) sẽ **không bị thay đổi**.",
+                    icon="🔄",
+                )
+                if st.button(
+                    f"✅ Xác Nhận Re-sell {len(st.session_state.resell_cart)} Pet",
+                    type="primary",
+                    key="confirm_resell",
+                    use_container_width=True,
+                ):
+                    _rs_inserted  = 0
+                    _ts_nhap_rs   = now_iso()
+                    _ngay_nhap_rs = now_str()
+                    _rs_max_stt   = int(df["STT"].max()) if not df.empty else 0
+
+                    for _rck, _rcv in st.session_state.resell_cart.items():
+                        _rs_max_stt += 1
+                        _pet_name   = str(_rcv.get("Tên Pet", ""))
+                        _mutation   = str(_rcv.get("Mutation", "Normal"))
+                        _ms         = float(pd.to_numeric(_rcv.get("M/s", 0), errors="coerce") or 0)
+                        _so_trait   = str(_rcv.get("Số Trait", "None") or "None")
+                        _namestock  = str(_rcv.get("NameStock", "") or "")
+                        _auto_title = generate_auto_title(_pet_name, _mutation, _so_trait, _ms, _namestock)
+
+                        _new_payload = {
+                            "stt":        _rs_max_stt,
+                            "ten_pet":    _pet_name,
+                            "ms":         _ms,
+                            "mutation":   _mutation,
+                            "so_trait":   _so_trait,
+                            "namestock":  _namestock,
+                            "gia_nhap":   1.0,
+                            "gia_ban":    0.0,
+                            "doanh_thu":  0.0,
+                            "loi_nhuan":  0.0,
+                            "ngay_nhap":  _ngay_nhap_rs,
+                            "ngay_ban":   "-",
+                            "auto_title": _auto_title,
+                            "trang_thai": "Còn hàng",
+                            "time_nhap":  _ts_nhap_rs,
+                            "time_ban":   None,
+                            "ngay_ton":   0,
+                            "place":      "",
+                        }
+
+                        if USE_SUPABASE:
+                            _inserted_row = sb_insert_returning("inventory", _new_payload)
+                            if _inserted_row:
+                                _rs_inserted += 1
+                            else:
+                                st.toast(f"❌ Lỗi khi tạo bản ghi cho {_pet_name}", icon="❌")
+                        else:
+                            _new_row = {
+                                "id": 0, "STT": _rs_max_stt,
+                                "Tên Pet": _pet_name, "M/s": _ms,
+                                "Mutation": _mutation, "Số Trait": _so_trait,
+                                "NameStock": _namestock, "Giá Nhập": 1.0,
+                                "Giá Bán": 0.0, "Doanh Thu": 0.0, "Lợi Nhuận": 0.0,
+                                "Ngày Nhập": _ngay_nhap_rs, "Ngày Bán": "-",
+                                "Auto Title": _auto_title, "Trạng Thái": "Còn hàng",
+                                "time_nhap": _ts_nhap_rs, "time_ban": "",
+                                "Ngày Tồn": 0, "Place": "",
+                            }
+                            st.session_state.df = append_row(st.session_state.df, _new_row, MAIN_SCHEMA)
+                            _rs_inserted += 1
+
+                    if USE_SUPABASE:
+                        st.cache_data.clear()
+                        st.session_state.df = apply_ngay_ton(load_inventory())
+                    df = st.session_state.df
+                    # Xóa cả pin lẫn cart sau khi insert xong
+                    _inserted_keys = set(st.session_state.resell_cart.keys())
+                    for _k in _inserted_keys:
+                        st.session_state.pinned_resell.pop(_k, None)
+                    st.session_state.resell_cart = {}
+                    st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
+                    st.toast(f"✅ Đã tạo {_rs_inserted} bản ghi re-sell mới trong kho!", icon="🔄")
+                    _clear_searches()
+                    st.rerun()
+
+        # ── PUSH LÊN ELDORADO (Manual) ──
+        if _HAS_ELDORADO and eld_client and eld_client.logged_in:
+            with st.expander("🎮 Push Lên Eldorado", expanded=False):
+                _avail = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)].copy()
+                if _avail.empty:
+                    st.info("Không có hàng để push.")
+                else:
+                    st.caption(f"**{len(_avail)}** mặt hàng đang bán — chọn mặt hàng muốn push")
+
+                    _push_sel = []
+                    for _si, _srow in _avail.iterrows():
+                        _ms_disp = f"{_srow['M/s']:g}" if pd.notna(_srow.get("M/s")) and _srow.get("M/s", 0) > 0 else "?"
+                        if st.checkbox(
+                            f"{_srow.get('Tên Pet', '?')} · {_ms_disp} M/s · {_srow.get('Mutation', 'Normal')}",
+                            key=f"eld_manual_sel_{_srow.get('STT', _si)}"
+                        ):
+                            _push_sel.append(_srow)
+
+                    if _push_sel:
+                        _eld_ms = st.session_state.get("eld_settings", {})
+                        mp1, mp2, mp3 = st.columns([2, 1, 1])
+                        _mp_price = mp1.number_input(
+                            "Giá USD", min_value=0.10, max_value=9999.0,
+                            value=float(_eld_ms.get("default_price", 0.50)),
+                            step=0.05, format="%.2f", key="eld_manual_price"
+                        )
+                        _mp_del_keys = list(DELIVERY_MAP.keys())
+                        _mp_def_del = _eld_ms.get("default_delivery", "20 min")
+                        _mp_del_idx = _mp_del_keys.index(_mp_def_del) if _mp_def_del in _mp_del_keys else 2
+                        _mp_delivery = mp2.selectbox(
+                            "Giao", _mp_del_keys, index=_mp_del_idx,
+                            key="eld_manual_delivery"
+                        )
+                        _mp_img = mp3.file_uploader(
+                            "Ảnh chung (tuỳ chọn)", type=["png", "jpg", "jpeg", "webp"],
+                            key="eld_manual_shared_img"
+                        )
+
+                        if st.button(
+                            f"🚀 Push {_push_sel.__len__()} mục lên Eldorado",
+                            type="primary", use_container_width=True,
+                            key="btn_eld_manual_push"
+                        ):
+                            # Load game cache if needed
+                            if not st.session_state.get("eld_game_loaded"):
+                                with st.spinner("Đang tải game data..."):
+                                    st.session_state.eld_game_loaded = eld_client.ensure_game_cache()
+                                if not st.session_state.eld_game_loaded:
+                                    st.error("Không thể tải game data. Kiểm tra cookie.")
+                                    st.stop()
+
+                            _shared_img = None
+                            if _mp_img:
+                                _shared_img_bytes = _mp_img.read()
+                                _shared_img = eld_client.upload_image(_shared_img_bytes, _mp_img.name or "image.png")
+                                if _shared_img and _shared_img.get("_rate_limit"):
+                                    _shared_img = None
+
+                            _mp_desc = _eld_ms.get("default_desc", "Fast delivery! Contact me if any issues.")
+                            _mp_progress = st.progress(0, text="Bắt đầu push...")
+                            _mp_results = {"ok": 0, "fail": 0, "errors": []}
+
+                            for _mpi, _mp_row in enumerate(_push_sel):
+                                _mp_name = _mp_row.get("Tên Pet", "?")
+                                _mp_progress.progress(
+                                    _mpi / len(_push_sel),
+                                    text=f"Pushing {_mp_name} ({_mpi+1}/{len(_push_sel)})..."
+                                )
+                                try:
+                                    _mp_title = eld_client.mutation_title(
+                                        _mp_name,
+                                        str(_mp_row.get("NameStock", "")),
+                                        str(_mp_row.get("Số Trait", "None")),
+                                        str(_mp_row.get("Mutation", "")),
+                                    )
+                                    _mp_resp = eld_client.create_listing(
+                                        title=_mp_title,
+                                        description=_mp_desc,
+                                        price=_mp_price,
+                                        ms=float(_mp_row.get("M/s", 0)),
+                                        mutation=str(_mp_row.get("Mutation", "Normal")),
+                                        namestock=str(_mp_row.get("NameStock", "")),
+                                        delivery_time=DELIVERY_MAP[_mp_delivery],
+                                        image_data=_shared_img,
+                                    )
+                                    if _mp_resp and not _mp_resp.get("error"):
+                                        _mp_results["ok"] += 1
+                                    else:
+                                        _mp_results["fail"] += 1
+                                        _err = _mp_resp.get("error", "unknown") if isinstance(_mp_resp, dict) else str(_mp_resp)
+                                        _mp_results["errors"].append(f"{_mp_name}: {_err[:80]}")
+                                except Exception as _mp_e:
+                                    _mp_results["fail"] += 1
+                                    _mp_results["errors"].append(f"{_mp_name}: {str(_mp_e)[:80]}")
+
+                                if _mpi < len(_push_sel) - 1:
+                                    _time.sleep(0.5)
+
+                            _mp_progress.progress(1.0, text="Hoàn thành!")
+                            if _mp_results["ok"]:
+                                st.success(f"✅ Push thành công: {_mp_results['ok']}/{len(_push_sel)}")
+                            if _mp_results["fail"]:
+                                st.error(f"❌ Thất bại: {_mp_results['fail']}/{len(_push_sel)}")
+                                for _mp_err in _mp_results["errors"]:
+                                    st.caption(f"• {_mp_err}")
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # TAB 2: CHART & THỐNG KÊ
+    # ─────────────────────────────────────────────────────────────────────────────
+with tab_chart:
+    st.markdown(
+        '<div style="display:inline-flex;align-items:center;gap:8px;'
+        'background:linear-gradient(135deg,rgba(192,132,252,0.12),rgba(232,121,249,0.08));'
+        'border:1px solid rgba(192,132,252,0.35);border-radius:8px;'
+        'padding:6px 14px;margin-bottom:12px;">'
+        '<span style="font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;'
+        'color:#9d8fbf;font-weight:500;">Ngày bắt đầu</span>'
+        '<span style="font-size:0.88rem;font-weight:600;color:#c084fc;letter-spacing:0.02em;">13/04/2026</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    # ── Aggregate data ──
+    sold_df = df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False, regex=False)].copy()
+
+    total_cost_single  = float(df["Giá Nhập"].sum()) if not df.empty else 0.0
+    total_cost_bulk    = float(bulk_df["Giá Nhập Tổng"].sum()) if not bulk_df.empty else 0.0
+    total_cost         = total_cost_single + total_cost_bulk
+
+    if not sold_df.empty:
+        _dt_col = pd.to_numeric(sold_df["Doanh Thu"], errors="coerce").fillna(0)
+        _gb_col = pd.to_numeric(sold_df["Giá Bán"], errors="coerce").fillna(0) * EXCHANGE_RATE
+        # Nếu Doanh Thu = 0 (null trong DB hoặc chưa được ghi), dùng Giá Bán * EXCHANGE_RATE làm fallback
+        rev_single = float(_dt_col.where(_dt_col > 0, _gb_col).sum())
+    else:
+        rev_single = 0.0
+    rev_bulk    = float(pd.to_numeric(bulk_history["Doanh Thu Giao Dịch"], errors="coerce").fillna(0).sum()) if not bulk_history.empty else 0.0
+    total_rev   = rev_single + rev_bulk
+
+    profit_single = float(sold_df["Lợi Nhuận"].sum()) if not sold_df.empty else 0.0
+    # Chỉ tính lợi nhuận đã THỰC sự thu về từ giao dịch pack (không cộng giá trị âm của pack chưa bán)
+    profit_bulk   = float(bulk_history["Lợi Nhuận Giao Dịch"].sum()) if not bulk_history.empty else 0.0
+    net_profit    = profit_single + profit_bulk
+
+    stock_count_single = int(df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)].shape[0])
+    stock_count_bulk   = int(pd.to_numeric(
+        bulk_df[bulk_df["Trạng Thái"]=="Available"]["Còn Lại"], errors="coerce"
+    ).fillna(0).sum())
+    total_stock = stock_count_single + stock_count_bulk
+
+    # ── Build unified profit-by-date dataframe (needed by monthly stats + charts) ──
+    frames = []
+    if not sold_df.empty:
+        tmp = sold_df[["Ngày Bán","Lợi Nhuận"]].copy()
+        tmp.columns = ["Ngày","Lợi Nhuận"]
+        frames.append(tmp)
+    if not bulk_history.empty:
+        tmp2 = bulk_history[["Ngày Bán","Lợi Nhuận Giao Dịch"]].copy()
+        tmp2.columns = ["Ngày","Lợi Nhuận"]
+        frames.append(tmp2)
+    pbd = pd.DataFrame(columns=["Ngày","Lợi Nhuận"])
+    if frames:
+        pbd = pd.concat(frames, ignore_index=True)
+    has_data = not pbd.empty
+    if has_data:
+        pbd["Ngày DT"] = pd.to_datetime(pbd["Ngày"], dayfirst=True, errors="coerce")
+        pbd = pbd.dropna(subset=["Ngày DT"])
+        pbd["Lợi Nhuận"] = pd.to_numeric(pbd["Lợi Nhuận"], errors="coerce").fillna(0)
+
+    # ── KPI Row ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">📊 Tổng Quan</div>', unsafe_allow_html=True)
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("💰 Lợi nhuận ròng",   fmt_vnd(net_profit))
+        k2.metric("📈 Tổng doanh thu",   fmt_vnd(total_rev))
+        k3.metric("📥 Tổng vốn nhập",    fmt_vnd(total_cost))
+        k4.metric("📦 Pet đang tồn",     f"{total_stock:,}")
+
+    # ── Thống kê theo tháng — biểu đồ ──
+    if has_data and not pbd.empty:
+        with st.container(border=True):
+            st.markdown('<div class="sec-heading">📋 Thống Kê Theo Tháng</div>', unsafe_allow_html=True)
+            _mo_df = (
+                pbd.assign(
+                    _mo=pbd["Ngày DT"].dt.strftime("%m/%Y"),
+                    _sk=pbd["Ngày DT"].dt.strftime("%Y-%m"),
+                )
+                .groupby(["_mo","_sk"], as_index=False)
+                .agg(_ln=("Lợi Nhuận","sum"), _cnt=("Lợi Nhuận","count"))
+                .sort_values("_sk")
+            )
+            _mo_colors = [
+                "#34d399" if v >= 0 else "#f87171"
+                for v in _mo_df["_ln"]
+            ]
+            _fig_mo = go.Figure(go.Bar(
+                x=_mo_df["_mo"],
+                y=_mo_df["_ln"],
+                marker_color=_mo_colors,
+                marker_line_width=0,
+                text=[
+                    f"{fmt_short(v)}<br><span style='font-size:10px;color:#9d8fbf'>{c} GD</span>"
+                    for v, c in zip(_mo_df["_ln"], _mo_df["_cnt"])
+                ],
+                textposition="outside",
+                textfont=dict(color="#e2e8f0", size=11),
+                hovertemplate="<b>%{x}</b><br>Lợi nhuận: %{y:,.0f}₫<extra></extra>",
+            ))
+            _fig_mo.update_layout(
+                paper_bgcolor="#0a0a0f",
+                plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf"),
+                xaxis=dict(
+                    gridcolor="#1a1528",
+                    tickfont=dict(color="#e2e8f0", size=12),
+                    tickangle=0,
+                ),
+                yaxis=dict(
+                    gridcolor="#1a1528",
+                    tickfont=dict(color="#9d8fbf"),
+                    tickformat=",.0f",
+                    zeroline=True,
+                    zerolinecolor="#4a3f6b",
+                ),
+                margin=dict(l=10, r=10, t=40, b=10),
+                height=260,
+                showlegend=False,
+                bargap=0.35,
+            )
+            st.plotly_chart(_fig_mo, use_container_width=True)
+            # KPI tóm tắt
+            _mo_best_idx = _mo_df["_ln"].idxmax()
+            _mo_best_mo  = _mo_df.loc[_mo_best_idx, "_mo"]
+            _mo_best_ln  = float(_mo_df.loc[_mo_best_idx, "_ln"])
+            _mo_best_cnt = int(_mo_df.loc[_mo_best_idx, "_cnt"])
+            # Lọc đúng tháng hiện tại (không dùng iloc[-1] để tránh hiển thị tháng cũ)
+            _cur_mo_sk   = now_vn().strftime("%Y-%m")
+            _mo_cur_rows = _mo_df[_mo_df["_sk"] == _cur_mo_sk]
+            _mo_last_ln  = float(_mo_cur_rows["_ln"].iloc[0]) if not _mo_cur_rows.empty else 0.0
+            _mo_last_cnt = int(_mo_cur_rows["_cnt"].iloc[0]) if not _mo_cur_rows.empty else 0
+            _mc1, _mc2, _mc3 = st.columns(3)
+            _mc1.metric("📅 Tháng hiện tại",
+                        fmt_vnd(_mo_last_ln),
+                        delta=f"{_mo_last_cnt} giao dịch", delta_color="off")
+            _mc2.metric("🏆 Tháng tốt nhất",
+                        f"{_mo_best_mo}",
+                        delta=fmt_vnd(_mo_best_ln), delta_color="off")
+            _mc3.metric("📊 TB / tháng",
+                        fmt_vnd(float(_mo_df["_ln"].mean())),
+                        delta=f"{int(_mo_df['_cnt'].mean())} GD/tháng", delta_color="off")
+
+    # ── Thống kê theo ngày — hôm nay ──
+    with st.container(border=True):
+        _dn_today = now_vn().date()
+        _dn_label = _dn_today.strftime("%d/%m/%Y")
+        st.markdown(f'<div class="sec-heading">📅 Thống Kê Hôm Nay — {_dn_label}</div>', unsafe_allow_html=True)
+
+        _dn_sel = pd.Timestamp(_dn_today)
+
+        # Lọc lẻ hôm nay
+        _dn_le_mask = (
+            pd.to_datetime(sold_df["Ngày Bán"], dayfirst=True, errors="coerce").dt.normalize() == _dn_sel
+            if not sold_df.empty else pd.Series([], dtype=bool)
+        )
+        _dn_sold_le = sold_df[_dn_le_mask].copy() if not sold_df.empty and len(_dn_le_mask) else pd.DataFrame()
+
+        # Lọc lô hôm nay
+        _dn_bk_mask = (
+            pd.to_datetime(bulk_history["Ngày Bán"], dayfirst=True, errors="coerce").dt.normalize() == _dn_sel
+            if not bulk_history.empty else pd.Series([], dtype=bool)
+        )
+        _dn_sold_bk = bulk_history[_dn_bk_mask].copy() if not bulk_history.empty and len(_dn_bk_mask) else pd.DataFrame()
+
+        # KPI
+        _dn_ln  = (float(pd.to_numeric(_dn_sold_le["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if not _dn_sold_le.empty else 0.0) + \
+                  (float(pd.to_numeric(_dn_sold_bk["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if not _dn_sold_bk.empty else 0.0)
+        _dn_rev = (float(pd.to_numeric(_dn_sold_le["Doanh Thu"], errors="coerce").fillna(0).sum()) if not _dn_sold_le.empty else 0.0) + \
+                  (float(pd.to_numeric(_dn_sold_bk["Doanh Thu Giao Dịch"], errors="coerce").fillna(0).sum()) if not _dn_sold_bk.empty else 0.0)
+        _dn_cnt = len(_dn_sold_le) + len(_dn_sold_bk)
+        _dn_cost = float(pd.to_numeric(_dn_sold_le["Giá Nhập"], errors="coerce").fillna(0).sum()) if not _dn_sold_le.empty else 0.0
+        _dn_roi  = (_dn_ln / _dn_cost * 100) if _dn_cost > 0 else 0.0
+
+        # So sánh với TB ngày có giao dịch
+        if has_data and not pbd.empty:
+            _dn_agg_all = pbd.groupby(pbd["Ngày DT"].dt.normalize())["Lợi Nhuận"].sum()
+            _dn_avg = float(_dn_agg_all.mean()) if len(_dn_agg_all) > 0 else 0.0
+        else:
+            _dn_avg = 0.0
+        _dn_delta = _dn_ln - _dn_avg
+        # Delta string: sign phải đứng đầu để Streamlit nhận màu đúng
+        _dn_delta_str = f"{_dn_delta:+,.0f} ₫ vs TB"
+
+        _dm1, _dm2, _dm3, _dm4 = st.columns(4)
+        _dm1.metric("🛒 Giao dịch",   f"{_dn_cnt}")
+        _dm2.metric("💰 Lợi nhuận",   fmt_vnd(_dn_ln),
+                    delta=_dn_delta_str, delta_color="normal")
+        _dm3.metric("📈 Doanh thu",   fmt_vnd(_dn_rev))
+        _dm4.metric("📊 ROI ngày",    f"{_dn_roi:.1f}%")
+
+        # Bảng chi tiết — title · giờ bán · tồn · giá nhập · giá bán · lợi nhuận
+        _dn_rows = []
+        if not _dn_sold_le.empty:
+            for _, _r in _dn_sold_le.iterrows():
+                _ts = pd.to_datetime(_r.get("time_ban"), errors="coerce", utc=True)
+                _gio = _ts.tz_convert(VN_TZ).strftime("%H:%M:%S") if pd.notna(_ts) else "—"
+                _dn_rows.append({
+                    "_sort": _ts if pd.notna(_ts) else pd.Timestamp.min.tz_localize("UTC"),
+                    "Title":       str(_r.get("Auto Title") or _r.get("Tên Pet") or "—"),
+                    "Giờ Bán":     _gio,
+                    "Tồn (ngày)":  int(float(_r.get("Ngày Tồn", 0) or 0)),
+                    "Giá Nhập ₫":  float(pd.to_numeric(_r.get("Giá Nhập"),  errors="coerce") or 0),
+                    "Giá Bán $":   float(pd.to_numeric(_r.get("Giá Bán"),   errors="coerce") or 0),
+                    "Lợi Nhuận ₫": float(pd.to_numeric(_r.get("Lợi Nhuận"), errors="coerce") or 0),
+                })
+        if not _dn_sold_bk.empty:
+            for _, _r in _dn_sold_bk.iterrows():
+                _dn_rows.append({
+                    "_sort": pd.Timestamp.min.tz_localize("UTC"),
+                    "Title":       str(_r.get("Tên Lô") or "—"),
+                    "Giờ Bán":     str(_r.get("Ngày Bán", "—")),
+                    "Tồn (ngày)":  "—",
+                    "Giá Nhập ₫":  0.0,
+                    "Giá Bán $":   float(pd.to_numeric(_r.get("Doanh Thu Giao Dịch"), errors="coerce") or 0) / max(EXCHANGE_RATE, 1),
+                    "Lợi Nhuận ₫": float(pd.to_numeric(_r.get("Lợi Nhuận Giao Dịch"), errors="coerce") or 0),
+                })
+
+        if _dn_rows:
+            _dn_tbl = (
+                pd.DataFrame(_dn_rows)
+                .sort_values("_sort", ascending=False)
+                .drop(columns=["_sort"])
+                .reset_index(drop=True)
+            )
+            _dn_tbl.index += 1
+            st.dataframe(
+                _dn_tbl,
+                use_container_width=True,
+                column_config={
+                    "Title":       st.column_config.TextColumn("Title",        width="large"),
+                    "Giờ Bán":     st.column_config.TextColumn("Giờ Bán",     width="small"),
+                    "Tồn (ngày)":  st.column_config.Column("Tồn",             width="small"),
+                    "Giá Nhập ₫":  st.column_config.NumberColumn("Giá Nhập",  format="%,.0f", width="medium"),
+                    "Giá Bán $":   st.column_config.NumberColumn("Giá Bán $", format="%.2f",  width="small"),
+                    "Lợi Nhuận ₫": st.column_config.NumberColumn("Lợi Nhuận", format="%,.0f", width="medium"),
                 },
-                "mainOfferImage": image_data or (details.get("mainOfferImage") or {}),
-                "offerImages": [],
-                "offerTitle": title or details.get("offerTitle", ""),
-                "description": description if description is not None else details.get("description", ""),
-                "guaranteedDeliveryTime": delivery_time or details.get("guaranteedDeliveryTime", "Minute20"),
-            },
-        }
+            )
+            # Best / worst
+            _dn_le_only = _dn_tbl[_dn_tbl["Tồn (ngày)"] != "—"]
+            if not _dn_le_only.empty:
+                _dn_ln_col = pd.to_numeric(_dn_le_only["Lợi Nhuận ₫"], errors="coerce")
+                _dn_best  = _dn_le_only.loc[_dn_ln_col.idxmax()]
+                _dn_worst = _dn_le_only.loc[_dn_ln_col.idxmin()]
+                _gb, _gw = st.columns(2)
+                _gb.success(f"🏆 **Tốt nhất:** {_dn_best['Title']} → {fmt_vnd(float(_dn_best['Lợi Nhuận ₫']))}")
+                _gw.warning(f"📉 **Thấp nhất:** {_dn_worst['Title']} → {fmt_vnd(float(_dn_worst['Lợi Nhuận ₫']))}")
+        else:
+            st.caption("Chưa có giao dịch nào hôm nay.")
 
-        return self._req("PUT", f"/v1/item-management/me/offers/item/{offer_id}/details",
-                         json_data=payload)
+    # ── Waterfall: Dòng Chảy Tài Chính ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🌊 Dòng Chảy Tài Chính</div>', unsafe_allow_html=True)
 
-    def change_price(self, offer_id, amount):
-        return self._req("PUT", f"/v1/item-management/me/offers/{offer_id}/price",
-                         json_data={"amount": float(amount), "currency": "USD"})
+        if total_rev > 0 or total_cost > 0:
+            _margin_pct = net_profit / total_rev * 100 if total_rev > 0 else 0
+            _roi_pct    = net_profit / total_cost * 100 if total_cost > 0 else 0
+            _sold_cnt   = len(sold_df)
+            if not bulk_history.empty and "Số Lượng Bán" in bulk_history.columns:
+                _sold_cnt += int(pd.to_numeric(bulk_history["Số Lượng Bán"], errors="coerce").fillna(0).sum())
+            _cap_remain = float(
+                pd.to_numeric(
+                    df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]["Giá Nhập"],
+                    errors="coerce"
+                ).fillna(0).sum()
+            )
+            if not bulk_df.empty:
+                _bdf2 = bulk_df.copy()
+                _bdf2["_orig"] = pd.to_numeric(_bdf2["Số Lượng Gốc"], errors="coerce").fillna(1).replace(0, 1)
+                _bdf2["_left"] = pd.to_numeric(_bdf2["Còn Lại"],       errors="coerce").fillna(0)
+                _bdf2["_cost"] = pd.to_numeric(_bdf2["Giá Nhập Tổng"], errors="coerce").fillna(0)
+                _cap_remain += float((_bdf2["_cost"] / _bdf2["_orig"] * _bdf2["_left"]).sum())
 
-    def delete_listing(self, offer_id):
-        return self._req("DELETE", f"/v1/item-management/me/offers/{offer_id}")
+            _wr1, _wr2, _wr3, _wr4 = st.columns(4)
+            _wr1.metric("📊 Margin",          f"{_margin_pct:.1f}%")
+            _wr2.metric("💹 ROI",             f"{_roi_pct:.1f}%")
+            _wr3.metric("🛒 Con đã bán",      f"{_sold_cnt:,}")
+            _wr4.metric("🏦 Vốn còn tồn",    fmt_vnd(_cap_remain))
 
-    def pause_listing(self, offer_id):
-        return self._req("POST", f"/v1/item-management/me/offers/{offer_id}/pause",
-                         json_data={})
+            _wf_labels = ["Tổng Doanh Thu", "Tổng Vốn", "Lợi Nhuận Ròng"]
+            _wf_vals   = [total_rev, total_cost, abs(net_profit)]
+            _wf_colors = ["#34d399", "#f87171", "#a78bfa" if net_profit >= 0 else "#f87171"]
 
-    def resume_listing(self, offer_id):
-        return self._req("POST", f"/v1/item-management/me/offers/{offer_id}/resume",
-                         json_data={})
+            _fig_wf = go.Figure(go.Bar(
+                x=_wf_labels,
+                y=_wf_vals,
+                marker_color=_wf_colors,
+                text=[fmt_short(v) for v in _wf_vals],
+                textposition="outside",
+                textfont=dict(color="#e2e8f0", size=12, family="Inter"),
+                hovertemplate="<b>%{x}</b><br>%{y:,.0f}₫<extra></extra>",
+                width=[0.45, 0.45, 0.45],
+            ))
+            # Overlay a "+" or "-" annotation on LN bar to show sign
+            _ln_sign_text = ("+" if net_profit >= 0 else "−") + fmt_short(abs(net_profit))
+            _fig_wf.add_annotation(
+                x="Lợi Nhuận Ròng", y=abs(net_profit),
+                text=f"<b>{'+ ' if net_profit >= 0 else '- '}{fmt_short(abs(net_profit))}</b>",
+                showarrow=False, yshift=22,
+                font=dict(color="#a78bfa" if net_profit >= 0 else "#f87171", size=13)
+            )
+            _fig_wf.update_layout(
+                paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf"),
+                xaxis=dict(tickfont=dict(color="#e2e8f0", size=13), gridcolor="#1a1528", zeroline=False),
+                yaxis=dict(tickfont=dict(color="#9d8fbf"), gridcolor="#1a1528",
+                           tickformat=",.0f", zeroline=False),
+                margin=dict(l=10, r=10, t=50, b=10),
+                height=340,
+                showlegend=False,
+                bargap=0.35,
+            )
+            st.plotly_chart(_fig_wf, use_container_width=True)
+            st.caption("🟢 Doanh thu · 🔴 Chi phí vốn · 🟣 Lợi nhuận ròng (tất cả các thanh bắt đầu từ 0)")
+        else:
+            st.info("Chưa có dữ liệu tài chính.")
 
-    # ── Spy / Browse ─────────────────────────────────────────────────────
+        # ── Period selector ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">📉 Biểu Đồ Lợi Nhuận</div>', unsafe_allow_html=True)
+        period_col, _ = st.columns([2, 3])
+        period = period_col.radio(
+            "Xem theo",
+            ["Theo ngày", "Theo tuần", "Theo tháng"],
+            horizontal=True,
+            label_visibility="collapsed",
+        )
 
-    def spy_search(self, params):
-        """Search marketplace offers."""
-        defaults = {"gameId": GAME_ID, "category": CATEGORY, "useMinPurchasePrice": "true"}
-        merged = {**defaults, **{k: v for k, v in params.items() if v is not None}}
-        return self._req("GET", "/v1/item-management/offers", params=merged)
+        if has_data and not pbd.empty:
+            chart_df = pbd.copy()
 
-    def browse_offers(self, game_id=GAME_ID, category=CATEGORY, page=1):
-        return self._req("GET", "/v1/item-management/offers",
-                         params={"gameId": game_id, "category": category, "pageIndex": page})
+            if period == "Theo ngày":
+                chart_df["Period"] = chart_df["Ngày DT"].dt.strftime("%d/%m/%Y")
+                sort_key = chart_df["Ngày DT"].dt.normalize()
+            elif period == "Theo tuần":
+                chart_df["Period"] = chart_df["Ngày DT"].dt.strftime("W%V/%Y")
+                sort_key = (
+                    chart_df["Ngày DT"]
+                    - pd.to_timedelta(chart_df["Ngày DT"].dt.dayofweek, unit="d")
+                ).dt.normalize()
+            else:
+                chart_df["Period"] = chart_df["Ngày DT"].dt.strftime("%m/%Y")
+                sort_key = chart_df["Ngày DT"].dt.strftime("%Y-%m")
 
-    # ── Orders ───────────────────────────────────────────────────────────
+            chart_df["SortKey"] = sort_key
+            agg = (
+                chart_df.groupby(["Period","SortKey"], as_index=False)["Lợi Nhuận"]
+                .sum()
+                .sort_values("SortKey")
+            )
+            # agg_real: chỉ các kỳ có giao dịch thật — dùng cho metrics (count, avg)
+            agg_real = agg.copy()
 
-    def get_orders(self, page_size=20, cursor=None):
-        default_cursor = "9999-99-99 99:99:99.999999999999999-9999-9999-9999-999999999999"
-        return self._req("GET", "/orders/me/seller/orders",
-                         params={"pageSize": page_size, "pageDirection": "Next",
-                                 "cursorValue": cursor or default_cursor})
+            # Đảm bảo kỳ hiện tại luôn xuất hiện trên chart (dù chưa có giao dịch hôm nay)
+            _now_vn = datetime.now(VN_TZ)
+            if period == "Theo ngày":
+                _cur_period  = _now_vn.strftime("%d/%m/%Y")
+                _cur_sort    = pd.Timestamp(_now_vn.date())
+            elif period == "Theo tuần":
+                _cur_period  = _now_vn.strftime("W%V/%Y")
+                _cur_sort    = pd.Timestamp(
+                    _now_vn.date() - pd.Timedelta(days=_now_vn.weekday())
+                )
+            else:
+                _cur_period  = _now_vn.strftime("%m/%Y")
+                _cur_sort    = _now_vn.strftime("%Y-%m")
 
-    def get_order_stats(self):
-        return self._req("GET", "/orders/me/statesCount",
-                         params={"displayFilter": "DisplaySellingOrders", "orderGroup": "Regular"})
+            if _cur_period not in agg["Period"].values:
+                _today_row = pd.DataFrame([{
+                    "Period":     _cur_period,
+                    "SortKey":    _cur_sort,
+                    "Lợi Nhuận": 0,
+                }])
+                agg = pd.concat([agg, _today_row], ignore_index=True).sort_values("SortKey")
 
-    def mark_delivered(self, order_id):
-        return self._req("PUT", f"/orders/me/{order_id}/deliver")
+            agg["Label"] = agg["Lợi Nhuận"].apply(fmt_short)
 
-    def get_order_detail(self, order_id):
-        return self._req("GET", f"/orders/me/{order_id}")
+            # Dark bar chart like reference image
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=agg["Period"],
+                y=agg["Lợi Nhuận"],
+                text=agg["Label"],
+                textposition="outside",
+                textfont=dict(size=11, color="#e2e8f0", family="Inter"),
+                marker=dict(
+                    color="#c084fc",
+                    line=dict(color="#c084fc", width=0),
+                ),
+                cliponaxis=False,
+            ))
+            fig.update_layout(
+                paper_bgcolor="#0a0a0f",
+                plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf", size=11),
+                xaxis=dict(
+                    type="category",
+                    tickfont=dict(size=10, color="#9d8fbf"),
+                    gridcolor="#1a1528",
+                    linecolor="#2d2540",
+                ),
+                yaxis=dict(
+                    title="Lợi nhuận (VNĐ)",
+                    tickfont=dict(size=10, color="#9d8fbf"),
+                    gridcolor="#1a1528",
+                    linecolor="#2d2540",
+                    tickformat=",.0f",
+                ),
+                margin=dict(l=10, r=10, t=30, b=10),
+                height=420,
+                bargap=0.35,
+                showlegend=False,
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-    # ── States ─────────────────────────────────────────────────────────
+            # ── Period stats below chart ──
+            period_label = {"Theo ngày":"ngày","Theo tuần":"tuần","Theo tháng":"tháng"}[period]
+            last_row = agg.iloc[-1] if not agg.empty else None
+            prev_row = agg.iloc[-2] if len(agg) >= 2 else None
 
-    def get_states(self, category=CATEGORY):
-        r = self._req("GET", "/v1/item-management/me/offers/state-count",
-                       params={"category": category})
-        if isinstance(r, dict) and ("activeOffers" in r or "closedOffers" in r):
-            return r
-        return self._req("GET", "/flexibleOffersUser/me/stateCount",
-                         params={"category": category})
+            c1, c2, c3 = st.columns(3)
+            if last_row is not None:
+                delta = None
+                if prev_row is not None:
+                    delta_val = last_row["Lợi Nhuận"] - prev_row["Lợi Nhuận"]
+                    # Streamlit detects sign from string prefix — must put "-" before "₫"
+                    _delta_cmp_lbl = {
+                        "Theo ngày":  "so với hôm qua",
+                        "Theo tuần":  "so với tuần trước",
+                        "Theo tháng": "so với tháng trước",
+                    }.get(period, "")
+                    delta = ("-" if delta_val < 0 else "") + f"₫{abs(delta_val):,.0f}" + (f" {_delta_cmp_lbl}" if _delta_cmp_lbl else "")
+                _period_delta_label = {
+                    "Theo ngày":  "so với hôm qua",
+                    "Theo tuần":  "so với tuần trước",
+                    "Theo tháng": "so với tháng trước",
+                }.get(period, "")
+                _this_period_lbl = {
+                    "Theo ngày":  "hôm nay",
+                    "Theo tuần":  "tuần này",
+                    "Theo tháng": "tháng này",
+                }.get(period, period_label)
+                c1.metric(
+                    f"Lợi nhuận {_this_period_lbl} ({last_row['Period']})",
+                    fmt_vnd(last_row["Lợi Nhuận"]),
+                    delta=delta,
+                    help=f"So sánh {_period_delta_label}",
+                )
+                c2.metric(f"Số {period_label} có giao dịch",  f"{len(agg_real):,}")
+                c3.metric(f"Lợi nhuận trung bình mỗi {period_label}",  fmt_vnd(agg_real['Lợi Nhuận'].mean() if not agg_real.empty else 0))
+        else:
+            st.info("Chưa có dữ liệu giao dịch để hiển thị.")
 
-    def get_offer_private(self, offer_id):
-        return self._req("GET", f"/v1/item-management/me/offers/{offer_id}/private")
+        # ── Cumulative Profit Line ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">📈 Lợi Nhuận Tích Lũy</div>', unsafe_allow_html=True)
 
-    def change_state(self, offer_id, state):
-        action = "pause" if state == "Paused" else "resume"
-        return self._req("POST", f"/v1/item-management/me/offers/{offer_id}/{action}",
-                         json_data={})
+        if has_data and not pbd.empty:
+            # Group by date → one data point per day
+            _cum_daily = (
+                pbd[["Ngày DT","Lợi Nhuận"]]
+                .dropna(subset=["Ngày DT"])
+                .assign(_date=lambda d: d["Ngày DT"].dt.date)
+                .groupby("_date", as_index=False)["Lợi Nhuận"].sum()
+                .sort_values("_date")
+                .copy()
+            )
+            _cum_daily["Tích Lũy"] = _cum_daily["Lợi Nhuận"].cumsum()
+            _cum_daily["Ngày DT"]  = pd.to_datetime(_cum_daily["_date"])
 
-    # ── Offline/Online ─────────────────────────────────────────────────
+            # milestone annotations (only those reached) - auto generate every 10M
+            _max_cum = float(_cum_daily["Tích Lũy"].max())
+            _cum_milestones = [int(i * 10_000_000) for i in range(1, int(_max_cum / 10_000_000) + 2)]
+            _annotations = []
+            for _ms_val in _cum_milestones:
+                _cross = _cum_daily[_cum_daily["Tích Lũy"] >= _ms_val]
+                if not _cross.empty:
+                    _ms_row = _cross.iloc[0]
+                    _annotations.append(dict(
+                        x=_ms_row["Ngày DT"], y=_ms_val,
+                        text=f"🏆 {_ms_val//1_000_000}M",
+                        showarrow=True, arrowhead=2, arrowcolor="#fef08a",
+                        font=dict(color="#fef08a", size=10),
+                        bgcolor="#1a1528", bordercolor="#fef08a", borderwidth=1,
+                        ax=0, ay=-30,
+                    ))
 
-    def switch_offline(self):
-        return self._req("PUT", "/offerUser/me/switchOffline", json_data={})
+            _bar_colors = ["#34d399" if v >= 0 else "#f87171" for v in _cum_daily["Lợi Nhuận"]]
 
-    def switch_online(self):
-        return self._req("PUT", "/offerUser/me/switchOnline", json_data={})
+            _fig_cum = go.Figure()
+            _fig_cum.add_trace(go.Bar(
+                x=_cum_daily["Ngày DT"], y=_cum_daily["Lợi Nhuận"],
+                name="LN ngày",
+                yaxis="y2",
+                marker=dict(color=_bar_colors, opacity=0.55),
+                hovertemplate="%{x|%d/%m/%Y}<br>LN ngày: <b>%{y:,.0f}₫</b><extra></extra>",
+            ))
+            _fig_cum.add_trace(go.Scatter(
+                x=_cum_daily["Ngày DT"], y=_cum_daily["Tích Lũy"],
+                mode="lines",
+                fill="tozeroy",
+                fillcolor="rgba(167,139,250,0.12)",
+                line=dict(color="#a78bfa", width=2.5),
+                name="Tích lũy",
+                hovertemplate="%{x|%d/%m/%Y}<br>Tích lũy: <b>%{y:,.0f}₫</b><extra></extra>",
+            ))
 
-    def get_offline_status(self):
-        r = self._req("GET", "/offerUser/me")
-        if isinstance(r, dict) and isinstance(r.get("offlineMode"), str):
-            return r["offlineMode"] != "Online"
-        return None
+            _fig_cum.update_layout(
+                paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf"),
+                annotations=_annotations,
+                xaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#9d8fbf"), showgrid=False),
+                yaxis=dict(
+                    title="Tích lũy (₫)", gridcolor="#1a1528",
+                    tickfont=dict(color="#9d8fbf"), tickformat=",.0f",
+                    zeroline=True, zerolinecolor="#2d2040",
+                ),
+                yaxis2=dict(
+                    title="LN ngày (₫)", overlaying="y", side="right",
+                    showgrid=False, tickfont=dict(color="#9d8fbf"),
+                    tickformat=",.0f",
+                ),
+                legend=dict(orientation="h", x=0, y=1.08, font=dict(color="#9d8fbf")),
+                margin=dict(l=10, r=10, t=40, b=10),
+                height=360,
+                hovermode="x unified",
+                bargap=0.2,
+            )
+            st.plotly_chart(_fig_cum, use_container_width=True)
 
-    # ── Notifications ──────────────────────────────────────────────────
+            # Summary KPIs
+            _cum_total     = float(_cum_daily["Tích Lũy"].iloc[-1])
+            _cum_best_day  = float(_cum_daily["Lợi Nhuận"].max())
+            _cum_worst_day = float(_cum_daily["Lợi Nhuận"].min())
+            _cum_pos_days  = int((_cum_daily["Lợi Nhuận"] > 0).sum())
+            _cum_total_days = len(_cum_daily)
+            _kc1, _kc2, _kc3, _kc4 = st.columns(4)
+            _kc1.metric("Tổng tích lũy", fmt_vnd(_cum_total))
+            _kc2.metric("📈 Ngày đỉnh", fmt_vnd(_cum_best_day))
+            _kc3.metric("📉 Ngày thấp nhất", fmt_vnd(_cum_worst_day))
+            _kc4.metric("✅ Ngày có lời", f"{_cum_pos_days} / {_cum_total_days} ngày")
+        else:
+            st.info("Chưa có dữ liệu giao dịch để hiển thị.")
 
-    def get_notifications(self, page_size=20, cursor=None):
-        default_cursor = "9999-99-99 99:99:99.999999999999999-9999-9999-9999-999999999999"
-        return self._req("GET", "/notifications/me", params={
-            "pageSize": page_size, "pageDirection": "Next",
-            "cursorValue": cursor or default_cursor,
-            "notificationReadStatuses": ["IsUnread", "IsRead"],
-        })
+        # ── Revenue channel split ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🔀 Phân Tích Kênh & Sản Phẩm</div>', unsafe_allow_html=True)
+        c_left, c_right = st.columns(2)
 
-    def mark_notifications_read(self):
-        return self._req("PUT", "/notifications/me/markAllAsRead")
+        with c_left:
+            # So sánh Doanh thu đã thu vs Tổng vốn tồn kho
+            _dt_sold_total = float(pd.to_numeric(sold_df["Doanh Thu"], errors="coerce").fillna(0).sum()) if not sold_df.empty else 0.0
+            _von_ton_total = _von_le + _von_lo
+            _compare_df = pd.DataFrame({
+                "Hạng mục": ["Doanh thu", "Vốn tồn"],
+                "Giá trị":   [_dt_sold_total, _von_ton_total],
+            })
+            fig_cmp = go.Figure(go.Bar(
+                x=_compare_df["Hạng mục"],
+                y=_compare_df["Giá trị"],
+                marker_color=["#c084fc", "#e879f9"],
+                text=_compare_df["Giá trị"].apply(fmt_short),
+                textposition="outside",
+                textfont=dict(color="#e2e8f0"),
+            ))
+            fig_cmp.update_layout(
+                paper_bgcolor="#0a0a0f",
+                plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf"),
+                title=dict(text="Doanh thu - Vốn tồn", font=dict(size=13, color="#e2e8f0")),
+                margin=dict(l=10, r=10, t=50, b=10),
+                height=300,
+                yaxis_title="VNĐ",
+                xaxis=dict(tickfont=dict(color="#e2e8f0")),
+            )
+            if _dt_sold_total > 0 or _von_ton_total > 0:
+                st.plotly_chart(fig_cmp, use_container_width=True)
+            else:
+                st.info("Chưa có dữ liệu.")
 
-    # ── Fees ───────────────────────────────────────────────────────────
+        with c_right:
+            # Top 10 pets by profit
+            if not sold_df.empty:
+                top_pets = (
+                    sold_df.groupby("Tên Pet", as_index=False)["Lợi Nhuận"]
+                    .sum()
+                    .sort_values("Lợi Nhuận", ascending=True)
+                    .tail(10)
+                )
+                fig_bar = go.Figure(go.Bar(
+                    x=top_pets["Lợi Nhuận"],
+                    y=top_pets["Tên Pet"],
+                    orientation="h",
+                    marker=dict(color="#c084fc"),
+                    text=top_pets["Lợi Nhuận"].apply(fmt_short),
+                    textposition="outside",
+                    textfont=dict(color="#e2e8f0", size=10),
+                ))
+                fig_bar.update_layout(
+                    paper_bgcolor="#0a0a0f",
+                    plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#9d8fbf"),
+                    title=dict(text="Top 10 Pet Lợi nhuận cao", font=dict(size=13, color="#e2e8f0")),
+                    xaxis=dict(gridcolor="#1a1528", tickformat=",.0f", tickfont=dict(color="#9d8fbf")),
+                    yaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#e2e8f0")),
+                    margin=dict(l=10, r=10, t=50, b=10),
+                    height=300,
+                    showlegend=False,
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+            else:
+                st.info("Chưa có dữ liệu.")
 
-    def get_fees(self, game_id=GAME_ID, category=CATEGORY):
-        return self._req("GET", f"/fees/me/feesForGame/{game_id}",
-                         params={"category": category})
+        # ── Bubble Scatter: Volume vs Margin per Mutation ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🫧 Hiệu Quả Theo Mutation — Volume vs Margin</div>', unsafe_allow_html=True)
 
-    # ── Wallet ──────────────────────────────────────────────────────────
+        if not sold_df.empty and "Mutation" in sold_df.columns:
+            _tm_df = sold_df.copy()
+            _tm_df["_mut"] = _tm_df["Mutation"].astype(str).str.strip().replace("", "Không rõ")
+            _tm_df["_dt"]  = pd.to_numeric(_tm_df["Doanh Thu"], errors="coerce").fillna(0)
+            _tm_df["_ln"]  = pd.to_numeric(_tm_df["Lợi Nhuận"], errors="coerce").fillna(0)
+            _tm_grp = (
+                _tm_df.groupby("_mut", as_index=False)
+                .agg(DT=("_dt","sum"), LN_total=("_ln","sum"), Count=("_ln","count"))
+                .query("Count > 0")
+            )
+            _tm_grp["LN_per_unit"] = _tm_grp["LN_total"] / _tm_grp["Count"]
+            _tm_grp["Margin_pct"]  = (_tm_grp["LN_total"] / _tm_grp["DT"].replace(0, float("nan")) * 100).fillna(0)
 
-    def get_payments(self, page_size=30, cursor=None):
-        default_cursor = "9999-99-99 99:99:99.999999999999999-9999-9999-9999-999999999999"
-        return self._req("GET", "/userpayment/me/payments", params={
-            "paymentsCategory": "All", "pageSize": page_size,
-            "pageDirection": "Next", "cursorValue": cursor or default_cursor,
-        })
+            if not _tm_grp.empty:
+                # Quadrant reference lines at medians
+                _med_x = float(_tm_grp["Count"].median())
+                _med_y = float(_tm_grp["LN_per_unit"].median())
 
-    def get_pending_sum(self):
-        return self._req("GET", "/orders/me/pendingOrdersSum")
+                # Color palette per mutation (distinct vivid colors)
+                _MUT_PALETTE = {
+                    "Normal":"#94a3b8","Gold":"#fbbf24","Diamond":"#67e8f9",
+                    "Bloodrot":"#f87171","Candy":"#f9a8d4","Divine":"#c084fc",
+                    "Lava":"#fb923c","Galaxy":"#818cf8","Yin-Yang":"#e2e8f0",
+                    "Radioactive":"#86efac","Cursed":"#4ade80","Rainbow":"#f472b6",
+                    "Không rõ":"#6b7280",
+                }
+                _dot_colors = [_MUT_PALETTE.get(m, "#a78bfa") for m in _tm_grp["_mut"]]
 
-    def get_historical_seller_stats(self):
-        return self._req("GET", "/orders/me/statesCount", params={
-            "displayFilter": "DisplaySellingOrders", "orderGroup": "Historical",
-        })
+                _fig_bub = go.Figure()
 
-    # ── Disconnect ───────────────────────────────────────────────────────
+                # Quadrant shading
+                _fig_bub.add_hrect(y0=_med_y, y1=_tm_grp["LN_per_unit"].max()*1.2,
+                                   fillcolor="rgba(52,211,153,0.04)", line_width=0)
+                _fig_bub.add_hrect(y0=_tm_grp["LN_per_unit"].min()*1.2, y1=_med_y,
+                                   fillcolor="rgba(248,113,113,0.04)", line_width=0)
 
-    def disconnect(self):
-        self.logged_in = False
-        self._raw = ""
-        self._xsrf = ""
-        self.device_id = ""
-        self.session_id = ""
-        self.username = ""
-        self.userId = ""
-        self.talk_token = ""
-        p = Path(COOKIE_FILE)
-        if p.exists():
+                # Quadrant lines
+                _fig_bub.add_hline(y=_med_y, line=dict(color="#2d2040", width=1, dash="dot"))
+                _fig_bub.add_vline(x=_med_x, line=dict(color="#2d2040", width=1, dash="dot"))
+
+                # Quadrant labels
+                for _ql_x, _ql_y, _ql_txt in [
+                    (_tm_grp["Count"].max()*0.92, _tm_grp["LN_per_unit"].max()*1.1, "⭐ Ngôi sao"),
+                    (_tm_grp["Count"].max()*0.03, _tm_grp["LN_per_unit"].max()*1.1, "💎 Hiếm & lời"),
+                    (_tm_grp["Count"].max()*0.92, _med_y*0.02, "📦 Bán nhiều, ít lời"),
+                    (_tm_grp["Count"].max()*0.03, _med_y*0.02, "⚠️ Cần xem xét"),
+                ]:
+                    _fig_bub.add_annotation(
+                        x=_ql_x, y=_ql_y, text=_ql_txt,
+                        showarrow=False, font=dict(color="#4a3f6b", size=9),
+                        xanchor="left",
+                    )
+
+                # Bubbles
+                for _, _row in _tm_grp.iterrows():
+                    _col = _MUT_PALETTE.get(str(_row["_mut"]), "#a78bfa")
+                    _sz  = max(20, min(80, _row["DT"] / (_tm_grp["DT"].max() or 1) * 70 + 12))
+                    _fig_bub.add_trace(go.Scatter(
+                        x=[_row["Count"]],
+                        y=[_row["LN_per_unit"]],
+                        mode="markers+text",
+                        name=str(_row["_mut"]),
+                        marker=dict(
+                            size=_sz,
+                            color=_col,
+                            opacity=0.85,
+                            line=dict(color="#0a0a0f", width=1.5),
+                        ),
+                        text=[str(_row["_mut"])],
+                        textposition="top center",
+                        textfont=dict(color="#e2e8f0", size=10),
+                        hovertemplate=(
+                            f"<b>{_row['_mut']}</b><br>"
+                            f"Số con: {int(_row['Count'])}<br>"
+                            f"LN TB/con: {_row['LN_per_unit']:,.0f}₫<br>"
+                            f"Tổng LN: {_row['LN_total']:,.0f}₫<br>"
+                            f"Doanh thu: {_row['DT']:,.0f}₫<br>"
+                            f"Margin: {_row['Margin_pct']:.1f}%"
+                            "<extra></extra>"
+                        ),
+                        showlegend=False,
+                    ))
+
+                _fig_bub.update_layout(
+                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#9d8fbf"),
+                    xaxis=dict(
+                        title="Số con đã bán (volume)",
+                        gridcolor="#1a1528", tickfont=dict(color="#9d8fbf"),
+                        zeroline=False,
+                    ),
+                    yaxis=dict(
+                        title="LN trung bình / con (₫)",
+                        gridcolor="#1a1528", tickfont=dict(color="#9d8fbf"),
+                        tickformat=",.0f", zeroline=True, zerolinecolor="#4a3f6b",
+                    ),
+                    margin=dict(l=10, r=10, t=20, b=10),
+                    height=420,
+                    hovermode="closest",
+                )
+                st.plotly_chart(_fig_bub, use_container_width=True)
+                st.caption("Kích thước bubble = tổng doanh thu · Kẻ đứt = median")
+            else:
+                st.info("Chưa có dữ liệu.")
+        else:
+            st.info("Chưa có dữ liệu.")
+
+        # ── Pet Performance Scatter ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🔵 Hiệu Quả Theo Tên Pet — Giá vs Lợi Nhuận</div>', unsafe_allow_html=True)
+
+        if not sold_df.empty:
+            _pp_df = sold_df.copy()
+            _pp_df["_gn"]  = pd.to_numeric(_pp_df["Giá Nhập"],  errors="coerce").fillna(0)
+            _pp_df["_ln"]  = pd.to_numeric(_pp_df["Lợi Nhuận"], errors="coerce").fillna(0)
+            _pp_df["_pet"] = _pp_df["Tên Pet"].astype(str).str.strip()
+            _pp_grp = (
+                _pp_df.groupby("_pet", as_index=False)
+                .agg(AvgCost=("_gn","mean"), AvgLN=("_ln","mean"),
+                     TotalDT=("_gn","sum"),  Count=("_ln","count"))
+            )
+            _pp_grp["Margin"] = _pp_grp["AvgLN"] / (_pp_grp["AvgCost"].replace(0, float("nan"))) * 100
+            _pp_grp = _pp_grp[_pp_grp["AvgCost"] > 0].dropna(subset=["Margin"])
+
+            if not _pp_grp.empty:
+                _med_px = float(_pp_grp["AvgCost"].median())
+                _med_py = float(_pp_grp["AvgLN"].median())
+
+                _fig_pp = go.Figure()
+                _fig_pp.add_hline(y=_med_py, line=dict(color="#2d2040", width=1, dash="dot"))
+                _fig_pp.add_vline(x=_med_px, line=dict(color="#2d2040", width=1, dash="dot"))
+
+                _pp_xmax = float(_pp_grp["AvgCost"].max())
+                _pp_ymax = float(_pp_grp["AvgLN"].max())
+                for _qx2, _qy2, _qt2 in [
+                    (_pp_xmax * 0.65, _pp_ymax * 1.05, "💰 Đắt & lời nhiều"),
+                    (_pp_xmax * 0.01, _pp_ymax * 1.05, "💎 Rẻ & lời nhiều"),
+                    (_pp_xmax * 0.65, _med_py * 0.05,  "📦 Đắt, lời ít"),
+                    (_pp_xmax * 0.01, _med_py * 0.05,  "⚠️ Rẻ, lời ít"),
+                ]:
+                    _fig_pp.add_annotation(
+                        x=_qx2, y=_qy2, text=_qt2,
+                        showarrow=False, font=dict(color="#4a3f6b", size=9), xanchor="left"
+                    )
+
+                _PP_PALETTE = [
+                    "#a78bfa","#34d399","#f472b6","#fbbf24","#38bdf8",
+                    "#fb923c","#4ade80","#e879f9","#67e8f9","#f87171",
+                    "#c084fc","#86efac","#fdba74","#a5b4fc","#f9a8d4",
+                    "#6ee7b7","#fde68a","#bae6fd","#ddd6fe","#bbf7d0",
+                ]
+                for _pi, (_, _pr) in enumerate(_pp_grp.iterrows()):
+                    _sz2 = max(14, min(60, _pr["Count"] / max(float(_pp_grp["Count"].max()), 1) * 46 + 14))
+                    _m2  = float(_pr["Margin"])
+                    _c2  = _PP_PALETTE[_pi % len(_PP_PALETTE)]
+                    _fig_pp.add_trace(go.Scatter(
+                        x=[_pr["AvgCost"]], y=[_pr["AvgLN"]],
+                        mode="markers",
+                        name=str(_pr["_pet"]),
+                        marker=dict(size=_sz2, color=_c2, opacity=0.88,
+                                    line=dict(color="#0a0a0f", width=1.5)),
+                        hovertemplate=(
+                            f"<b>{_pr['_pet']}</b><br>"
+                            f"Giá nhập TB: {_pr['AvgCost']:,.0f}₫<br>"
+                            f"LN TB/con: {_pr['AvgLN']:,.0f}₫<br>"
+                            f"Margin: {_m2:.1f}%<br>"
+                            f"Số lần bán: {int(_pr['Count'])}"
+                            "<extra></extra>"
+                        ),
+                        showlegend=True,
+                    ))
+
+                _fig_pp.update_layout(
+                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#9d8fbf"),
+                    xaxis=dict(title="Giá nhập TB (₫)", gridcolor="#1a1528",
+                               tickfont=dict(color="#9d8fbf"), tickformat=",.0f", zeroline=False),
+                    yaxis=dict(title="LN TB / con (₫)", gridcolor="#1a1528",
+                               tickfont=dict(color="#9d8fbf"), tickformat=",.0f",
+                               zeroline=True, zerolinecolor="#4a3f6b"),
+                    legend=dict(
+                        orientation="v", x=1.01, y=1,
+                        font=dict(color="#9d8fbf", size=10),
+                        bgcolor="rgba(10,10,15,0.7)",
+                        bordercolor="#2d2040", borderwidth=1,
+                    ),
+                    margin=dict(l=10, r=180, t=20, b=10),
+                    height=440,
+                    hovermode="closest",
+                )
+                st.plotly_chart(_fig_pp, use_container_width=True)
+                st.caption("Kích thước = số lần bán · Mỗi màu = 1 loại pet · Hover để xem chi tiết · Kẻ đứt = median")
+            else:
+                st.info("Chưa có dữ liệu.")
+        else:
+            st.info("Chưa có dữ liệu bán.")
+
+        # ── Avg days to sell + Top mutation ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🚀 Hiệu Suất Bán Hàng</div>', unsafe_allow_html=True)
+        _perf_c1, _perf_c2 = st.columns(2)
+
+        with _perf_c1:
+            st.markdown("**Vòng Quay Hàng — Thời gian tồn kho TB trước khi bán**")
+            if not sold_df.empty:
+                _sold_speed = sold_df.copy()
+                _sold_speed["Ngày Tồn"] = pd.to_numeric(_sold_speed["Ngày Tồn"], errors="coerce").fillna(0)
+                _avg_days = _sold_speed["Ngày Tồn"].mean()
+                _med_days = _sold_speed["Ngày Tồn"].median()
+                _sp1, _sp2 = st.columns(2)
+                _sp1.metric("Trung bình", f"{int(round(_avg_days))} ngày")
+                _sp2.metric("Trung vị", f"{int(round(_med_days))} ngày")
+
+                # Biểu đồ theo tên pet (top 10 bán chậm nhất)
+                _spd_by_pet = (
+                    _sold_speed.groupby("Tên Pet", as_index=False)["Ngày Tồn"]
+                    .mean()
+                    .sort_values("Ngày Tồn", ascending=False)
+                    .head(10)
+                )
+                fig_spd = go.Figure(go.Bar(
+                    x=_spd_by_pet["Ngày Tồn"],
+                    y=_spd_by_pet["Tên Pet"],
+                    orientation="h",
+                    marker=dict(color="#f472b6"),
+                    text=_spd_by_pet["Ngày Tồn"].apply(lambda v: f"{int(round(v))}d"),
+                    textposition="outside",
+                    textfont=dict(color="#e2e8f0", size=10),
+                ))
+                fig_spd.update_layout(
+                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#9d8fbf"),
+                    title=dict(text="Top 10 Pet bán chậm nhất (ngày TB)", font=dict(size=12, color="#e2e8f0")),
+                    xaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#9d8fbf")),
+                    yaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#e2e8f0")),
+                    margin=dict(l=10, r=20, t=45, b=10),
+                    height=300, showlegend=False,
+                )
+                st.plotly_chart(fig_spd, use_container_width=True)
+            else:
+                st.info("Chưa có dữ liệu bán.")
+
+        with _perf_c2:
+            st.markdown("**Hiệu Suất Theo Mutation**")
+            if not sold_df.empty:
+                _mut_perf = (
+                    sold_df.copy()
+                    .assign(LN=lambda d: pd.to_numeric(d["Lợi Nhuận"], errors="coerce").fillna(0))
+                    .groupby("Mutation", as_index=False)
+                    .agg(LN_mean=("LN","mean"), LN_total=("LN","sum"), Count=("LN","count"))
+                    .sort_values("LN_mean", ascending=True)
+                )
+                fig_mut = go.Figure(go.Bar(
+                    x=_mut_perf["LN_mean"],
+                    y=_mut_perf["Mutation"],
+                    orientation="h",
+                    marker=dict(color="#a78bfa"),
+                    text=_mut_perf["LN_mean"].apply(fmt_short),
+                    textposition="outside",
+                    textfont=dict(color="#e2e8f0", size=10),
+                    customdata=_mut_perf[["LN_total","Count"]].values,
+                    hovertemplate="<b>%{y}</b><br>TB/con: %{x:,.0f}₫<br>Tổng: %{customdata[0]:,.0f}₫<br>Số con: %{customdata[1]}<extra></extra>",
+                ))
+                fig_mut.update_layout(
+                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#9d8fbf"),
+                    title=dict(text="Lợi nhuận TB theo Mutation", font=dict(size=12, color="#e2e8f0")),
+                    xaxis=dict(gridcolor="#1a1528", tickformat=",.0f", tickfont=dict(color="#9d8fbf")),
+                    yaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#e2e8f0")),
+                    margin=dict(l=10, r=20, t=45, b=10),
+                    height=300, showlegend=False,
+                )
+                st.plotly_chart(fig_mut, use_container_width=True)
+
+                # Bảng tóm tắt
+                _mut_disp = _mut_perf.sort_values("LN_mean", ascending=False).copy()
+                _mut_disp["LN TB/con"] = _mut_disp["LN_mean"].apply(fmt_vnd)
+                _mut_disp["Tổng LN"]   = _mut_disp["LN_total"].apply(fmt_vnd)
+                _mut_disp = _mut_disp.rename(columns={"Count":"Số con"})
+                st.dataframe(_mut_disp[["Mutation","Số con","LN TB/con","Tổng LN"]], use_container_width=True, hide_index=True)
+            else:
+                st.info("Chưa có dữ liệu bán.")
+
+        # ── Phân tích theo NameStock ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🏷️ Phân Tích Theo NameStock</div>', unsafe_allow_html=True)
+
+        if not sold_df.empty and "NameStock" in sold_df.columns:
+            _ns_grp = sold_df.copy()
+            _ns_grp["LN"] = pd.to_numeric(_ns_grp["Lợi Nhuận"], errors="coerce").fillna(0)
+            _ns_grp["DT"] = pd.to_numeric(_ns_grp["Doanh Thu"], errors="coerce").fillna(0)
+            _ns_grp["NS"] = _ns_grp["NameStock"].astype(str).str.strip().replace("", "(trống)")
+            _ns_perf = (
+                _ns_grp.groupby("NS", as_index=False)
+                .agg(LN_total=("LN","sum"), DT_total=("DT","sum"), Count=("LN","count"))
+                .sort_values("LN_total", ascending=False)
+            )
+            _ns_disp = _ns_perf.rename(columns={"NS":"NameStock","Count":"Số con"}).copy()
+            _ns_disp["Lợi nhuận"] = _ns_disp["LN_total"].apply(fmt_vnd)
+            _ns_disp["Doanh thu"] = _ns_disp["DT_total"].apply(fmt_vnd)
+            st.dataframe(_ns_disp[["NameStock","Số con","Lợi nhuận","Doanh thu"]], use_container_width=True, hide_index=True)
+        else:
+            st.info("Chưa có dữ liệu bán.")
+
+    # ── Phân tích khung giờ bán hàng ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🕐 Phân Tích Khung Giờ Bán Hàng</div>', unsafe_allow_html=True)
+
+        if not sold_df.empty:
+            def _extract_hour(ts_str):
+                if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+                    return None
+                try:
+                    dt = datetime.fromisoformat(str(ts_str))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=VN_TZ)
+                    return dt.astimezone(VN_TZ).hour
+                except Exception:
+                    return None
+
+            _hour_df = sold_df.copy()
+            _hour_df["Giờ"] = _hour_df["time_ban"].apply(_extract_hour)
+            _hour_df = _hour_df.dropna(subset=["Giờ"])
+            _hour_df["Giờ"] = _hour_df["Giờ"].astype(int)
+
+            if not _hour_df.empty:
+                _hour_count = (
+                    _hour_df.groupby("Giờ", as_index=False)
+                    .agg(Đơn=("Giờ", "count"))
+                )
+                # Fill missing hours with 0 for full 0-23 axis
+                _all_hours = pd.DataFrame({"Giờ": range(24)})
+                _hour_count = _all_hours.merge(_hour_count, on="Giờ", how="left").fillna(0)
+                _hour_count["Đơn"] = _hour_count["Đơn"].astype(int)
+
+                _peak_hour = int(_hour_count.loc[_hour_count["Đơn"].idxmax(), "Giờ"])
+                _colors = ["#e879f9" if h == _peak_hour else "#7c3aed" for h in _hour_count["Giờ"]]
+
+                fig_hour = go.Figure(go.Bar(
+                    x=[f"{h:02d}:00" for h in _hour_count["Giờ"]],
+                    y=_hour_count["Đơn"],
+                    marker_color=_colors,
+                    text=_hour_count["Đơn"].apply(lambda v: str(v) if v > 0 else ""),
+                    textposition="outside",
+                ))
+                fig_hour.update_layout(
+                    xaxis_title="Khung giờ (giờ VN)",
+                    yaxis_title="Số đơn bán",
+                    margin=dict(t=30, b=40),
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font_color="#e2e8f0",
+                    xaxis=dict(tickangle=-45),
+                    height=340,
+                )
+                st.plotly_chart(fig_hour, use_container_width=True)
+                st.caption(f"Cao điểm: **{_peak_hour:02d}:00 – {_peak_hour:02d}:59** · {int(_hour_count.loc[_hour_count['Giờ']==_peak_hour,'Đơn'].values[0])} giao dịch")
+            else:
+                st.info("Chưa có dữ liệu thời gian bán hàng.")
+        else:
+            st.info("Chưa có dữ liệu bán.")
+
+        # ── #27 Heatmap ngày × giờ ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🗓️ Heatmap: Thứ × Giờ</div>', unsafe_allow_html=True)
+
+        if not sold_df.empty:
+            def _extract_dt_parts(ts_str):
+                """Returns (hour, weekday) or (None, None)."""
+                if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+                    return None, None
+                try:
+                    dt = datetime.fromisoformat(str(ts_str))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=VN_TZ)
+                    dt = dt.astimezone(VN_TZ)
+                    return dt.hour, dt.weekday()  # weekday: 0=Mon … 6=Sun
+                except Exception:
+                    return None, None
+
+            _hmap_rows = sold_df["time_ban"].apply(_extract_dt_parts)
+            _hmap_df2 = pd.DataFrame(_hmap_rows.tolist(), columns=["Giờ_h", "Thứ_w"])
+            _hmap_df2 = _hmap_df2.dropna()
+            _hmap_df2["Giờ_h"] = _hmap_df2["Giờ_h"].astype(int)
+            _hmap_df2["Thứ_w"] = _hmap_df2["Thứ_w"].astype(int)
+
+            if not _hmap_df2.empty:
+                _pivot_hm = _hmap_df2.groupby(["Thứ_w", "Giờ_h"]).size().unstack(fill_value=0)
+                for _hc in range(24):
+                    if _hc not in _pivot_hm.columns:
+                        _pivot_hm[_hc] = 0
+                _pivot_hm = _pivot_hm[[c for c in range(24)]]
+                for _rd in range(7):
+                    if _rd not in _pivot_hm.index:
+                        _pivot_hm.loc[_rd] = 0
+                _pivot_hm = _pivot_hm.sort_index()
+                _days_vn = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"]
+                fig_hmap = go.Figure(go.Heatmap(
+                    z=_pivot_hm.values,
+                    x=[f"{h:02d}:00" for h in range(24)],
+                    y=[_days_vn[i] for i in _pivot_hm.index],
+                    colorscale="YlOrRd",
+                    text=_pivot_hm.values,
+                    texttemplate="%{text}",
+                    showscale=True,
+                ))
+                fig_hmap.update_layout(
+                    xaxis_title="Giờ (giờ VN)",
+                    yaxis_title="Thứ",
+                    margin=dict(t=30, b=50),
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font_color="#e2e8f0",
+                    height=310,
+                    xaxis=dict(tickangle=-45),
+                )
+                st.plotly_chart(fig_hmap, use_container_width=True)
+            else:
+                st.info("Chưa có dữ liệu thời gian bán hàng.")
+        else:
+            st.info("Chưa có dữ liệu bán.")
+
+        # ── AJ: Streak & Thành tích ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🏆 Thành Tích & Kỷ Lục</div>', unsafe_allow_html=True)
+
+        _all_sold_ch = sold_df.copy()
+
+        def _parse_ban_date_ch(ts_str):
+            if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
+                return None
             try:
-                p.unlink()
+                dt = datetime.fromisoformat(str(ts_str))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=VN_TZ)
+                return dt.astimezone(VN_TZ).date()
             except Exception:
-                pass
+                return None
+
+        _today_ch = now_vn().date()
+        _ban_dates_ch = _all_sold_ch["time_ban"].apply(_parse_ban_date_ch).dropna()
+        _unique_days_ch = sorted(set(_ban_dates_ch), reverse=True)
+        _streak_ch = 0
+        if _unique_days_ch:
+            _chk = _today_ch
+            for _d in _unique_days_ch:
+                if _d == _chk:
+                    _streak_ch += 1
+                    _chk = _chk - __import__("datetime").timedelta(days=1)
+                elif _d < _chk:
+                    break
+
+        _total_sold_ch = len(pbd) if has_data else len(_all_sold_ch)
+        _SELL_MILESTONES = [
+            (500, "🏆 Legend Trader"),
+            (200, "💎 Diamond Seller"),
+            (100, "🥇 Century Club"),
+            (50,  "🥈 Half Century"),
+            (20,  "🥉 Getting Started"),
+            (1,   "🌱 First Sale"),
+        ]
+        _badge_ch = next((b for n, b in _SELL_MILESTONES if _total_sold_ch >= n), None)
+        _next_sell_ms = next(((n, b) for n, b in reversed(_SELL_MILESTONES) if _total_sold_ch < n), None)
+        _streak_icon_ch = "🔥" if _streak_ch >= 3 else ("✨" if _streak_ch >= 1 else "💤")
+
+        _ach_c1, _ach_c2, _ach_c3 = st.columns(3)
+        _ach_c1.metric("Chuỗi ngày", f"{_streak_icon_ch} {_streak_ch} ngày")
+        _ach_c2.metric("Tổng giao dịch", f"{_total_sold_ch}")
+        _ach_c3.metric("Cấp độ", _badge_ch or "—")
+        if _next_sell_ms:
+            st.caption(f"Cột mốc tiếp theo · **{_next_sell_ms[1]}**: còn **{_next_sell_ms[0] - _total_sold_ch}** giao dịch")
+
+        # ── AK: Personal Records ──
+        st.markdown("**Kỷ Lục**")
+        if not _all_sold_ch.empty:
+            _ln_col_ch = pd.to_numeric(_all_sold_ch["Lợi Nhuận"], errors="coerce").fillna(0)
+            _ton_col_ch = pd.to_numeric(_all_sold_ch["Ngày Tồn"], errors="coerce").fillna(999)
+
+            _best_ln_row_ch = _all_sold_ch.loc[_ln_col_ch.idxmax()]
+            _best_ln_val_ch = float(_ln_col_ch.max())
+            _fast_valid = _ton_col_ch[_ton_col_ch >= 0]
+            _fast_row_ch = _all_sold_ch.loc[_fast_valid.idxmin()] if not _fast_valid.empty else None
+            _fast_days_ch = float(_fast_valid.min()) if not _fast_valid.empty else 0.0
+
+            _day_df_ch = _all_sold_ch.copy()
+            _day_df_ch["_bd"] = _day_df_ch["time_ban"].apply(_parse_ban_date_ch)
+            _day_df_ch["_ln"] = pd.to_numeric(_day_df_ch["Lợi Nhuận"], errors="coerce").fillna(0)
+            _day_profit_ch = _day_df_ch.dropna(subset=["_bd"]).groupby("_bd")["_ln"].sum()
+            _best_day_ch = _day_profit_ch.idxmax() if not _day_profit_ch.empty else None
+            _best_day_val_ch = float(_day_profit_ch.max()) if not _day_profit_ch.empty else 0.0
+
+            _rec_c1, _rec_c2, _rec_c3 = st.columns(3)
+            _rec_c1.metric("Giao dịch tốt nhất", fmt_vnd(_best_ln_val_ch),
+                           help=str(_best_ln_row_ch.get('Tên Pet','?')))
+            _rec_c2.metric("Chốt nhanh nhất", fmt_ngay_ton(_fast_days_ch),
+                           help=str(_fast_row_ch.get('Tên Pet','?')) if _fast_row_ch is not None else "")
+            _rec_c3.metric("Ngày đỉnh cao", fmt_vnd(_best_day_val_ch),
+                           help=str(_best_day_ch) if _best_day_ch else "")
+        else:
+            st.info("Chưa có dữ liệu bán.")
+
+        # ── Mốc lợi nhuận tích lũy ──
+        st.markdown("**Cột Mốc Lợi Nhuận**")
+        # Dùng pbd (lẻ + lô) để tính tổng lợi nhuận chính xác
+        _total_ln_ch = float(pbd["Lợi Nhuận"].sum()) if has_data and not pbd.empty else (float(_ln_col_ch.sum()) if not _all_sold_ch.empty else 0.0)
+        _ln_m_ch = _total_ln_ch / 1_000_000
+        _LN_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+        _nxt_ln_ms = next((m for m in _LN_MS if _ln_m_ch < m), None)
+        _lst_ln_ms = next((m for m in reversed(_LN_MS) if _ln_m_ch >= m), None)
+        st.caption(f"Lợi nhuận tích lũy: **{fmt_vnd(_total_ln_ch)}**")
+        if _nxt_ln_ms:
+            _tgt_ch = _nxt_ln_ms * 1_000_000
+            _pct_ch = min(_total_ln_ch / _tgt_ch, 1.0) if _tgt_ch > 0 else 1.0
+            st.progress(max(_pct_ch, 0.0),
+                        text=f"Mốc {_nxt_ln_ms}M: {fmt_vnd(_total_ln_ch)} / {fmt_vnd(_tgt_ch)} ({_pct_ch*100:.0f}%)")
+        else:
+            st.progress(1.0, text="🏆 Đã vượt 100M tích lũy!")
+        _ms_row1, _ms_row2 = st.columns(5), st.columns(5)
+        for _ci, _ms in enumerate(_LN_MS):
+            _done = _ln_m_ch >= _ms
+            (_ms_row1 if _ci < 5 else _ms_row2)[_ci % 5].markdown(
+                f"{'✅' if _done else '⬜'} **{_ms}M**"
+            )
+
+        # ── SANKEY: Dòng chảy vốn theo Mutation ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">💰 Sankey — Dòng Chảy Vốn Theo Mutation</div>', unsafe_allow_html=True)
+
+        _sk_src, _sk_tgt, _sk_val, _sk_labels, _sk_muts = [], [], [], [], []
+        if not df.empty and "Mutation" in df.columns:
+            _sk_all = df.copy()
+            _sk_all["_mut"] = _sk_all["Mutation"].astype(str).str.strip().replace("", "Không rõ")
+            _sk_all["_gn"]  = pd.to_numeric(_sk_all["Giá Nhập"], errors="coerce").fillna(0)
+            _sk_all["_st"]  = _sk_all["Trạng Thái"].astype(str)
+            _sk_muts   = sorted(_sk_all["_mut"].dropna().unique().tolist())
+            _sk_labels = ["Tổng vốn nhập"] + _sk_muts + ["Đã bán", "Còn tồn"]
+            _sk_n_sold  = 1 + len(_sk_muts)
+            _sk_n_stock = 2 + len(_sk_muts)
+            for _i, _m in enumerate(_sk_muts):
+                _mdf = _sk_all[_sk_all["_mut"] == _m]
+                _v_all = float(_mdf["_gn"].sum())
+                if _v_all > 0:
+                    _sk_src.append(0);       _sk_tgt.append(1 + _i);      _sk_val.append(_v_all)
+                _v_sold = float(_mdf[_mdf["_st"].str.contains("Đã bán",   na=False)]["_gn"].sum())
+                if _v_sold > 0:
+                    _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_sold);  _sk_val.append(_v_sold)
+                _v_stock = float(_mdf[_mdf["_st"].str.contains("Còn hàng", na=False)]["_gn"].sum())
+                if _v_stock > 0:
+                    _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_stock); _sk_val.append(_v_stock)
+
+        if _sk_src:
+            _mut_palette = ["#c084fc","#818cf8","#f472b6","#a78bfa","#e879f9",
+                            "#d8b4fe","#c4b5fd","#a5b4fc","#f0abfc","#ddd6fe"]
+            _sk_node_colors = (
+                ["#9333ea"]
+                + [_mut_palette[i % len(_mut_palette)] for i in range(len(_sk_muts))]
+                + ["#c084fc", "#e879f9"]
+            )
+            fig_sk = go.Figure(go.Sankey(
+                arrangement="snap",
+                node=dict(
+                    pad=15, thickness=18,
+                    label=_sk_labels,
+                    color=_sk_node_colors,
+                    hovertemplate="%{label}: %{value:,.0f}₫<extra></extra>",
+                ),
+                link=dict(
+                    source=_sk_src,
+                    target=_sk_tgt,
+                    value=_sk_val,
+                    color="rgba(100,120,220,0.18)",
+                ),
+            ))
+            fig_sk.update_layout(
+                paper_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#e2e8f0", size=11),
+                margin=dict(l=10, r=10, t=20, b=10),
+                height=420,
+            )
+            st.plotly_chart(fig_sk, use_container_width=True)
+            st.caption("Chiều rộng luồng = giá trị vốn nhập (₫)")
+        else:
+            st.info("Chưa đủ dữ liệu.")
+
+        # ── CALENDAR HEATMAP: GitHub-style lợi nhuận ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">📅 Lịch Lợi Nhuận — 1 Năm Gần Nhất</div>', unsafe_allow_html=True)
+
+        if has_data and not pbd.empty:
+            import datetime as _dtm
+            _cal_today = now_vn().date()
+            _cal_start = _cal_today - _dtm.timedelta(days=364)
+            _cal_pbd = pbd.copy()
+            _cal_pbd["_date"] = _cal_pbd["Ngày DT"].dt.date
+            _cal_pbd["_ln"]   = pd.to_numeric(_cal_pbd["Lợi Nhuận"], errors="coerce").fillna(0)
+            _day_map = _cal_pbd.groupby("_date")["_ln"].sum().to_dict()
+
+            _all_days_cal = [_cal_start + _dtm.timedelta(days=i) for i in range(365)]
+            _start_dow   = _all_days_cal[0].weekday()          # 0=Mon
+            _padded_cal  = [None] * _start_dow + _all_days_cal
+            while len(_padded_cal) % 7 != 0:
+                _padded_cal.append(None)
+            _n_weeks_cal = len(_padded_cal) // 7
+
+            _z_cal, _text_cal = [], []
+            _dow_labels_cal = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+            for _dow in range(7):
+                _rz, _rt = [], []
+                for _wk in range(_n_weeks_cal):
+                    _d = _padded_cal[_wk * 7 + _dow]
+                    if _d is None:
+                        _rz.append(None); _rt.append("")
+                    else:
+                        _p = _day_map.get(_d, 0)
+                        _rz.append(float(_p))
+                        _rt.append(
+                            f"{_d.strftime('%d/%m/%Y')}<br>{fmt_vnd(_p)}" if _p
+                            else f"{_d.strftime('%d/%m/%Y')}<br>—"
+                        )
+                _z_cal.append(_rz); _text_cal.append(_rt)
+
+            _week_x_labels = []
+            for _wk in range(_n_weeks_cal):
+                _fd = next((x for x in _padded_cal[_wk*7:_wk*7+7] if x is not None), None)
+                _week_x_labels.append(_fd.strftime("%d/%m") if _fd else "")
+
+            _zmax_cal = max((v for v in _day_map.values() if v > 0), default=1)
+            fig_cal = go.Figure(go.Heatmap(
+                z=_z_cal,
+                x=list(range(_n_weeks_cal)),
+                y=_dow_labels_cal,
+                text=_text_cal,
+                hovertemplate="%{text}<extra></extra>",
+                colorscale=[
+                    [0.0,  "#110f1a"],
+                    [0.01, "#0e4429"],
+                    [0.3,  "#006d32"],
+                    [0.6,  "#26a641"],
+                    [1.0,  "#39d353"],
+                ],
+                zmin=0,
+                zmax=_zmax_cal,
+                showscale=True,
+                colorbar=dict(thickness=10, len=0.8, tickfont=dict(size=9, color="#9d8fbf")),
+                xgap=2, ygap=2,
+            ))
+            fig_cal.update_layout(
+                paper_bgcolor="#0a0a0f",
+                plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#9d8fbf", size=10),
+                xaxis=dict(
+                    tickmode="array",
+                    tickvals=list(range(0, _n_weeks_cal, 4)),
+                    ticktext=[_week_x_labels[i] for i in range(0, _n_weeks_cal, 4)],
+                    tickfont=dict(size=9, color="#9d8fbf"),
+                    showgrid=False, zeroline=False,
+                ),
+                yaxis=dict(
+                    tickfont=dict(size=10, color="#9d8fbf"),
+                    showgrid=False, zeroline=False,
+                    autorange="reversed",
+                ),
+                margin=dict(l=40, r=20, t=15, b=40),
+                height=210,
+            )
+            st.plotly_chart(fig_cal, use_container_width=True)
+
+            _cal_active = sum(1 for v in _day_map.values() if v > 0)
+            _cal_max_d  = max(_day_map, key=_day_map.get) if _day_map else None
+            _calcc1, _calcc2 = st.columns(2)
+            _calcc1.caption(f"Ngày có giao dịch: **{_cal_active}** / 365 ngày")
+            if _cal_max_d:
+                _calcc2.caption(f"Ngày đỉnh cao: **{_cal_max_d.strftime('%d/%m/%Y')}** · {fmt_vnd(_day_map[_cal_max_d])}")
+        else:
+            st.info("Chưa có dữ liệu.")
+
+        # ── ⚡ Xu Hướng Bán Theo Tuần ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">⚡ Xu Hướng Bán Theo Tuần</div>', unsafe_allow_html=True)
+
+        if has_data and not pbd.empty:
+            import datetime as _dtm2
+            _wk_df = pbd.copy()
+            # Floor to Monday of each week (timezone-safe)
+            _wk_df["_week"] = _wk_df["Ngày DT"] - pd.to_timedelta(
+                _wk_df["Ngày DT"].dt.dayofweek, unit="d"
+            )
+            _wk_df["_week"] = _wk_df["_week"].dt.normalize()
+
+            # Merge single sold count
+            _wk_count_df = pd.DataFrame(columns=["_week","Số con"])
+            if not sold_df.empty:
+                _sc = sold_df.copy()
+                _sc["_dt"] = pd.to_datetime(_sc["Ngày Bán"], dayfirst=True, errors="coerce")
+                _sc["_week"] = (_sc["_dt"] - pd.to_timedelta(_sc["_dt"].dt.dayofweek, unit="d")).dt.normalize()
+                _wk_count_df = _sc.groupby("_week", as_index=False).agg(**{"Số con": ("_week","count")})
+            # Merge bulk sold count
+            if not bulk_history.empty:
+                _bh = bulk_history.copy()
+                _bh["_dt"] = pd.to_datetime(_bh["Ngày Bán"], dayfirst=True, errors="coerce")
+                _bh["_week"] = (_bh["_dt"] - pd.to_timedelta(_bh["_dt"].dt.dayofweek, unit="d")).dt.normalize()
+                _bh_qty = _bh.groupby("_week", as_index=False).agg(
+                    _bqty=("Số Lượng Bán" if "Số Lượng Bán" in _bh.columns else "Ngày Bán", "sum"
+                           if "Số Lượng Bán" in _bh.columns else "count")
+                ).rename(columns={"_bqty": "Số con bulk"})
+                if not _wk_count_df.empty:
+                    _wk_count_df = _wk_count_df.merge(_bh_qty, on="_week", how="outer").fillna(0)
+                    _wk_count_df["Số con"] = _wk_count_df.get("Số con", 0) + _wk_count_df.get("Số con bulk", 0)
+                else:
+                    _wk_count_df = _bh_qty.rename(columns={"Số con bulk": "Số con"})
+
+            _wk_ln = _wk_df.groupby("_week", as_index=False)["Lợi Nhuận"].sum()
+            if not _wk_count_df.empty:
+                _wk_merged = _wk_ln.merge(
+                    _wk_count_df[["_week","Số con"]] if "Số con" in _wk_count_df.columns else _wk_ln[["_week"]],
+                    on="_week", how="left"
+                ).fillna(0)
+            else:
+                _wk_merged = _wk_ln.copy()
+                _wk_merged["Số con"] = 0
+            _wk_merged = _wk_merged.sort_values("_week").tail(16)  # last 16 weeks
+            _wk_merged["_label"] = _wk_merged["_week"].dt.strftime("%d/%m/%Y")
+
+            if len(_wk_merged) >= 1:
+                # Trend line via simple linear regression
+                import numpy as np
+                _x = np.arange(len(_wk_merged))
+                _y = _wk_merged["Lợi Nhuận"].values.astype(float)
+                try:
+                    _m_coef, _b_coef = np.polyfit(_x, _y, 1)
+                except (np.linalg.LinAlgError, ValueError):
+                    _m_coef, _b_coef = 0.0, float(_y.mean()) if len(_y) else 0.0
+                _trend_y = _m_coef * _x + _b_coef
+                _trend_color = "#34d399" if _m_coef >= 0 else "#f87171"
+                _trend_label = f"Xu hướng {'↑ tăng' if _m_coef >= 0 else '↓ giảm'} {abs(_m_coef / max(abs(_y.mean()), 1) * 100):.1f}%/tuần"
+
+                _bar_colors = ["#34d399" if v >= 0 else "#f87171" for v in _wk_merged["Lợi Nhuận"]]
+                _fig_wk = go.Figure()
+                _fig_wk.add_trace(go.Bar(
+                    x=_wk_merged["_label"], y=_wk_merged["Lợi Nhuận"],
+                    name="LN/tuần", marker_color=_bar_colors, opacity=0.7,
+                    text=_wk_merged["Lợi Nhuận"].apply(fmt_short),
+                    textposition="outside", textfont=dict(color="#e2e8f0", size=9),
+                    hovertemplate="<b>%{x}</b><br>Lợi nhuận: %{y:,.0f}₫<extra></extra>",
+                    yaxis="y1",
+                ))
+                _fig_wk.add_trace(go.Scatter(
+                    x=_wk_merged["_label"], y=_wk_merged["Số con"],
+                    name="Số con bán", mode="lines+markers",
+                    line=dict(color="#c084fc", width=2),
+                    marker=dict(size=6, color="#c084fc"),
+                    hovertemplate="<b>%{x}</b><br>Số con: %{y:,.0f}<extra></extra>",
+                    yaxis="y2",
+                ))
+                _fig_wk.add_trace(go.Scatter(
+                    x=_wk_merged["_label"], y=_trend_y.tolist(),
+                    name=_trend_label, mode="lines",
+                    line=dict(color=_trend_color, width=2, dash="dash"),
+                    hoverinfo="skip", yaxis="y1",
+                ))
+                _fig_wk.update_layout(
+                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#9d8fbf"),
+                    xaxis=dict(tickfont=dict(color="#e2e8f0", size=10), gridcolor="#1a1528"),
+                    yaxis=dict(title="Lợi nhuận (₫)", gridcolor="#1a1528",
+                               tickfont=dict(color="#9d8fbf"), tickformat=",.0f",
+                               zeroline=True, zerolinecolor="#4a3f6b"),
+                    yaxis2=dict(title="Số con", overlaying="y", side="right",
+                                tickfont=dict(color="#c084fc"), zeroline=False, showgrid=False),
+                    legend=dict(orientation="h", x=0, y=1.08, font=dict(color="#9d8fbf")),
+                    margin=dict(l=10, r=50, t=40, b=10),
+                    height=360, barmode="overlay",
+                )
+                st.plotly_chart(_fig_wk, use_container_width=True)
+
+                # 4 KPI cho tuần này vs tuần trước
+                _last2 = _wk_merged.tail(2)
+                if len(_last2) == 2:
+                    _this = _last2.iloc[-1]
+                    _prev = _last2.iloc[-2]
+                    _wkc1, _wkc2, _wkc3, _wkc4 = st.columns(4)
+                    _wkc1.metric("Lợi nhuận tuần này", fmt_vnd(_this["Lợi Nhuận"]),
+                                 delta=fmt_short(_this["Lợi Nhuận"] - _prev["Lợi Nhuận"]))
+                    _wkc2.metric("Tuần trước", fmt_vnd(_prev["Lợi Nhuận"]))
+                    _wkc3.metric("Số con tuần này", f"{int(_this['Số con']):,}")
+                    _avg_wk = float(_wk_merged["Lợi Nhuận"].mean())
+                    _wkc4.metric("Trung bình mỗi tuần", fmt_vnd(_avg_wk))
+        else:
+            st.info("Chưa có dữ liệu.")
+
+        # ── 🧬 Phân Tích Trait ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🧬 Phân Tích Theo Trait</div>', unsafe_allow_html=True)
+
+        if not sold_df.empty and "Số Trait" in sold_df.columns:
+            _tr_df = sold_df.copy()
+            _tr_df["_ln"]    = pd.to_numeric(_tr_df["Lợi Nhuận"], errors="coerce").fillna(0)
+            _tr_df["_dt"]    = pd.to_numeric(_tr_df["Doanh Thu"],  errors="coerce").fillna(0)
+            _tr_df["_gn"]    = pd.to_numeric(_tr_df["Giá Nhập"],   errors="coerce").fillna(0)
+            _tr_df["_trait"] = _tr_df["Số Trait"].astype(str).str.strip().replace({"": "None", "nan": "None", "0": "None"})
+
+            _tr_grp = (
+                _tr_df.groupby("_trait", as_index=False)
+                .agg(LN_mean=("_ln","mean"), LN_total=("_ln","sum"),
+                     DT_total=("_dt","sum"),  GN_mean=("_gn","mean"), Count=("_ln","count"))
+            )
+            _tr_grp["Margin"] = (_tr_grp["LN_total"] / _tr_grp["DT_total"].replace(0, float("nan")) * 100).fillna(0)
+            _sort_order = {"None":0}
+            _tr_grp["_s"] = _tr_grp["_trait"].map(lambda x: _sort_order.get(x, 99))
+            _tr_grp = _tr_grp.sort_values(["_s","LN_mean"], ascending=[True, False]).drop(columns=["_s"])
+
+            _trc1, _trc2 = st.columns(2)
+            with _trc1:
+                _tr_colors = ["#94a3b8" if t == "None" else
+                              "#34d399" if i % 3 == 1 else
+                              "#a78bfa" if i % 3 == 2 else "#f472b6"
+                              for i, t in enumerate(_tr_grp["_trait"])]
+                _fig_tr = go.Figure(go.Bar(
+                    x=_tr_grp["_trait"], y=_tr_grp["LN_mean"],
+                    marker_color=_tr_colors, opacity=0.85,
+                    text=_tr_grp["LN_mean"].apply(fmt_short),
+                    textposition="outside", textfont=dict(color="#e2e8f0", size=10),
+                    customdata=_tr_grp[["LN_total","Count","Margin"]].values,
+                    hovertemplate=(
+                        "<b>Trait: %{x}</b><br>"
+                        "LN TB/con: %{y:,.0f}₫<br>"
+                        "Tổng LN: %{customdata[0]:,.0f}₫<br>"
+                        "Số con: %{customdata[1]}<br>"
+                        "Margin: %{customdata[2]:.1f}%"
+                        "<extra></extra>"
+                    ),
+                ))
+                _fig_tr.update_layout(
+                    title=dict(text="Lợi Nhuận TB / Con theo Trait", font=dict(size=12, color="#e2e8f0")),
+                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#9d8fbf"),
+                    xaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#e2e8f0")),
+                    yaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#9d8fbf"),
+                               tickformat=",.0f", zeroline=True, zerolinecolor="#4a3f6b"),
+                    margin=dict(l=10, r=10, t=40, b=10), height=300, showlegend=False,
+                )
+                st.plotly_chart(_fig_tr, use_container_width=True)
+
+            with _trc2:
+                _tr_disp = _tr_grp.copy()
+                _tr_disp["LN TB/con"]  = _tr_disp["LN_mean"].apply(fmt_vnd)
+                _tr_disp["Tổng LN"]    = _tr_disp["LN_total"].apply(fmt_vnd)
+                _tr_disp["Giá nhập TB"] = _tr_disp["GN_mean"].apply(fmt_vnd)
+                _tr_disp["Margin %"]   = _tr_disp["Margin"].apply(lambda v: f"{v:.1f}%")
+                _tr_disp = _tr_disp.rename(columns={"_trait":"Trait","Count":"Số con"})
+                st.markdown("**Bảng chi tiết theo Trait**")
+                st.dataframe(
+                    _tr_disp[["Trait","Số con","LN TB/con","Tổng LN","Giá nhập TB","Margin %"]],
+                    use_container_width=True, hide_index=True, height=300,
+                )
+        else:
+            st.info("Chưa có dữ liệu bán.")
+
+        # ── 🏦 Hiệu Suất Vốn ──
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🏦 Hiệu Suất Vốn</div>', unsafe_allow_html=True)
+
+        # Capital inputs
+        _cap_invested_single = float(pd.to_numeric(df["Giá Nhập"], errors="coerce").fillna(0).sum()) if not df.empty else 0.0
+        _cap_invested_bulk   = float(pd.to_numeric(bulk_df["Giá Nhập Tổng"], errors="coerce").fillna(0).sum()) if not bulk_df.empty else 0.0
+        _cap_invested_total  = _cap_invested_single + _cap_invested_bulk
+
+        # Capital returned (cost of sold items)
+        _cap_returned_single = float(pd.to_numeric(sold_df["Giá Nhập"], errors="coerce").fillna(0).sum()) if not sold_df.empty else 0.0
+        _cap_returned_bulk   = 0.0
+        if not bulk_df.empty and not bulk_history.empty:
+            _bdf_cost_rate = bulk_df.copy()
+            _bdf_cost_rate["_orig"] = pd.to_numeric(_bdf_cost_rate["Số Lượng Gốc"], errors="coerce").fillna(1).replace(0, 1)
+            _bdf_cost_rate["_cost"] = pd.to_numeric(_bdf_cost_rate["Giá Nhập Tổng"], errors="coerce").fillna(0)
+            _bdf_cost_rate["_unit_cost"] = _bdf_cost_rate["_cost"] / _bdf_cost_rate["_orig"]
+            _bdf_map = dict(zip(_bdf_cost_rate["Tên Lô"].astype(str), _bdf_cost_rate["_unit_cost"]))
+            if "Tên Lô" in bulk_history.columns and "Số Lượng Bán" in bulk_history.columns:
+                _bh2 = bulk_history.copy()
+                _bh2["_qty"]  = pd.to_numeric(_bh2["Số Lượng Bán"], errors="coerce").fillna(0)
+                _bh2["_rate"] = _bh2["Tên Lô"].astype(str).map(_bdf_map).fillna(0)
+                _cap_returned_bulk = float((_bh2["_qty"] * _bh2["_rate"]).sum())
+        _cap_returned_total = _cap_returned_single + _cap_returned_bulk
+
+        # Locked capital (still in stock)
+        _cap_locked_single = float(pd.to_numeric(
+            df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]["Giá Nhập"],
+            errors="coerce"
+        ).fillna(0).sum()) if not df.empty else 0.0
+        _cap_locked_bulk = 0.0
+        if not bulk_df.empty:
+            _bdf3 = bulk_df[bulk_df["Trạng Thái"].astype(str) == "Available"].copy()
+            if not _bdf3.empty:
+                _bdf3["_orig"] = pd.to_numeric(_bdf3["Số Lượng Gốc"], errors="coerce").fillna(1).replace(0, 1)
+                _bdf3["_left"] = pd.to_numeric(_bdf3["Còn Lại"], errors="coerce").fillna(0)
+                _bdf3["_cost"] = pd.to_numeric(_bdf3["Giá Nhập Tổng"], errors="coerce").fillna(0)
+                _cap_locked_bulk = float((_bdf3["_cost"] / _bdf3["_orig"] * _bdf3["_left"]).sum())
+        _cap_locked_total = _cap_locked_single + _cap_locked_bulk
+
+        _recovery_pct = _cap_returned_total / _cap_invested_total * 100 if _cap_invested_total > 0 else 0.0
+        _lock_pct     = _cap_locked_total   / _cap_invested_total * 100 if _cap_invested_total > 0 else 0.0
+
+        # Ước tính thời gian hoàn vốn: dựa trên tốc độ thu hồi vốn hiện tại
+        _days_active = max((now_vn().replace(tzinfo=None) - pd.to_datetime(
+            df["Ngày Nhập"].dropna().replace("", float("nan")),
+            dayfirst=True, errors="coerce"
+        ).dropna().min().replace(tzinfo=None)).days, 1) if not df.empty else 1
+        _daily_recovery = _cap_returned_total / _days_active if _days_active > 0 else 0
+        _days_to_recover = int(_cap_locked_total / _daily_recovery) if _daily_recovery > 0 else 0
+
+        # Gauge chart: Recovery %
+        _fig_gauge = go.Figure(go.Indicator(
+            mode="gauge+number+delta",
+            value=_recovery_pct,
+            delta={"reference": 80, "suffix": "%", "increasing": {"color": "#34d399"}, "decreasing": {"color": "#f87171"}},
+            number={"suffix": "%", "font": {"size": 36, "color": "#e2e8f0", "family": "Inter"}},
+            gauge={
+                "axis": {"range": [0, 100], "tickcolor": "#4a3f6b",
+                         "tickfont": {"color": "#9d8fbf", "size": 10}},
+                "bar":  {"color": "#a78bfa", "thickness": 0.25},
+                "bgcolor": "#0a0a0f",
+                "bordercolor": "#2d2040",
+                "steps": [
+                    {"range": [0,  40], "color": "rgba(248,113,113,0.12)"},
+                    {"range": [40, 70], "color": "rgba(251,191,36,0.10)"},
+                    {"range": [70,100], "color": "rgba(52,211,153,0.10)"},
+                ],
+                "threshold": {
+                    "line": {"color": "#fbbf24", "width": 2},
+                    "thickness": 0.8, "value": 80,
+                },
+            },
+            title={"text": "% Vốn Đã Thu Hồi", "font": {"size": 13, "color": "#9d8fbf", "family": "Inter"}},
+        ))
+        _fig_gauge.update_layout(
+            paper_bgcolor="#0a0a0f",
+            font=dict(family="Inter", color="#9d8fbf"),
+            margin=dict(l=20, r=20, t=30, b=10),
+            height=260,
+        )
+
+        _gc1, _gc2 = st.columns([1.1, 1])
+        with _gc1:
+            st.plotly_chart(_fig_gauge, use_container_width=True)
+        with _gc2:
+            st.markdown("&nbsp;", unsafe_allow_html=True)
+            _cv1, _cv2 = st.columns(2)
+            _cv1.metric("Tổng vốn đã bỏ ra",    fmt_vnd(_cap_invested_total))
+            _cv2.metric("Vốn đã thu về",         fmt_vnd(_cap_returned_total))
+            _cv3, _cv4 = st.columns(2)
+            _cv3.metric("Vốn đang kẹt trong kho", fmt_vnd(_cap_locked_total),
+                        delta=f"-{_lock_pct:.1f}% vốn")
+            _cv4.metric("Ước tính hoàn vốn còn lại",
+                        f"~{_days_to_recover} ngày" if _days_to_recover > 0 and _days_to_recover < 3650 else "—",
+                        help="Dựa trên tốc độ thu hồi vốn trung bình hiện tại")
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # TAB 3: TỒN LÂU
+    # ─────────────────────────────────────────────────────────────────────────────
+with tab_ton:
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">Hàng Tồn Lâu</div>', unsafe_allow_html=True)
+
+        with st.form("form_ton_lau"):
+            _fc1, _fc2, _fc3, _fc4 = st.columns([1, 1, 1.2, 1])
+            age_thresh  = _fc1.number_input("Tồn từ (ngày)", min_value=0, max_value=365, value=0, step=1)
+            age_max     = _fc2.number_input("Tối đa (ngày, 0=∞)", min_value=0, max_value=3650, value=0, step=1)
+            loai_filter = _fc3.selectbox("Loại hàng", ["Tất cả", "Pet Lẻ", "Lô (Pack)"])
+            sort_by     = _fc4.selectbox("Sắp xếp theo", ["Ngày Tồn (giảm)", "Giá trị vốn (giảm)", "Tên Pet"])
+            st.form_submit_button("🔍 Lọc", use_container_width=False)
+
+        # Pet lẻ — dùng Ngày Tồn đã tính sẵn trong df (tránh recalc lỗi khi time_nhap rỗng)
+        single_old = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)].copy()
+        if "Ngày Tồn" not in single_old.columns or single_old["Ngày Tồn"].isna().all():
+            single_old = apply_ngay_ton(single_old)
+        single_old["Ngày Tồn"] = pd.to_numeric(single_old["Ngày Tồn"], errors="coerce").fillna(0)
+        single_old = single_old[single_old["Ngày Tồn"] >= age_thresh]
+        if age_max > 0:
+            single_old = single_old[single_old["Ngày Tồn"] <= age_max]
+        single_old["Loại"]               = "Pet Lẻ"
+        single_old["Item"]               = single_old["Tên Pet"].astype(str)
+        single_old["Số lượng còn"]       = 1
+        single_old["Giá trị vốn (VNĐ)"] = pd.to_numeric(single_old["Giá Nhập"], errors="coerce").fillna(0)
+        sv = single_old[["Loại","Item","Số lượng còn","Ngày Nhập","Ngày Tồn","Giá trị vốn (VNĐ)","Auto Title"]] if not single_old.empty else pd.DataFrame(columns=["Loại","Item","Số lượng còn","Ngày Nhập","Ngày Tồn","Giá trị vốn (VNĐ)","Auto Title"])
+
+        # Pack tồn
+        pack_old = bulk_df[bulk_df["Trạng Thái"].astype(str)=="Available"].copy()
+        if not pack_old.empty:
+            pack_old["Ngày DT"]  = pd.to_datetime(pack_old["Ngày Nhập"], dayfirst=True, errors="coerce")
+            pack_old["Ngày Tồn"] = (now_vn().replace(tzinfo=None) - pack_old["Ngày DT"].dt.tz_localize(None)).dt.days.fillna(0).astype(float)
+            pack_old = pack_old[pack_old["Ngày Tồn"] >= age_thresh]
+            if age_max > 0:
+                pack_old = pack_old[pack_old["Ngày Tồn"] <= age_max]
+            pack_old["Loại"]               = "Lô (Pack)"
+            pack_old["Item"]               = pack_old["Tên Lô"].astype(str)
+            pack_old["Số lượng còn"]       = pd.to_numeric(pack_old["Còn Lại"], errors="coerce").fillna(0).astype(int)
+            pack_old["Giá trị vốn (VNĐ)"] = pd.to_numeric(pack_old["Giá Nhập Tổng"], errors="coerce").fillna(0)
+            pv = pack_old[["Loại","Item","Số lượng còn","Ngày Nhập","Ngày Tồn","Giá trị vốn (VNĐ)","Auto Title"]]
+        else:
+            pv = pd.DataFrame(columns=["Loại","Item","Số lượng còn","Ngày Nhập","Ngày Tồn","Giá trị vốn (VNĐ)","Auto Title"])
+
+        old_items = pd.concat([sv, pv], ignore_index=True)
+
+        # Lọc theo loại
+        if loai_filter != "Tất cả" and not old_items.empty:
+            old_items = old_items[old_items["Loại"] == loai_filter]
+
+        if old_items.empty:
+            _age_label = f"{age_thresh}–{age_max} ngày" if age_max > 0 else (f"≥ {age_thresh} ngày" if age_thresh > 0 else "toàn bộ")
+            st.info(f"Không có mục nào tồn {_age_label} — kho luân chuyển tốt.")
+        else:
+            if sort_by == "Ngày Tồn (giảm)":
+                old_items = old_items.sort_values("Ngày Tồn", ascending=False)
+            elif sort_by == "Giá trị vốn (giảm)":
+                old_items = old_items.sort_values("Giá trị vốn (VNĐ)", ascending=False)
+            else:
+                old_items = old_items.sort_values("Item")
+
+            total_stuck_val = old_items["Giá trị vốn (VNĐ)"].sum()
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Mục tồn", f"{len(old_items):,}")
+            m2.metric("Vốn bị giữ", fmt_vnd(total_stuck_val))
+            m3.metric("Tồn lâu nhất", fmt_ngay_ton(old_items['Ngày Tồn'].max()))
+            m4.metric("Trung bình tồn", fmt_ngay_ton(old_items['Ngày Tồn'].mean()))
+
+            old_items["Giá trị vốn"] = old_items["Giá trị vốn (VNĐ)"].apply(fmt_vnd)
+            old_items["Tồn"]         = old_items["Ngày Tồn"].apply(fmt_ngay_ton)
+            _ton_disp = old_items[["Loại","Item","Số lượng còn","Ngày Nhập","Tồn","Giá trị vốn","Auto Title"]].copy()
+
+            st.dataframe(
+                _ton_disp, use_container_width=True, hide_index=True, height=420,
+                column_config={
+                    "Auto Title":   st.column_config.TextColumn("Auto Title", width="large"),
+                    "Tồn":          st.column_config.TextColumn("Tồn"),
+                    "Item":         st.column_config.TextColumn("Item"),
+                    "Loại":         st.column_config.TextColumn("Loại"),
+                    "Số lượng còn": st.column_config.NumberColumn("Số lượng còn"),
+                    "Giá trị vốn":  st.column_config.TextColumn("Giá trị vốn"),
+                    "Ngày Nhập":    st.column_config.TextColumn("Ngày Nhập"),
+                },
+            )
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # TAB 4: LÔ PACK
+    # ─────────────────────────────────────────────────────────────────────────────
+with tab_pack:
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">Quản Lý Lô (Pack)</div>', unsafe_allow_html=True)
+
+        pack_in, pack_sell = st.columns([1.15, 1], gap="medium")
+
+        with pack_in:
+            with st.container(border=True):
+                st.markdown("**Nhập Lô Mới**")
+                with st.form("form_nhap_lo2", clear_on_submit=True):
+                    b_pet2 = st.selectbox("Tên Pet", get_name_options(pet_db), key="bp1t2")
+                    b1t, b2t, b3t = st.columns(3)
+                    b_qty2    = b1t.number_input("Số lượng", min_value=1, max_value=999, value=10, key="bqt2")
+                    b_ms_raw2 = b2t.text_input("M/s", placeholder="975", key="bp2t2")
+                    b_mut2    = b3t.selectbox("Mutation", MUTATION_OPTIONS, key="bp3t2")
+                    b_ns2     = st.selectbox("NameStock", [""]+get_name_options(ns_db,""), key="bp5t2")
+                    b_cost_raw2 = st.text_input("Tổng vốn nhập (₫)", placeholder="2.000.000", key="bp4t2")
+                    pack_ok2  = st.form_submit_button("Lưu Lô Hàng", type="primary", use_container_width=True)
+                if pack_ok2:
+                    b_cost2 = parse_vnd(b_cost_raw2)
+                    b_ms2   = parse_usd(b_ms_raw2)
+                    errs2 = []
+                    if b_pet2 == "None":  errs2.append("Chọn tên Pet")
+                    if b_ms2 <= 0:        errs2.append("M/s phải > 0")
+                    if b_cost2 <= 0:      errs2.append("Giá nhập phải > 0")
+                    if not b_ns2.strip(): errs2.append("Chọn NameStock")
+                    if errs2:
+                        for e in errs2: st.error(f"{e}")
+                    else:
+                        # Guard chống double-submit lô pack
+                        lo_submit_key = f"nhap_lo_{b_pet2}_{b_qty2}_{b_cost2}_{b_ns2}"
+                        if st.session_state.get("last_lo_key") == lo_submit_key:
+                            st.warning("Lô này đã được lưu. Tải lại trang nếu cần.")
+                            st.stop()
+                        bid2 = next_id(bulk_df, "ID")
+                        auto_title2 = generate_auto_title(b_pet2, b_mut2, "None", b_ms2, b_ns2)
+                        row2 = {
+                            "ID": bid2,
+                            "Tên Lô": f"Pack {b_pet2} (x{int(b_qty2)})",
+                            "Số Lượng Gốc": int(b_qty2),
+                            "Còn Lại": int(b_qty2),
+                            "Ngày Nhập": now_str(),
+                            "Giá Nhập Tổng": b_cost2,
+                            "Doanh Thu Tích Lũy": 0.0,
+                            "Lợi Nhuận": -b_cost2,
+                            "Trạng Thái": "Available",
+                            "Auto Title": auto_title2,
+                            "NameStock": b_ns2,
+                        }
+                        if USE_SUPABASE:
+                            db_row2 = to_db(row2)
+                            # Giữ nguyên id để Supabase dùng (không pop),
+                            # nhất quán với save_bulk_supabase dùng explicit id
+                            ok2 = sb_insert("bulk_inventory", db_row2)
+                            if not ok2:
+                                st.error("❌ Không thể lưu lô hàng. Vui lòng thử lại.")
+                                st.stop()
+                            st.cache_data.clear()
+                        # Append vào session state ngay để hiển thị tức thì sau rerun
+                        bulk_df = append_row(bulk_df, row2, BULK_SCHEMA)
+                        st.session_state.bulk_df = bulk_df
+                        # Guard key chỉ set sau khi lưu thành công
+                        st.session_state.last_lo_key = lo_submit_key
+                        st.toast("Lô hàng đã được lưu", icon="✅")
+                        st.rerun()
+
+        with pack_sell:
+            with st.container(border=True):
+                st.markdown("**Bán Từ Lô**")
+
+                # ── UNDO banner ──
+                if st.session_state.get("last_sale_undo", {}).get("type") == "bulk":
+                    _undo_bk = st.session_state["last_sale_undo"]
+                    _ub1, _ub2 = st.columns([3, 1])
+                    _ub1.info(f"↩️ Vừa bán: **{_undo_bk['label']}**  —  Bán nhầm? Hoàn tác ngay!")
+                    if _ub2.button("↩️ Hoàn tác", key="undo_bulk_btn", use_container_width=True):
+                        _ud_bk = st.session_state.pop("last_sale_undo")
+                        # Restore bulk_inventory row
+                        if USE_SUPABASE:
+                            sb_update("bulk_inventory", {
+                                "con_lai":            _ud_bk["old_con_lai"],
+                                "doanh_thu_tich_luy": _ud_bk["old_dt"],
+                                "loi_nhuan":          _ud_bk["old_loi_nhuan"],
+                                "trang_thai":         _ud_bk["old_trang_thai"],
+                            }, "id", _ud_bk["bulk_id"])
+                            # Delete the history record that was just inserted
+                            if _ud_bk.get("hist_db_id"):
+                                sb_delete("bulk_history", "id", _ud_bk["hist_db_id"])
+                            st.cache_data.clear()
+                            st.session_state.bulk_df      = load_bulk()
+                            st.session_state.bulk_history = load_bulk_history()
+                        else:
+                            # Restore local state directly
+                            _bdf3 = st.session_state.bulk_df.copy()
+                            _idx3 = _bdf3.index[_bdf3["ID"] == _ud_bk["bulk_id"]]
+                            if len(_idx3):
+                                _bdf3.at[_idx3[0], "Còn Lại"]            = _ud_bk["old_con_lai"]
+                                _bdf3.at[_idx3[0], "Doanh Thu Tích Lũy"] = _ud_bk["old_dt"]
+                                _bdf3.at[_idx3[0], "Lợi Nhuận"]          = _ud_bk["old_loi_nhuan"]
+                                _bdf3.at[_idx3[0], "Trạng Thái"]         = _ud_bk["old_trang_thai"]
+                                st.session_state.bulk_df = _bdf3
+                        st.toast("Đã hoàn tác giao dịch lô", icon="↩️")
+                        st.rerun()
+
+                avail2 = bulk_df[bulk_df["Trạng Thái"].astype(str)=="Available"]
+                if not avail2.empty:
+                    _bid_map = {int(r["ID"]): r for _, r in avail2.iterrows()}
+                    def _bulk_fmt(bid):
+                        r = _bid_map[bid]
+                        auto_t = str(r.get("Auto Title", "") or "")
+                        # Lấy phần trước boilerplate "🌸Cheapest..."
+                        short = auto_t.split("🌸Cheapest")[0].lstrip("🌸").strip()
+                        if not short:
+                            short = str(r.get("Tên Lô", ""))
+                        ns = str(r.get("NameStock", "") or "").strip()
+                        con_lai = int(float(r["Còn Lại"]))
+                        gia_tong = float(r["Giá Nhập Tổng"])
+                        orig = max(float(r["Số Lượng Gốc"]), 1)
+                        don_gia = gia_tong / orig
+                        ns_part = f" · {ns}" if ns else ""
+                        return f"#{bid}  {short}{ns_part}  ·  còn {con_lai}  ·  ~{fmt_short(don_gia)}/con"
+                    sel_b2 = st.selectbox(
+                        "Chọn lô", list(_bid_map.keys()),
+                        format_func=_bulk_fmt,
+                        label_visibility="collapsed", key="sel_b2",
+                    )
+                    target_id2 = sel_b2
+                    target2 = avail2[avail2["ID"]==target_id2].iloc[0]
+                    # ── Hiển thị đầy đủ Auto Title để copy ──
+                    _at_full = str(target2.get("Auto Title", "") or "")
+                    if _at_full:
+                        st.code(_at_full, language="text")
+                    _don_gia2 = float(target2["Giá Nhập Tổng"]) / max(float(target2["Số Lượng Gốc"]), 1)
+                    _ngay_nhap2 = str(target2.get("Ngày Nhập", ""))[:10]
+                    st.caption(
+                        f"📦 Còn: **{int(target2['Còn Lại'])}** / {int(float(target2['Số Lượng Gốc']))} con"
+                        f" · Vốn tổng: **{fmt_vnd(float(target2['Giá Nhập Tổng']))}**"
+                        f" · Giá/con: **{fmt_vnd(_don_gia2)}**"
+                        f" · Nhập: {_ngay_nhap2}"
+                    )
+
+                    with st.form(f"form_ban_lo2_{_sv()}", clear_on_submit=False):
+                        s1t, s2t = st.columns(2)
+                        s_qty2     = s1t.number_input("Số lượng", min_value=1, max_value=int(target2["Còn Lại"]), key=f"sqty2_{_sv()}")
+                        s_prc_raw2 = s2t.text_input("Đơn giá ($/unit)", placeholder="3.5", key=f"sprc2_{_sv()}")
+                        sell_ok2   = st.form_submit_button("Xác Nhận Giao Dịch", type="primary", use_container_width=True)
+
+                    # ── Step 1: save pending on first click ──
+                    if sell_ok2:
+                        s_prc2 = parse_usd(s_prc_raw2)
+                        if s_prc2 <= 0:
+                            st.error("Đơn giá phải lớn hơn 0")
+                        else:
+                            _idx2_pre = bulk_df[bulk_df["ID"]==target2["ID"]].index[0]
+                            st.session_state["pending_bulk_sale"] = {
+                                "bulk_id":       int(target2["ID"]),
+                                "ten_lo":        str(target2["Tên Lô"]),
+                                "s_qty":         s_qty2,
+                                "s_prc":         s_prc2,
+                                "old_con_lai":   int(float(bulk_df.at[_idx2_pre, "Còn Lại"])),
+                                "old_dt":        float(bulk_df.at[_idx2_pre, "Doanh Thu Tích Lũy"]),
+                                "old_loi_nhuan": float(bulk_df.at[_idx2_pre, "Lợi Nhuận"]),
+                                "old_trang_thai":str(bulk_df.at[_idx2_pre, "Trạng Thái"]),
+                                "so_luong_goc":  float(target2["Số Lượng Gốc"]),
+                                "gia_nhap_tong": float(target2["Giá Nhập Tổng"]),
+                            }
+                            st.rerun()
+
+                    # ── Step 2: confirmation block ──
+                    _pnd_bulk = st.session_state.get("pending_bulk_sale")
+                    if _pnd_bulk and _pnd_bulk["bulk_id"] == int(target2["ID"]):
+                        _rev_bk = _pnd_bulk["s_qty"] * _pnd_bulk["s_prc"] * EXCHANGE_RATE
+                        _base_u = _pnd_bulk["gia_nhap_tong"] / max(_pnd_bulk["so_luong_goc"], 1)
+                        _ln_bk  = _rev_bk - (_base_u * _pnd_bulk["s_qty"])
+                        st.warning(
+                            f"⚠️ **Xác nhận bán** · {_pnd_bulk['ten_lo']}\n\n"
+                            f"Số lượng: **{_pnd_bulk['s_qty']}** @ **${_pnd_bulk['s_prc']}/unit** "
+                            f"→ {fmt_vnd(_rev_bk)} · LN giao dịch: **{fmt_vnd(_ln_bk)}**"
+                        )
+                        _bf1, _bf2 = st.columns(2)
+                        _do_confirm_bk = _bf1.button("✅ Xác nhận bán", key="confirm_sell_bulk", type="primary", use_container_width=True)
+                        _do_cancel_bk  = _bf2.button("❌ Hủy", key="cancel_sell_bulk", use_container_width=True)
+
+                        if _do_cancel_bk:
+                            st.session_state.pop("pending_bulk_sale", None)
+                            st.rerun()
+
+                        if _do_confirm_bk:
+                            _pnd_b = st.session_state.pop("pending_bulk_sale")
+                            _idx2 = bulk_df[bulk_df["ID"]==_pnd_b["bulk_id"]].index[0]
+                            _rev_vnd2 = _pnd_b["s_qty"] * _pnd_b["s_prc"] * EXCHANGE_RATE
+                            _new_con_lai2   = max(0.0, float(bulk_df.at[_idx2,"Còn Lại"]) - float(_pnd_b["s_qty"]))
+                            _new_dt2        = float(bulk_df.at[_idx2,"Doanh Thu Tích Lũy"]) + _rev_vnd2
+                            _new_loi_nhuan2 = _new_dt2 - float(bulk_df.at[_idx2,"Giá Nhập Tổng"])
+                            _new_status2    = "Sold Out" if _new_con_lai2 <= 0 else "Available"
+
+                            bulk_df.at[_idx2,"Còn Lại"]            = _new_con_lai2
+                            bulk_df.at[_idx2,"Doanh Thu Tích Lũy"] = _new_dt2
+                            bulk_df.at[_idx2,"Lợi Nhuận"]          = _new_loi_nhuan2
+                            bulk_df.at[_idx2,"Trạng Thái"]         = _new_status2
+
+                            _base_unit2 = _pnd_b["gia_nhap_tong"] / max(_pnd_b["so_luong_goc"], 1)
+                            _hist_row2 = {
+                                "Ngày Bán":            now_str(),
+                                "Tên Lô":              _pnd_b["ten_lo"],
+                                "Số Lượng Bán":        _pnd_b["s_qty"],
+                                "Lợi Nhuận Giao Dịch": _rev_vnd2 - (_base_unit2 * _pnd_b["s_qty"]),
+                                "Doanh Thu Giao Dịch": _rev_vnd2,
+                            }
+                            bulk_history = append_row(bulk_history, _hist_row2, HISTORY_SCHEMA)
+                            st.session_state.bulk_df      = bulk_df
+                            st.session_state.bulk_history = bulk_history
+
+                            _hist_db_id = None
+                            _write_ok = True
+                            if USE_SUPABASE:
+                                _inserted = sb_insert_returning("bulk_history", to_db(_hist_row2))
+                                _hist_db_id = _inserted.get("id") if _inserted else None
+                                _write_ok2 = sb_update("bulk_inventory", {
+                                    "con_lai":            int(_new_con_lai2),
+                                    "doanh_thu_tich_luy": _new_dt2,
+                                    "loi_nhuan":          _new_loi_nhuan2,
+                                    "trang_thai":         _new_status2,
+                                }, "id", _pnd_b["bulk_id"])
+                                _write_ok = bool(_inserted) and _write_ok2
+                                if _write_ok:
+                                    load_bulk.clear()          # chỉ xóa 2 cache cần thiết
+                                    load_bulk_history.clear()
+                                    st.session_state.bulk_df      = load_bulk()
+                                    st.session_state.bulk_history = load_bulk_history()
+                                else:
+                                    st.session_state.last_ban_lo_key = None
+
+                            if _write_ok:
+                                st.session_state["last_sale_undo"] = {
+                                    "type":          "bulk",
+                                    "label":         f"{_pnd_b['ten_lo']} x{_pnd_b['s_qty']} @ ${_pnd_b['s_prc']}",
+                                    "bulk_id":       _pnd_b["bulk_id"],
+                                    "hist_db_id":    _hist_db_id,
+                                    "old_con_lai":   _pnd_b["old_con_lai"],
+                                    "old_dt":        _pnd_b["old_dt"],
+                                    "old_loi_nhuan": _pnd_b["old_loi_nhuan"],
+                                    "old_trang_thai":_pnd_b["old_trang_thai"],
+                                }
+                                st.toast("✅ Giao dịch hoàn tất · Nhấn Hoàn Tác nếu bán nhầm", icon="✅")
+                                _clear_searches()  # reset form key → xóa trắng giá bán
+                                st.rerun()
+                            else:
+                                st.error("Ghi dữ liệu thất bại, vui lòng thử lại.")
+                else:
+                    st.info("Hiện không có lô hàng khả dụng.")
+
+        st.markdown("---")
+        st.markdown("**Danh Sách Lô Hàng**")
+        bulk_cols_display2 = ["ID","Tên Lô","NameStock","Số Lượng Gốc","Còn Lại","Ngày Nhập",
+                              "Giá Nhập Tổng","Doanh Thu Tích Lũy","Lợi Nhuận","Trạng Thái","Auto Title"]
+
+        # ── THANH CÔNG CỤ LÔ PACK ──
+        _bk1, _bk2, _bk3 = st.columns([2, 2, 1])
+        bulk_status_filter = _bk1.radio(
+            "Lọc lô",
+            ["Available", "Sold Out", "Tất cả"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="bulk_status_radio",
+        )
+        bulk_search = _bk2.text_input(
+            "Tìm kiếm",
+            placeholder="Tên lô, auto title...",
+            label_visibility="collapsed",
+            key=f"bulk_table_search_{_sv()}",
+        )
+
+        view_bulk_base = bulk_df[[c for c in bulk_cols_display2 if c in bulk_df.columns]].copy()
+        if bulk_status_filter == "Available":
+            view_bulk_base = view_bulk_base[view_bulk_base["Trạng Thái"].astype(str) == "Available"]
+        elif bulk_status_filter == "Sold Out":
+            view_bulk_base = view_bulk_base[view_bulk_base["Trạng Thái"].astype(str) == "Sold Out"]
+        if bulk_search.strip():
+            _tokens_bk = re.split(r'[\s\-]+', bulk_search.strip().lower())
+            _tokens_bk = [t for t in _tokens_bk if t]
+            _bk_cols = ["Tên Lô","NameStock","Auto Title"]
+            _bk_haystack = view_bulk_base[[c for c in _bk_cols if c in view_bulk_base.columns]] \
+                .astype(str).apply(lambda col: col.str.lower().str.replace(r'[\-\s]+', ' ', regex=True))
+            _bk_combined = _bk_haystack.apply(lambda row: ' '.join(row), axis=1)
+            bk_mask = pd.Series([True] * len(view_bulk_base), index=view_bulk_base.index)
+            for _tok in _tokens_bk:
+                bk_mask &= _bk_combined.str.contains(_tok, regex=False, na=False)
+            view_bulk_base = view_bulk_base[bk_mask]
+
+        _bk3.metric("Tổng số", len(view_bulk_base))
+        if not view_bulk_base.empty:
+            csv_bulk = view_bulk_base.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+            st.download_button(
+                "⬇️ Xuất CSV",
+                data=csv_bulk,
+                file_name=f"lo_pack_{now_vn().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="dl_bulk_csv",
+            )
+
+        view_bulk2 = view_bulk_base
+        _is_bulk_searching = bool(bulk_search.strip()) or bulk_status_filter != "Tất cả"
+        if not view_bulk2.empty:
+            before_bulk2x = view_bulk2.copy()
+            edited_bulk2 = st.data_editor(
+                before_bulk2x, key=f"editor_bulk2_{st.session_state.get('editor_bulk_ver', 0)}",
+                use_container_width=True, hide_index=True,
+                num_rows="fixed" if _is_bulk_searching else "dynamic",
+                disabled=["ID"],
+                column_config={
+                    "NameStock": st.column_config.TextColumn("NameStock", width="small"),
+                    "Auto Title": st.column_config.TextColumn("Auto Title", width="large"),
+                    "Giá Nhập Tổng": st.column_config.NumberColumn("Vốn nhập (VNĐ)", format="%d"),
+                    "Doanh Thu Tích Lũy": st.column_config.NumberColumn("Doanh thu (VNĐ)", format="%d"),
+                    "Lợi Nhuận": st.column_config.NumberColumn("Lợi nhuận (VNĐ)", format="%d"),
+                },
+            )
+
+            # CẬP NHẬT: Không được reindex vào cột ID để không phá hỏng Primary Key của Supabase
+            schema_bulk_view = {c: BULK_SCHEMA.get(c,"") for c in bulk_cols_display2 if c in bulk_df.columns}
+            ab2  = normalize_df(edited_bulk2, schema_bulk_view)
+            bb2  = normalize_df(before_bulk2x, schema_bulk_view)
+
+            if not ab2.astype(str).equals(bb2.astype(str)):
+                # Merge phần đã chỉnh sửa với phần bị ẩn (do filter/search) để không mất dữ liệu
+                hidden_rows = bulk_df[[c for c in bulk_cols_display2 if c in bulk_df.columns]].copy()
+                # Normalize to int trước khi so sánh tránh "1" vs "1.0" dtype mismatch (data_editor trả về float64)
+                visible_ids = set(pd.to_numeric(ab2["ID"], errors="coerce").fillna(0).astype(int).astype(str).tolist()) if "ID" in ab2.columns else set()
+                hidden_rows = hidden_rows[~pd.to_numeric(hidden_rows["ID"], errors="coerce").fillna(0).astype(int).astype(str).isin(visible_ids)]
+                full_ab2 = normalize_df(pd.concat([ab2, hidden_rows], ignore_index=True), schema_bulk_view)
+
+                save_bulk_supabase(full_ab2, st.session_state.bulk_df)
+                # ── Luôn reload từ Supabase để lấy ID thật, tránh id=0 gây duplicate ──
+                if USE_SUPABASE:
+                    st.cache_data.clear()
+                    st.session_state.bulk_df = load_bulk()
+                else:
+                    st.session_state.bulk_df = normalize_df(full_ab2, BULK_SCHEMA)
+                # Bump version key để reset widget state
+                st.session_state.editor_bulk_ver = st.session_state.get("editor_bulk_ver", 0) + 1
+                st.toast("Đã lưu thay đổi", icon="✅")
+                st.rerun()
+        else:
+            st.info("Chưa có lô hàng nào.")
+
+        # ── XÓA DÒNG LÔ PACK ──
+        if USE_SUPABASE and not bulk_df.empty:
+            with st.expander("🗑️ Xóa dòng khỏi Lô Pack", expanded=False):
+                def _safe_int_bk(v, default=0):
+                    try: return int(float(v)) if v not in (None, "", "nan", "None") else default
+                    except: return default
+                _del_bk_rows = bulk_df[[c for c in ["ID","Tên Lô","NameStock"] if c in bulk_df.columns]].copy()
+                _del_bk_labels = [
+                    f"ID {_safe_int_bk(r.get('ID',0))} | {r.get('Tên Lô','')} – {r.get('NameStock','')}"
+                    for _, r in _del_bk_rows.iterrows()
+                ]
+                _del_bk_id_map = {lbl: _safe_int_bk(r.get("ID", 0)) for lbl, (_, r) in zip(_del_bk_labels, _del_bk_rows.iterrows())}
+                _sel_bk_del = st.multiselect(
+                    "Chọn lô cần xóa",
+                    options=_del_bk_labels,
+                    placeholder="Tìm và chọn...",
+                    key="bulk_del_multiselect",
+                )
+                if _sel_bk_del:
+                    st.warning(f"⚠️ Sẽ xóa vĩnh viễn **{len(_sel_bk_del)} lô** khỏi Supabase. Không thể hoàn tác!")
+                    if st.button("🗑️ Xác nhận Xóa", key="bulk_del_confirm", type="primary", use_container_width=True):
+                        for _lbl in _sel_bk_del:
+                            sb_delete("bulk_inventory", "id", _del_bk_id_map[_lbl])
+                        st.cache_data.clear()
+                        st.session_state.bulk_df = load_bulk()
+                        st.session_state.editor_bulk_ver = st.session_state.get("editor_bulk_ver", 0) + 1
+                        st.toast(f"Đã xóa {len(_sel_bk_del)} lô.", icon="🗑️")
+                        st.rerun()
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # TAB ELDORADO: Quản lý listing trên sàn
+    # ─────────────────────────────────────────────────────────────────────────────
+with tab_eldo:
+    if not _HAS_ELDORADO:
+        st.warning("Module Eldorado không khả dụng. Kiểm tra eldorado_client.py.")
+    else:
+        # ── SECTION 1: LOGIN / PROFILE CARD ──
+        with st.container(border=True):
+            st.markdown('<div class="sec-heading">🎮 Eldorado.gg</div>', unsafe_allow_html=True)
+
+            if eld_client and eld_client.logged_in:
+                # Profile card với avatar
+                _av_url = eld_client.avatar or ""
+                _pf_col1, _pf_col2, _pf_col3 = st.columns([0.8, 2.5, 1.5])
+                with _pf_col1:
+                    if _av_url and _av_url.startswith("http"):
+                        _av_html = f'<img src="{_av_url}" width="72" height="72" style="border-radius:50%;object-fit:cover;border:2px solid #c084fc;">'
+                    elif _av_url:
+                        _av_full = f"https://eldorado.gg{_av_url}" if _av_url.startswith("/") else _av_url
+                        _av_html = f'<img src="{_av_full}" width="72" height="72" style="border-radius:50%;object-fit:cover;border:2px solid #c084fc;">'
+                    else:
+                        _initial = (eld_client.username or "?")[0].upper()
+                        _av_html = f'<div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#c084fc,#e879f9);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;border:2px solid #c084fc;">{_initial}</div>'
+                    st.markdown(_av_html, unsafe_allow_html=True)
+                with _pf_col2:
+                    st.markdown(f"### {eld_client.username}")
+                    st.caption(f"ID: `{eld_client.userId[:12]}...`")
+                with _pf_col3:
+                    _rv_col1, _rv_col2 = st.columns(2)
+                    _rv_col1.metric("👍 Review +", eld_client.pos)
+                    _rv_col2.metric("👎 Review -", eld_client.neg)
+                    if st.button("🔌 Logout", key="eldo_logout_top"):
+                        eld_client.disconnect()
+                        _clear_eld_cookie_from_sb()
+                        st.toast("Đã đăng xuất Eldorado")
+                        st.rerun()
+            else:
+                with st.form("form_eldo_login", clear_on_submit=False):
+                    st.caption("F12 → Application → Cookies → eldorado.gg → Copy all as string")
+                    cookie_str = st.text_area("Cookie", height=80, label_visibility="collapsed",
+                                               placeholder="__Host-XSRF-TOKEN=...; __Host-EldoradoIdToken=...")
+                    login_ok = st.form_submit_button("🔗 Đăng Nhập Eldorado", type="primary", use_container_width=True)
+                if login_ok and cookie_str.strip():
+                    with st.spinner("Đang xác thực..."):
+                        eld_client.set_cookies(cookie_str.strip())
+                        auth_r = eld_client.check_auth()
+                    if auth_r.get("ok"):
+                        eld_client.save_cookies()
+                        _save_eld_cookie_to_sb(cookie_str.strip())
+                        st.toast(f"Đăng nhập thành công: {eld_client.username}")
+                        st.rerun()
+                    else:
+                        st.error(f"Lỗi: {auth_r.get('error', 'unknown')}")
+
+        if eld_client and eld_client.logged_in:
+            # ── SECTION 2: LISTINGS ──
+            with st.container(border=True):
+                st.markdown('<div class="sec-heading">📦 Listing Của Tôi</div>', unsafe_allow_html=True)
+
+                # ── Load listings theo trang (API pagination) — TRƯỚC ──
+                _ELDO_PAGE_SIZE = 40
+                _eldo_reload = st.button("🔄 Tải lại", key="eldo_refresh_listings")
+                if _eldo_reload:
+                    st.session_state._eldo_page = 1
+                    st.session_state._eldo_all = []
+                    st.session_state._eldo_total_pages = 1
+
+                _cur_page = st.session_state.get("_eldo_page", 1)
+                _all_data = st.session_state.get("_eldo_all", [])
+                _total_pages = st.session_state.get("_eldo_total_pages", 1)
+
+                # Fetch trang hiện tại nếu chưa có data
+                if not _all_data or _eldo_reload:
+                    with st.spinner(f"Đang tải trang {_cur_page}..."):
+                        _raw = eld_client.get_listings(page=_cur_page, page_size=_ELDO_PAGE_SIZE)
+                        if isinstance(_raw, dict) and "results" in _raw:
+                            _all_data = _raw.get("results", [])
+                            _total_pages = _raw.get("totalPages", 1)
+                            st.session_state._eldo_all = _all_data
+                            st.session_state._eldo_total_pages = _total_pages
+
+                # ── State counts từ loaded data ──
+                _cnt_a = sum(1 for x in _all_data if x.get("offerState") == "Active")
+                _cnt_p = sum(1 for x in _all_data if x.get("offerState") == "Paused")
+                _cnt_c = sum(1 for x in _all_data if x.get("offerState") == "Closed")
+                # Fetch live counts from API if no local data yet
+                if not _all_data:
+                    _states = {}
+                    try:
+                        _raw_states = eld_client.get_states()
+                        _states = _raw_states if isinstance(_raw_states, dict) else {}
+                    except Exception:
+                        pass
+                    _cnt_a = int(_states.get("activeOffers") or _states.get("active_offers") or 0)
+                    _cnt_p = int(_states.get("pausedOffers") or _states.get("paused_offers") or 0)
+                    _cnt_c = int(_states.get("closedOffers") or _states.get("closed_offers") or 0)
+                _cnt_all = _cnt_a + _cnt_p + _cnt_c
+                sc1, sc2, sc3, sc4 = st.columns(4)
+                sc1.metric("Tổng", _cnt_all)
+                sc2.metric("🟢 Active", _cnt_a)
+                sc3.metric("⏸️ Paused", _cnt_p)
+                sc4.metric("🔴 Closed", _cnt_c)
+
+                # ── Pagination controls ──
+                if _total_pages > 1:
+                    pg1, pg2, pg3 = st.columns([1, 2, 1])
+                    if pg1.button("⬅️", key="eldo_prev", disabled=_cur_page <= 1):
+                        st.session_state._eldo_page = max(1, _cur_page - 1)
+                        st.session_state._eldo_all = []
+                        st.rerun()
+                    pg2.markdown(f"<div style='text-align:center;padding-top:0.3rem;'>Trang **{_cur_page}** / {_total_pages}</div>", unsafe_allow_html=True)
+                    if pg3.button("➡️", key="eldo_next", disabled=_cur_page >= _total_pages):
+                        st.session_state._eldo_page = min(_total_pages, _cur_page + 1)
+                        st.session_state._eldo_all = []
+                        st.rerun()
+
+                _listings = _all_data
+                if not _listings:
+                    st.info("Không có listing nào.")
+                else:
+                    # ── Bộ lọc client-side (nhanh, trên data đã load) ──
+                    fl1, fl2, fl3 = st.columns([1.5, 1, 1])
+                    _eldo_state_flt = fl1.radio("State", ["Tất cả", "Active", "Paused", "Closed"],
+                                                horizontal=True, key="eldo_state_flt")
+                    _eldo_search = fl2.text_input("🔍 Tìm kiếm", placeholder="Tên listing...",
+                                                   key="eldo_search_q", label_visibility="collapsed")
+                    _eldo_sort = fl3.selectbox("Sắp xếp", ["Mới nhất", "Giá thấp→cao", "Giá cao→thấp",
+                                                "Tên A→Z"], key="eldo_sort")
+
+                    _flt = _listings
+                    if _eldo_state_flt != "Tất cả":
+                        _flt = [x for x in _flt if x.get("offerState") == _eldo_state_flt]
+                    if _eldo_search.strip():
+                        _sq = _eldo_search.strip().lower()
+                        _flt = [x for x in _flt if _sq in (x.get("offerTitle") or "").lower()
+                                or _sq in str(x.get("id", ""))]
+                    if _eldo_sort == "Giá thấp→cao":
+                        _flt.sort(key=lambda x: float(x.get("pricePerUnit", {}).get("amount", 0)))
+                    elif _eldo_sort == "Giá cao→thấp":
+                        _flt.sort(key=lambda x: float(x.get("pricePerUnit", {}).get("amount", 0)), reverse=True)
+                    elif _eldo_sort == "Tên A→Z":
+                        _flt.sort(key=lambda x: (x.get("offerTitle") or "").lower())
+
+                    # ── Giảm giá toàn bộ ──
+                    with st.expander("📉 Giảm giá toàn bộ (Active)", expanded=False):
+                        _act = [x for x in _listings if x.get("offerState") == "Active"]
+                        if not _act:
+                            st.info("Không có listing Active trên trang này.")
+                        else:
+                            st.caption(f"**{len(_act)}** listings Active trên trang hiện tại")
+                            _dm, _dv = st.columns(2)
+                            _disc_mode = _dm.radio("Chế độ", ["%", "$"], horizontal=True, key="eldo_dm")
+                            if _disc_mode == "%":
+                                _disc_val = _dv.number_input("Giảm %", 0.1, 90.0, 5.0, 0.5,
+                                                             format="%.1f", key="eldo_dv")
+                            else:
+                                _disc_val = _dv.number_input("Giảm $", 0.01, 100.0, 0.05, 0.01,
+                                                             format="%.2f", key="eldo_dv")
+
+                            _prev = []
+                            for _l in _act:
+                                _op = float(_l.get("pricePerUnit", {}).get("amount", 0))
+                                _np = max(0.01, round(_op * (1 - _disc_val / 100), 2)) if _disc_mode == "%" \
+                                    else max(0.01, round(_op - _disc_val, 2))
+                                if _np != _op:
+                                    _prev.append({"Title": (_l.get("offerTitle", "") or "")[:50],
+                                                  "Cũ": _op, "Mới": _np, "ID": _l.get("id", "")})
+
+                            if _prev:
+                                st.dataframe(pd.DataFrame(_prev)[["Title", "Cũ", "Mới"]],
+                                             use_container_width=True, hide_index=True, height=200)
+                                if st.button(f"📉 Xác nhận giảm {_prev.__len__()} listings",
+                                             type="primary", use_container_width=True, key="btn_eldo_disc"):
+                                    _dprog = st.progress(0)
+                                    _dok = 0
+                                    for _di, _dr in enumerate(_prev):
+                                        _dprog.progress(_di / len(_prev))
+                                        _r = eld_client.change_price(_dr["ID"], _dr["Mới"])
+                                        if _r and not _r.get("error"):
+                                            _dok += 1
+                                        _time.sleep(0.3)
+                                    _dprog.progress(1.0)
+                                    st.success(f"✅ Đã giảm: {_dok}/{len(_prev)}")
+                                    st.session_state._eldo_all = []
+                                    st.rerun()
+                            else:
+                                st.info("Đã ở giá tối thiểu.")
+
+                    # ── Danh sách listings (cuộn được) ──
+                    st.caption(f"Trang {_cur_page}: **{len(_flt)}** listings")
+                    _scroll_html = '<div style="max-height:520px;overflow-y:auto;border:1px solid rgba(192,132,252,0.2);border-radius:10px;padding:8px;">'
+                    st.markdown(_scroll_html, unsafe_allow_html=True)
+
+                    for _o in _flt:
+                        _oid = _o.get("id", "")
+                        _otitle = (_o.get("offerTitle", "") or "")[:65]
+                        _oprice = float(_o.get("pricePerUnit", {}).get("amount", 0))
+                        _ostate = _o.get("offerState", "?")
+                        _oimg = (_o.get("mainOfferImage") or {}).get("smallImage", "")
+                        _sicon = {"Active": "🟢", "Paused": "⏸️", "Closed": "🔴"}.get(_ostate, "❓")
+
+                        with st.container(border=True):
+                            rc1, rc2, rc3 = st.columns([0.4, 4, 1.8])
+                            with rc1:
+                                if _oimg:
+                                    _img_url = _oimg if _oimg.startswith("http") else f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
+                                    st.markdown(f'<img src="{_img_url}" width="48" height="48" style="border-radius:8px;object-fit:cover;">', unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f'<div style="width:48px;height:48px;border-radius:8px;background:#1a1528;display:flex;align-items:center;justify-content:center;font-size:20px;">📦</div>', unsafe_allow_html=True)
+                            with rc2:
+                                st.markdown(f"**{_sicon} {_otitle}**")
+                                st.caption(f"${_oprice:.2f} · {_ostate}")
+                            with rc3:
+                                _b1, _b2, _b3 = st.columns(3)
+                                _np_val = _b1.number_input("USD", 0.01, 9999.0, _oprice, 0.05,
+                                                            format="%.2f", key=f"ep_{_oid}", label_visibility="collapsed")
+                                if _b2.button("💰", key=f"esp_{_oid}", help="Đổi giá"):
+                                    _r = eld_client.change_price(_oid, _np_val)
+                                    if _r and not _r.get("error"):
+                                        st.toast("Đã đổi giá")
+                                        st.session_state._eldo_all = []
+                                        st.rerun()
+                                if _ostate == "Active":
+                                    if _b3.button("⏸️", key=f"eps_{_oid}", help="Tạm dừng"):
+                                        eld_client.change_state(_oid, "Paused")
+                                        st.session_state._eldo_all = []
+                                        st.rerun()
+                                elif _ostate == "Paused":
+                                    if _b3.button("▶️", key=f"epr_{_oid}", help="Tiếp tục"):
+                                        eld_client.change_state(_oid, "Active")
+                                        st.session_state._eldo_all = []
+                                        st.rerun()
+                                else:
+                                    if _b3.button("🗑️", key=f"epd_{_oid}", help="Xóa"):
+                                        eld_client.delete_listing(_oid)
+                                        st.session_state._eldo_all = []
+                                        st.rerun()
+
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+            # ── SECTION 3: ĐƠN HÀNG HÔM NAY ──
+            with st.container(border=True):
+                st.markdown('<div class="sec-heading">📋 Đơn Hàng Hôm Nay</div>', unsafe_allow_html=True)
+
+                if st.button("🔄 Tải lại", key="eldo_refresh_orders"):
+                    st.session_state.pop("_eldo_today", None)
+                    st.rerun()
+
+                if "_eldo_today" not in st.session_state:
+                    with st.spinner("Đang tải..."):
+                        # Lấy cả đơn seller + buyer trong ngày
+                        _od_s = eld_client.get_orders(page_size=50)
+                        _od_b = eld_client._req("GET", "/orders/me/statesCount",
+                                                params={"displayFilter": "DisplayBuyingOrders", "orderGroup": "Regular"})
+                        _all_o = []
+                        if isinstance(_od_s, dict):
+                            _all_o.extend(_od_s.get("results", []))
+
+                        # Lọc đơn theo ngày + state (Paid/Delivered/Completed)
+                        _td = datetime.now(VN_TZ).strftime("%Y-%m-%d")
+                        _sold_states = {"Paid", "Delivered", "Completed", "New"}
+                        _tod = []
+                        for _o in _all_o:
+                            _ost = _o.get("state", "")
+                            if _ost not in _sold_states:
+                                continue
+                            # Check date: createdAt, updatedAt, completedAt, paidAt
+                            _odate = (_o.get("createdAt") or _o.get("updatedAt") or
+                                      _o.get("completedAt") or _o.get("paidAt") or "")
+                            if _td in _odate:
+                                _tod.append(_o)
+                        st.session_state._eldo_today = _tod
+                _tod = st.session_state.get("_eldo_today", [])
+
+                if not _tod:
+                    st.info("Chưa có đơn hàng nào hoàn thành hôm nay.")
+                else:
+                    _tu = sum(float(_o.get("amount", 0)) for _o in _tod)
+                    _tv = _tu * EXCHANGE_RATE
+
+                    tc1, tc2, tc3 = st.columns(3)
+                    tc1.metric("📦 Đơn", len(_tod))
+                    tc2.metric("💵 USD", f"${_tu:.2f}")
+                    tc3.metric("💰 VND (thực nhận)", fmt_vnd(_tv),
+                               help=f"1 USD = {EXCHANGE_RATE:,.0f} VND")
+
+                    for _oi in _tod:
+                        _ooid = _oi.get("id", "?")
+                        _oamt = float(_oi.get("amount", 0))
+                        _obuyer = _oi.get("buyerUsername", "?")
+                        _otit = (_oi.get("augmentedGame") or {}).get("offerTitle", "")[:50]
+                        with st.container(border=True):
+                            oc1, oc2 = st.columns([4, 1])
+                            oc1.caption(f"📦 **{_obuyer}** · ${_oamt:.2f} · {_otit}")
+                            if oc2.button("📦 Giao", key=f"eldo_del_{_ooid}"):
+                                _dr = eld_client.mark_delivered(_ooid)
+                                if not (_dr and _dr.get("error")):
+                                    st.toast("Đã giao hàng")
+                                    st.session_state.pop("_eldo_today", None)
+                                    st.rerun()
+
+            # ── SECTION 4: WALLET ──
+            with st.container(border=True):
+                st.markdown('<div class="sec-heading">💰 Wallet</div>', unsafe_allow_html=True)
+
+                if st.button("🔄 Tải lại wallet", key="eldo_refresh_wallet"):
+                    st.session_state.pop("_eldo_wallet", None)
+                    st.rerun()
+
+                if "_eldo_wallet" not in st.session_state:
+                    with st.spinner("Đang tải dữ liệu wallet..."):
+                        _wp = None
+                        _ws = None
+                        _wh = None
+                        _wpend = None
+                        try:
+                            _wp = eld_client.get_payments(page_size=30)
+                        except Exception:
+                            _wp = eld_client._req("GET", "/userpayment/me/payments",
+                                                  params={"paymentsCategory": "All", "pageSize": 30,
+                                                          "pageDirection": "Next",
+                                                          "cursorValue": "9999-99-99 99:99:99.999999999999999-9999-9999-9999-999999999999"})
+                        try:
+                            _ws = eld_client.get_order_stats()
+                        except Exception:
+                            _ws = eld_client._req("GET", "/orders/me/statesCount",
+                                                  params={"displayFilter": "DisplaySellingOrders", "orderGroup": "Regular"})
+                        try:
+                            _wh = eld_client.get_historical_seller_stats()
+                        except Exception:
+                            _wh = eld_client._req("GET", "/orders/me/statesCount",
+                                                  params={"displayFilter": "DisplaySellingOrders", "orderGroup": "Historical"})
+                        try:
+                            _wpend = eld_client.get_pending_sum()
+                        except Exception:
+                            _wpend = eld_client._req("GET", "/orders/me/pendingOrdersSum")
+                        st.session_state._eldo_wallet = {
+                            "payments": (_wp or {}).get("results", []) if isinstance(_wp, dict) else [],
+                            "stats": _ws if isinstance(_ws, dict) else {},
+                            "historical": _wh if isinstance(_wh, dict) else {},
+                            "pending": _wpend if isinstance(_wpend, dict) else {},
+                        }
+                _wallet = st.session_state.get("_eldo_wallet", {})
+                _wp_list = _wallet.get("payments", [])
+                _ws = _wallet.get("stats", {})
+                _wh = _wallet.get("historical", {})
+                _wpend = _wallet.get("pending", {})
+
+                # ── KPI cards ──
+                _pending_amt = float((_wpend or {}).get("amount", 0))
+                _total_sales = float((_ws or {}).get("totalSaleAmount", 0))
+                _total_orders = int((_ws or {}).get("totalOrdersCount", 0))
+                _total_earned = float((_wh or {}).get("totalSaleAmount", 0))
+                _total_all_orders = int((_wh or {}).get("totalOrdersCount", 0))
+
+                wc1, wc2, wc3, wc4 = st.columns(4)
+                wc1.metric("⏳ Pending", f"${_pending_amt:.2f}",
+                           help="Số tiền đang chờ xử lý")
+                wc2.metric("📦 Đang bán", f"${_total_sales:.2f}",
+                           delta=f"{_total_orders} đơn", help="Tổng doanh thu đang bán")
+                wc3.metric("💵 Tổng nhận", f"${_total_earned:.2f}",
+                           delta=f"{_total_all_orders} đơn", help="Tổng lịch sử nhận được")
+                wc4.metric("💰 VND (tích lũy)", fmt_vnd(_total_earned * EXCHANGE_RATE),
+                           help=f"1 USD = {EXCHANGE_RATE:,.0f} VND")
+
+                # ── Transactions list ──
+                if _wp_list:
+                    st.markdown("---")
+                    st.caption(f"**{len(_wp_list)}** giao dịch gần đây")
+                    _pw_rows = []
+                    for _pw in _wp_list:
+                        _pw_rows.append({
+                            "Ngày": (_pw.get("createdAt") or "")[:10],
+                            "Loại": _pw.get("type", "?"),
+                            "USD": float(_pw.get("amount", 0)),
+                            "Mô tả": (_pw.get("description") or _pw.get("paymentMethod") or "")[:40],
+                            "State": _pw.get("state", "?"),
+                        })
+                    if _pw_rows:
+                        _pw_df = pd.DataFrame(_pw_rows)
+                        st.dataframe(_pw_df, use_container_width=True, hide_index=True, height=300)
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # TAB 5: CÀI ĐẶT (Chỉ danh mục)
+    # ─────────────────────────────────────────────────────────────────────────────
+with tab_settings:
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">Quản Lý Danh Mục</div>', unsafe_allow_html=True)
+
+        cat_cols = st.columns(3)
+
+        def manage_category(col, label: str, db: pd.DataFrame, file: str, icon: str):
+            with col:
+                with st.container(border=True):
+                    st.markdown(f"**{icon} {label}**")
+                    with st.form(f"form_add_{file}", clear_on_submit=True):
+                        c1, c2 = st.columns([3, 1])
+                        new_val = c1.text_input("Thêm", placeholder=f"Tên {label}...", label_visibility="collapsed")
+                        add_ok  = c2.form_submit_button("➕", use_container_width=True)
+                    if add_ok:
+                        v = new_val.strip()
+                        if not v:
+                            st.warning("Vui lòng nhập tên.")
+                        elif v.lower() in [x.lower() for x in db["Name"].astype(str).tolist()]:
+                            st.info("Mục này đã tồn tại.")
+                        else:
+                            db = append_row(db, {"Name": v}, LIST_SCHEMA)
+                            save_csv(db, file)
+                            st.toast(f"Đã thêm: {v}", icon="✅")
+                            st.rerun()
+
+                    st.dataframe(db, use_container_width=True, hide_index=True, height=140)
+
+                    if not db.empty:
+                        with st.form(f"form_del_{file}"):
+                            d1, d2 = st.columns([2.5, 1.5])
+                            sel_del = d1.selectbox("Xóa", db["Name"].astype(str).tolist(), label_visibility="collapsed")
+                            del_ok  = d2.form_submit_button("🗑️", use_container_width=True)
+                        if del_ok:
+                            db = db[db["Name"].astype(str) != sel_del].reset_index(drop=True)
+                            save_csv(db, file)
+                            st.rerun()
+
+        manage_category(cat_cols[0], "Pet",       pet_db,   PET_LIST_FILE, "🐾")
+        manage_category(cat_cols[1], "NameStock", ns_db,    NS_LIST_FILE,  "🏷️")
+        manage_category(cat_cols[2], "Trait",     trait_db, TRAIT_LIST,    "🧬")
+
+        # ── Sửa Auto Title sai định dạng ──
+        if USE_SUPABASE:
+            st.markdown("---")
+            st.markdown("### 🛠️ Sửa Auto Title (Trait)")
+            st.caption("Tìm các dòng có auto_title dạng `[1]` thay vì `[1 Trait]` và cập nhật lại.")
+            if st.button("Chạy Sửa Auto Title", use_container_width=True):
+                try:
+                    rows = supabase_client.table("inventory").select(
+                        "id, auto_title, ten_pet, mutation, so_trait, ms, namestock"
+                    ).limit(-1).execute().data or []
+                    import re as _re
+                    _broken_pat = _re.compile(r"\[(\d+)\]")
+                    fixed = 0
+                    for row in rows:
+                        at = row.get("auto_title") or ""
+                        if _broken_pat.search(at):
+                            new_at = generate_auto_title(
+                                row.get("ten_pet", ""),
+                                row.get("mutation", "Normal"),
+                                row.get("so_trait", "None"),
+                                row.get("ms", 0),
+                                row.get("namestock", ""),
+                            )
+                            supabase_client.table("inventory").update(
+                                {"auto_title": new_at}
+                            ).eq("id", row["id"]).execute()
+                            fixed += 1
+                    if fixed:
+                        st.success(f"Đã sửa **{fixed} dòng** — auto_title đã được cập nhật.")
+                        st.cache_data.clear()
+                    else:
+                        st.info("Không tìm thấy dòng nào cần sửa.")
+                except Exception as _e:
+                    st.error(f"Lỗi: {_e}")
+
+        # ── Kiểm tra trùng lặp ──
+        if USE_SUPABASE:
+            st.markdown("---")
+            st.markdown("### 🔍 Kiểm tra trùng lặp Database")
+            st.caption("⚠️ Hệ thống chỉ phát hiện và báo cáo — việc xóa do bạn quyết định trực tiếp trong bảng.")
+            c_m1, c_m2 = st.columns(2)
+            run_inv  = c_m1.button("Kiểm Tra Hàng Lẻ",  use_container_width=True)
+            run_bulk = c_m2.button("Kiểm Tra Lô Hàng", use_container_width=True)
+
+            if run_inv:
+                dup_inv = find_duplicates("inventory")
+                if dup_inv.empty:
+                    st.success("Hàng lẻ — không phát hiện trùng lặp.")
+                else:
+                    st.warning(f"Phát hiện **{len(dup_inv)} bản ghi** trùng lặp:")
+                    st.dataframe(dup_inv[["id"] + [c for c in dup_inv.columns if c != "id"]], use_container_width=True, hide_index=True)
+                    st.caption("Truy cập Supabase Dashboard → Table Editor → inventory → xoá thủ công theo ID.")
+
+            if run_bulk:
+                dup_bulk = find_duplicates("bulk_inventory")
+                if dup_bulk.empty:
+                    st.success("Lô hàng — không phát hiện trùng lặp.")
+                else:
+                    st.warning(f"Phát hiện **{len(dup_bulk)} bản ghi** trùng lặp:")
+                    st.dataframe(dup_bulk[["id"] + [c for c in dup_bulk.columns if c != "id"]], use_container_width=True, hide_index=True)
+                    st.caption("Truy cập Supabase Dashboard → Table Editor → bulk_inventory → xoá thủ công theo ID.")
+
+        # ── ELDORADO CONNECTION ──
+        if _HAS_ELDORADO:
+            st.markdown("---")
+            with st.container(border=True):
+                st.markdown('<div class="sec-heading">🎮 Eldorado.gg Connection</div>', unsafe_allow_html=True)
+
+                # Status indicator
+                if eld_client and eld_client.logged_in:
+                    st.success(f"Connected as **{eld_client.username}** (+{eld_client.pos}/-{eld_client.neg})")
+                else:
+                    st.warning("Chưa kết nối Eldorado.gg")
+
+                # Cookie paste area
+                with st.expander("🍪 Paste Cookie từ Browser DevTools", expanded=not (eld_client and eld_client.logged_in)):
+                    st.caption("F12 → Application → Cookies → eldorado.gg → Copy all cookies as string")
+                    cookie_input = st.text_area(
+                        "Cookie String",
+                        value="",
+                        height=80,
+                        placeholder="__Host-XSRF-TOKEN=...; __Host-EldoradoIdToken=...; ...",
+                        key="eld_cookie_input",
+                        label_visibility="collapsed",
+                    )
+                    c_conn, c_disc = st.columns(2)
+                    with c_conn:
+                        if st.button("🔗 Kết Nối", type="primary", use_container_width=True,
+                                     disabled=not cookie_input.strip(),
+                                     key="btn_eld_connect"):
+                            with st.spinner("Đang xác thực..."):
+                                eld_client.set_cookies(cookie_input.strip())
+                                auth_result = eld_client.check_auth()
+                            if auth_result["ok"]:
+                                eld_client.save_cookies()
+                                st.toast(f"Đăng nhập thành công: {eld_client.username}", icon="✅")
+                                st.rerun()
+                            else:
+                                st.error(f"Lỗi xác thực: {auth_result.get('error', 'unknown')}")
+
+                    with c_disc:
+                        if st.button("🔌 Ngắt Kết Nối", use_container_width=True,
+                                     disabled=not (eld_client and eld_client.logged_in),
+                                     key="btn_eld_disconnect"):
+                            eld_client.disconnect()
+                            st.toast("Đã ngắt kết nối Eldorado", icon="🔌")
+                            st.rerun()
+
+                # Push defaults (only when connected)
+                if eld_client and eld_client.logged_in:
+                    st.markdown("---")
+                    st.markdown("**⚙️ Push Defaults**")
+                    _eld_s = st.session_state.get("eld_settings", {})
+
+                    d1, d2, d3 = st.columns(3)
+                    default_price = d1.number_input(
+                        "Default Price (USD)", min_value=0.10, max_value=9999.0,
+                        value=float(_eld_s.get("default_price", 0.50)),
+                        step=0.05, format="%.2f", key="eld_default_price"
+                    )
+                    delivery_keys = list(DELIVERY_MAP.keys())
+                    _def_del = _eld_s.get("default_delivery", "20 min")
+                    _del_idx = delivery_keys.index(_def_del) if _def_del in delivery_keys else 2
+                    default_delivery = d2.selectbox(
+                        "Thời Gian Giao", delivery_keys, index=_del_idx,
+                        key="eld_default_delivery"
+                    )
+                    default_desc = d3.text_input(
+                        "Mô Tả Mặc Định",
+                        value=_eld_s.get("default_desc", "Fast delivery! Contact me if any issues."),
+                        key="eld_default_desc"
+                    )
+
+                    auto_push = st.toggle(
+                        "Tự động đẩy lên Eldorado sau JSON Import",
+                        value=_eld_s.get("auto_push", False),
+                        key="eld_auto_push"
+                    )
+
+                    if st.button("💾 Lưu Eldorado Settings", use_container_width=True,
+                                 key="btn_eld_save_settings"):
+                        settings = {
+                            "default_price": default_price,
+                            "default_delivery": default_delivery,
+                            "default_desc": default_desc,
+                            "auto_push": auto_push,
+                        }
+                        _save_eld_settings(settings)
+                        st.session_state.eld_settings = settings
+                        st.toast("Đã lưu Eldorado settings", icon="✅")
+
+                # ── Owner → NameStock Mapping ──
+                st.markdown("---")
+                st.markdown("**🏷️ Owner → NameStock Mapping**")
+                st.caption("JSON có `owner: bjn8th` → tự động map NameStock = `#B8`. Format txt: `username:NameStock` mỗi dòng.")
+
+                _on_map = st.session_state.get("_owner_ns_map", {})
+                if _on_map:
+                    _on_df = pd.DataFrame([{"Owner": k, "NameStock": v} for k, v in sorted(_on_map.items())])
+                    st.dataframe(_on_df, use_container_width=True, hide_index=True, height=min(200, 40 + len(_on_df) * 35))
+
+                oc1, oc2 = st.columns([3, 1])
+                _new_owner = oc1.text_input("Thêm owner", placeholder="username:NameStock (VD: bjn8th:#B8)",
+                                             key="new_owner_ns_input", label_visibility="collapsed")
+                if oc2.button("➕ Thêm", key="btn_add_owner_ns"):
+                    if ":" in _new_owner.strip():
+                        _k, _v = _new_owner.strip().split(":", 1)
+                        _k, _v = _k.strip().lower(), _v.strip()
+                        if _k and _v:
+                            _on_map[_k] = _v
+                            _save_owner_ns_map(_on_map)
+                            st.session_state["_owner_ns_map"] = _on_map
+                            st.toast(f"Đã thêm: {_k} → {_v}")
+                            st.rerun()
+                    elif _new_owner.strip():
+                        st.warning("Sai format. Cần: `username:NameStock`")
+
+                if _on_map:
+                    _del_owner = st.selectbox("Xóa mapping", list(_on_map.keys()),
+                                              key="del_owner_ns", label_visibility="collapsed")
+                    if st.button("🗑️ Xóa", key="btn_del_owner_ns"):
+                        _on_map.pop(_del_owner, None)
+                        _save_owner_ns_map(_on_map)
+                        st.session_state["_owner_ns_map"] = _on_map
+                        st.toast(f"Đã xóa: {_del_owner}")
+                        st.rerun()
+
+        # ── Tài Nguyên Hệ Thống ──
+        st.markdown("---")
+    with st.container(border=True):
+        st.markdown('<div class="sec-heading">🖥️ Tình Trạng Tài Nguyên</div>', unsafe_allow_html=True)
+
+        import sys, os, gc
+
+        # ── Process metrics via psutil ──
+        try:
+            import psutil
+            _proc   = psutil.Process(os.getpid())
+            _mem_mi = _proc.memory_info()
+            _rss_mb = _mem_mi.rss / 1024 / 1024
+            _vms_mb = _mem_mi.vms / 1024 / 1024
+            _cpu_p  = _proc.cpu_percent(interval=0.1)
+            _sys_mem   = psutil.virtual_memory()
+            _sys_used  = _sys_mem.used  / 1024 / 1024 / 1024
+            _sys_total = _sys_mem.total / 1024 / 1024 / 1024
+            _sys_pct   = _sys_mem.percent
+            _has_psutil = True
+        except ImportError:
+            _has_psutil = False
+
+        # ── Session state metrics ──
+        import pickle
+        def _est_size_bytes(obj):
+            try:
+                return sys.getsizeof(pickle.dumps(obj, protocol=2))
+            except Exception:
+                return sys.getsizeof(obj)
+
+        _ss_keys     = list(st.session_state.keys())
+        _ss_total_b  = sum(_est_size_bytes(st.session_state[k]) for k in _ss_keys)
+        _ss_mb       = _ss_total_b / 1024 / 1024
+
+        _df_inv      = st.session_state.get("df", pd.DataFrame())
+        _df_bulk     = st.session_state.get("bulk_df", pd.DataFrame())
+        _df_hist     = st.session_state.get("bulk_history", pd.DataFrame())
+
+        # ── Row 1: system / process ──
+        _rc1, _rc2, _rc3, _rc4 = st.columns(4)
+
+        if _has_psutil:
+            _rss_color  = "normal" if _rss_mb < 300 else ("off" if _rss_mb < 600 else "inverse")
+            _cpu_color  = "normal" if _cpu_p  < 30  else ("off" if _cpu_p  < 70  else "inverse")
+            _ram_delta  = f"RAM hệ thống: {_sys_pct:.0f}%"
+            _rc1.metric("💾 RAM Process (RSS)", f"{_rss_mb:.1f} MB", delta=f"VMS {_vms_mb:.0f} MB")
+            _rc2.metric("⚙️ CPU Process", f"{_cpu_p:.1f}%")
+            _rc3.metric("🖥️ RAM Hệ Thống", f"{_sys_used:.2f} / {_sys_total:.2f} GB", delta=f"{_sys_pct:.0f}% dùng")
+        else:
+            _rc1.metric("💾 RAM Process", "N/A", delta="Cài psutil để đo")
+            _rc2.metric("⚙️ CPU Process", "N/A")
+            _rc3.metric("🖥️ RAM Hệ Thống", "N/A")
+
+        _rc4.metric("🗂️ Session State", f"{_ss_mb:.2f} MB", delta=f"{len(_ss_keys)} keys")
+
+        # ── Row 2: DataFrame sizes ──
+        _rd1, _rd2, _rd3, _rd4 = st.columns(4)
+        _rd1.metric("📋 Tồn kho lẻ",    f"{len(_df_inv):,} hàng",  delta=f"~{_est_size_bytes(_df_inv)//1024} KB")
+        _rd2.metric("📦 Lô hàng",        f"{len(_df_bulk):,} lô",   delta=f"~{_est_size_bytes(_df_bulk)//1024} KB")
+        _rd3.metric("📜 Lịch sử lô",     f"{len(_df_hist):,} giao dịch", delta=f"~{_est_size_bytes(_df_hist)//1024} KB")
+        _gc_objs = gc.get_count()
+        _rd4.metric("♻️ GC Objects",     f"{sum(_gc_objs):,}", delta=f"gen {_gc_objs[0]}/{_gc_objs[1]}/{_gc_objs[2]}")
+
+        # ── Session state detail expander ──
+        with st.expander("🔍 Chi tiết Session State Keys"):
+            _ss_rows = []
+            for _k in sorted(_ss_keys):
+                try:
+                    _sz = _est_size_bytes(st.session_state[_k])
+                    _tp = type(st.session_state[_k]).__name__
+                    if isinstance(st.session_state[_k], pd.DataFrame):
+                        _tp = f"DataFrame ({len(st.session_state[_k])} rows)"
+                    _ss_rows.append({"Key": _k, "Type": _tp, "Size (bytes)": _sz})
+                except Exception:
+                    _ss_rows.append({"Key": _k, "Type": "?", "Size (bytes)": 0})
+            _ss_detail_df = pd.DataFrame(_ss_rows).sort_values("Size (bytes)", ascending=False).reset_index(drop=True)
+            st.dataframe(_ss_detail_df, use_container_width=True, hide_index=True,
+                         column_config={"Size (bytes)": st.column_config.NumberColumn(format="%,d")})
+
+        # ── Manual GC + clear cache buttons ──
+        _rb1, _rb2 = st.columns(2)
+        if _rb1.button("♻️ Chạy Garbage Collector", use_container_width=True):
+            _before = sum(gc.get_count())
+            _collected = gc.collect()
+            st.success(f"GC: thu hồi {_collected} objects · còn {sum(gc.get_count())} (trước: {_before})")
+        if _rb2.button("🧹 Xoá Cache Streamlit", use_container_width=True):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.success("Đã xoá toàn bộ cache @st.cache_data và @st.cache_resource.")

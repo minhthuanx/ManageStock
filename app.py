@@ -506,13 +506,20 @@ def build_pet_namestock_map() -> dict:
 # =============================================================================
 # ELDORADO SERVER HELPERS
 # =============================================================================
+def _port_alive(port: int, timeout: float = 1.0) -> bool:
+    """Kiểm tra nhanh xem port có đang listen không bằng TCP connect."""
+    import socket as _sock
+    try:
+        with _sock.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
 def get_eldo_port() -> int:
     """
-    Đọc port Express server từ nhiều nguồn theo thứ tự ưu tiên:
-    1. st.secrets["ELDO_PORT"]
-    2. Session state (đã nhập tay)
-    3. startup-debug.log (lấy lần chạy cuối cùng — hoạt động với bản packaged)
-    4. port.txt (nếu có — chỉ với dev build)
+    Đọc port Express server từ nhiều nguồn, verify còn sống trước khi trả về.
+    Thứ tự: st.secrets → session state → startup-debug.log → port.txt
     """
     import os as _os, re as _re
 
@@ -520,7 +527,9 @@ def get_eldo_port() -> int:
     try:
         port_secret = st.secrets.get("ELDO_PORT", None)
         if port_secret:
-            return int(port_secret)
+            p = int(port_secret)
+            if _port_alive(p):
+                return p
     except Exception:
         pass
 
@@ -528,25 +537,27 @@ def get_eldo_port() -> int:
     manual = st.session_state.get("_eldo_port_manual", 0)
     if manual:
         try:
-            return int(manual)
+            p = int(manual)
+            if _port_alive(p):
+                return p
         except Exception:
             pass
 
     appdata = _os.environ.get("APPDATA") or _os.environ.get("HOME") or "."
     base_dir = _os.path.join(appdata, "bkshub-eldorado")
 
-    # 3. Đọc startup-debug.log — tìm dòng "server port: XXXXX" cuối cùng
+    # 3. startup-debug.log — thử tất cả ports từ mới → cũ
     log_file = _os.path.join(base_dir, "startup-debug.log")
     try:
         if _os.path.exists(log_file):
             with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-            # Tìm tất cả lần xuất hiện "server port: <number>"
             matches = _re.findall(r"server port:\s*(\d+)", content)
-            if matches:
-                port = int(matches[-1])  # lấy lần cuối cùng
-                if 1024 <= port <= 65535:
-                    return port
+            # Thử từ mới nhất → cũ nhất
+            for m in reversed(matches):
+                p = int(m)
+                if 1024 <= p <= 65535 and _port_alive(p):
+                    return p
     except Exception:
         pass
 
@@ -554,12 +565,14 @@ def get_eldo_port() -> int:
     port_file = _os.path.join(base_dir, "port.txt")
     try:
         if _os.path.exists(port_file):
-            with open(port_file, "r") as f:
-                return int(f.read().strip())
+            p = int(open(port_file).read().strip())
+            if _port_alive(p):
+                return p
     except Exception:
         pass
 
     return 0
+
 
 
 
@@ -5904,40 +5917,31 @@ with tab_settings:
 
         _ep = get_eldo_port()
 
-        # ── Port status + nhập tay ──
-        _pa1, _pa2 = st.columns([3, 1])
-        if _ep:
-            _pa1.caption(f"🔌 Server phát hiện tự động · port **{_ep}**")
-        else:
-            _pa1.warning("⚡ Chưa tự động phát hiện port — nhập thủ công bên phải.", icon="⚡")
-
-        _port_manual_str = _pa2.text_input(
-            "Port",
-            value=str(st.session_state.get("_eldo_port_manual", _ep or "")),
-            placeholder="vd: 53564",
-            key="eldo_port_input",
-            label_visibility="collapsed",
-            help="Nhập port của Electron server (tìm trong startup-debug.log)",
-        )
-        if _port_manual_str.strip().isdigit():
-            _port_manual = int(_port_manual_str.strip())
-            if _port_manual != st.session_state.get("_eldo_port_manual", 0):
-                st.session_state["_eldo_port_manual"] = _port_manual
-                st.session_state.pop("_eldo_conn_cache", None)
-                _ep = _port_manual
-                st.rerun()
-
         if not _ep:
-            st.info(
-                "**Cách tìm port thủ công:**  \n"
-                f"Mở file `%APPDATA%\\bkshub-eldorado\\startup-debug.log`  \n"
-                "→ tìm dòng cuối cùng có `server port: XXXXX`  \n"
-                "→ nhập số đó vào ô Port bên trên.",
-                icon="📋",
+            st.warning(
+                "⚡ Chưa kết nối được với Electron server.  \n"
+                "**Hãy mở Electron app trước**, sau đó reload trang này.",
+                icon="⚡",
             )
+            st.caption(
+                "Server tự động detect khi Electron đang chạy. "
+                "Nếu vẫn không thấy, nhập port thủ công:"
+            )
+            _port_manual_str = st.text_input(
+                "Port thủ công",
+                placeholder="vd: 53564  (xem trong startup-debug.log)",
+                key="eldo_port_input",
+                label_visibility="collapsed",
+            )
+            if _port_manual_str.strip().isdigit():
+                _p = int(_port_manual_str.strip())
+                if _p and _p != st.session_state.get("_eldo_port_manual", 0):
+                    st.session_state["_eldo_port_manual"] = _p
+                    st.session_state.pop("_eldo_conn_cache", None)
+                    st.rerun()
         else:
+            st.caption(f"🔌 Electron server · port **{_ep}**")
 
-            # ── Trạng thái hiện tại ──
             _es = check_eldo_status()
             _is_connected = _es.get("ok", False)
 
@@ -5946,21 +5950,21 @@ with tab_settings:
                 _pos      = _es.get("pos", 0)
                 _neg      = _es.get("neg", 0)
 
-                # Badge kết nối
                 st.markdown(
                     f'<div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;'
                     f'background:linear-gradient(135deg,#0d2e1a,#112b1a);border:1px solid #22c55e44;'
-                    f'border-radius:10px;margin-bottom:0.75rem;">'
+                    f'border-radius:10px;">'
                     f'<span style="font-size:1.6rem">🛒</span>'
                     f'<div><div style="font-weight:700;color:#86efac;font-size:0.95rem">{_username}</div>'
-                    f'<div style="font-size:0.78rem;color:#6b7280;">⭐ {_pos} ▲ &nbsp;·&nbsp; {_neg} ▼ &nbsp;·&nbsp; Eldorado đang hoạt động</div>'
+                    f'<div style="font-size:0.78rem;color:#6b7280;">⭐ {_pos} ▲ &nbsp;·&nbsp; {_neg} ▼</div>'
                     f'</div></div>',
                     unsafe_allow_html=True,
                 )
+                st.success("Sẵn sàng list lên Eldorado", icon="✅")
 
-                _sc2, _sc3, _ = st.columns([1, 1, 2])
-                if _sc2.button("🔄 Refresh", use_container_width=True, key="btn_eldo_refresh"):
-                    with st.spinner("Đang refresh token..."):
+                _rc1, _rc2, _ = st.columns([1, 1, 2])
+                if _rc1.button("🔄 Refresh token", use_container_width=True, key="btn_eldo_refresh"):
+                    with st.spinner("Đang refresh..."):
                         _rr = call_eldo_refresh()
                     if _rr.get("ok"):
                         st.toast(f"✅ Đã refresh — {_rr.get('username', '')}", icon="🔄")
@@ -5968,76 +5972,23 @@ with tab_settings:
                         st.rerun()
                     else:
                         st.error(f"❌ Refresh thất bại: {_rr.get('error', 'Unknown')}")
-
-                if _sc3.button("🔌 Đăng xuất", use_container_width=True, key="btn_eldo_disconnect"):
-                    with st.spinner("Đang ngắt kết nối..."):
+                if _rc2.button("🔌 Đăng xuất", use_container_width=True, key="btn_eldo_disconnect"):
+                    with st.spinner("Đang ngắt..."):
                         call_eldo_disconnect()
-                    st.toast("🔌 Đã đăng xuất Eldorado", icon="🔌")
+                    st.toast("🔌 Đã đăng xuất", icon="🔌")
                     st.session_state.pop("_eldo_conn_cache", None)
                     st.rerun()
-
-                st.markdown("---")
-
-            # ── Form đăng nhập (hiện cả khi đã kết nối để có thể đổi account) ──
-            _form_title = "🔄 Đổi tài khoản khác" if _is_connected else "🔑 Đăng nhập Eldorado"
-            st.markdown(
-                f'<div style="font-size:0.9rem;font-weight:600;color:#c084fc;margin-bottom:0.6rem;">'
-                f'{_form_title}</div>',
-                unsafe_allow_html=True,
-            )
-
-            # Ô paste token — to, nổi bật, không label thừa
-            _token_raw = st.text_area(
-                "Token / Cookie",
-                height=110,
-                placeholder=(
-                    "Dán cookie token vào đây...\n\n"
-                    "__Host-EldoradoIdToken=eyJhbGc...  ;  __Host-XSRF-TOKEN=abc...  ;  cf_clearance=xyz..."
-                ),
-                label_visibility="collapsed",
-                key="eldo_cookie_input",
-                help="Copy toàn bộ chuỗi Cookie từ DevTools (F12 → Network → click request → Cookie header)",
-            )
-
-            _btn_connect = st.button(
-                "🔐 Kết nối",
-                type="primary",
-                use_container_width=True,
-                key="btn_eldo_connect",
-                disabled=not _token_raw.strip(),
-            )
-
-            # Hướng dẫn ngắn
-            with st.expander("❓ Lấy cookie ở đâu?", expanded=False):
-                st.markdown(
-                    "1. Mở **[eldorado.gg](https://eldorado.gg)** trên Chrome/Edge → đăng nhập\n"
-                    "2. Nhấn **F12** → tab **Network**\n"
-                    "3. Click bất kỳ request nào trong danh sách\n"
-                    "4. Kéo xuống phần **Request Headers** → tìm dòng **`Cookie:`**\n"
-                    "5. Click chuột phải → **Copy value** → Paste vào ô trên\n\n"
-                    "> 💡 Cookie hợp lệ thường dài **>3000 ký tự** và chứa "
-                    "`__Host-EldoradoIdToken`, `__Host-XSRF-TOKEN`, `cf_clearance`"
+            else:
+                _err = _es.get("error", "")
+                st.warning(
+                    f"⚠️ Eldorado chưa đăng nhập  \n"
+                    f"Vui lòng đăng nhập từ **tab Eldorado trong Electron app**.",
+                    icon="🔑",
                 )
+                if _err:
+                    st.caption(f"Chi tiết: {_err}")
 
-            if _btn_connect:
-                _tok = _token_raw.strip()
-                if len(_tok) < 100:
-                    st.warning("⚠️ Token quá ngắn — hãy copy toàn bộ Cookie header từ DevTools.")
-                else:
-                    with st.spinner("⏳ Đang xác thực tài khoản Eldorado..."):
-                        _cr = call_eldo_connect(_tok)
-                    if _cr.get("ok"):
-                        _uname = _cr.get("username") or "?"
-                        st.success(f"🎉 Kết nối thành công! Tài khoản: **{_uname}**", icon="✅")
-                        st.session_state.pop("_eldo_conn_cache", None)
-                        st.rerun()
-                    else:
-                        _cerr = _cr.get("error") or "Unknown error"
-                        st.error(
-                            f"❌ **Xác thực thất bại:** {_cerr}\n\n"
-                            "- Token đã hết hạn? Thử đăng nhập lại eldorado.gg và copy cookie mới.\n"
-                            "- Thiếu `__Host-EldoradoIdToken` hoặc `__Host-XSRF-TOKEN` trong chuỗi?"
-                        )
+
 
 
     # ══════════════════════════════════════════════════════════════════════

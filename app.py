@@ -6037,10 +6037,15 @@ with tab_eldo:
                 _av_url = eld_client.avatar or ""
                 _pf_col1, _pf_col2, _pf_col3 = st.columns([0.8, 2.5, 1.5])
                 with _pf_col1:
-                    if _av_url:
-                        st.image(_av_url, width=72)
+                    if _av_url and _av_url.startswith("http"):
+                        _av_html = f'<img src="{_av_url}" width="72" height="72" style="border-radius:50%;object-fit:cover;border:2px solid #c084fc;">'
+                    elif _av_url:
+                        _av_full = f"https://eldorado.gg{_av_url}" if _av_url.startswith("/") else _av_url
+                        _av_html = f'<img src="{_av_full}" width="72" height="72" style="border-radius:50%;object-fit:cover;border:2px solid #c084fc;">'
                     else:
-                        st.markdown('<div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#c084fc,#e879f9);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;">?</div>', unsafe_allow_html=True)
+                        _initial = (eld_client.username or "?")[0].upper()
+                        _av_html = f'<div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#c084fc,#e879f9);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;border:2px solid #c084fc;">{_initial}</div>'
+                    st.markdown(_av_html, unsafe_allow_html=True)
                 with _pf_col2:
                     st.markdown(f"### {eld_client.username}")
                     st.caption(f"ID: `{eld_client.userId[:12]}...`")
@@ -6217,7 +6222,7 @@ with tab_eldo:
                             with rc1:
                                 if _oimg:
                                     _img_url = _oimg if _oimg.startswith("http") else f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
-                                    st.image(_img_url, width=48)
+                                    st.markdown(f'<img src="{_img_url}" width="48" height="48" style="border-radius:8px;object-fit:cover;">', unsafe_allow_html=True)
                                 else:
                                     st.markdown(f'<div style="width:48px;height:48px;border-radius:8px;background:#1a1528;display:flex;align-items:center;justify-content:center;font-size:20px;">📦</div>', unsafe_allow_html=True)
                             with rc2:

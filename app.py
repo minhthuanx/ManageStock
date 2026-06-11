@@ -5880,94 +5880,104 @@ with tab_settings:
             _es = check_eldo_status()
             _is_connected = _es.get("ok", False)
 
-            _sc1, _sc2, _sc3 = st.columns([2, 1, 1])
-
             if _is_connected:
                 _username = _es.get("username") or "?"
-                _feedback = _es.get("feedback", 0)
                 _pos      = _es.get("pos", 0)
                 _neg      = _es.get("neg", 0)
-                _avatar   = _es.get("avatar", "")
 
-                _sc1.success(f"✅ Đã kết nối: **{_username}**  ·  ⭐ {_pos}▲ / {_neg}▼", icon="🛒")
+                # Badge kết nối
+                st.markdown(
+                    f'<div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;'
+                    f'background:linear-gradient(135deg,#0d2e1a,#112b1a);border:1px solid #22c55e44;'
+                    f'border-radius:10px;margin-bottom:0.75rem;">'
+                    f'<span style="font-size:1.6rem">🛒</span>'
+                    f'<div><div style="font-weight:700;color:#86efac;font-size:0.95rem">{_username}</div>'
+                    f'<div style="font-size:0.78rem;color:#6b7280;">⭐ {_pos} ▲ &nbsp;·&nbsp; {_neg} ▼ &nbsp;·&nbsp; Eldorado đang hoạt động</div>'
+                    f'</div></div>',
+                    unsafe_allow_html=True,
+                )
 
-                if _sc2.button("🔄 Refresh Token", use_container_width=True, key="btn_eldo_refresh"):
-                    with st.spinner("Đang refresh..."):
+                _sc2, _sc3, _ = st.columns([1, 1, 2])
+                if _sc2.button("🔄 Refresh", use_container_width=True, key="btn_eldo_refresh"):
+                    with st.spinner("Đang refresh token..."):
                         _rr = call_eldo_refresh()
                     if _rr.get("ok"):
-                        st.toast(f"✅ Token đã refresh — {_rr.get('username', '')}", icon="🔄")
+                        st.toast(f"✅ Đã refresh — {_rr.get('username', '')}", icon="🔄")
                         st.session_state.pop("_eldo_conn_cache", None)
                         st.rerun()
                     else:
                         st.error(f"❌ Refresh thất bại: {_rr.get('error', 'Unknown')}")
 
-                if _sc3.button("🔌 Ngắt kết nối", use_container_width=True, key="btn_eldo_disconnect"):
+                if _sc3.button("🔌 Đăng xuất", use_container_width=True, key="btn_eldo_disconnect"):
                     with st.spinner("Đang ngắt kết nối..."):
-                        _dr = call_eldo_disconnect()
-                    st.toast("🔌 Đã ngắt kết nối Eldorado", icon="🔌")
+                        call_eldo_disconnect()
+                    st.toast("🔌 Đã đăng xuất Eldorado", icon="🔌")
                     st.session_state.pop("_eldo_conn_cache", None)
                     st.rerun()
-            else:
-                _err_msg = _es.get("error", "Chưa đăng nhập")
-                _sc1.warning(f"⚠️ Chưa kết nối — {_err_msg}", icon="🔑")
 
-            st.markdown("---")
+                st.markdown("---")
 
-            # ── Form đăng nhập ──
+            # ── Form đăng nhập (hiện cả khi đã kết nối để có thể đổi account) ──
+            _form_title = "🔄 Đổi tài khoản khác" if _is_connected else "🔑 Đăng nhập Eldorado"
             st.markdown(
-                '<div style="font-size:0.85rem;font-weight:600;color:#c084fc;margin-bottom:0.4rem;">'
-                '🔑 Đăng nhập bằng Cookie Eldorado</div>',
+                f'<div style="font-size:0.9rem;font-weight:600;color:#c084fc;margin-bottom:0.6rem;">'
+                f'{_form_title}</div>',
                 unsafe_allow_html=True,
             )
-            st.caption(
-                "Lấy cookie từ browser: mở **eldorado.gg** → F12 → Network → "
-                "click bất kỳ request → Headers → **Cookie** → Copy toàn bộ chuỗi."
+
+            # Ô paste token — to, nổi bật, không label thừa
+            _token_raw = st.text_area(
+                "Token / Cookie",
+                height=110,
+                placeholder=(
+                    "Dán cookie token vào đây...\n\n"
+                    "__Host-EldoradoIdToken=eyJhbGc...  ;  __Host-XSRF-TOKEN=abc...  ;  cf_clearance=xyz..."
+                ),
+                label_visibility="collapsed",
+                key="eldo_cookie_input",
+                help="Copy toàn bộ chuỗi Cookie từ DevTools (F12 → Network → click request → Cookie header)",
             )
 
-            with st.form("form_eldo_connect", clear_on_submit=False):
-                _cookie_input = st.text_area(
-                    "Cookie string",
-                    height=100,
-                    placeholder="__Host-EldoradoIdToken=eyJ...; __Host-XSRF-TOKEN=abc...; cf_clearance=xyz...",
-                    label_visibility="collapsed",
-                    key="eldo_cookie_input",
-                )
-                _ua_input = st.text_input(
-                    "User-Agent (tùy chọn)",
-                    placeholder="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36...",
-                    label_visibility="collapsed",
-                    key="eldo_ua_input",
-                    help="Để trống nếu không cần. Lấy từ DevTools: navigator.userAgent",
-                )
-                _conn_btn = st.form_submit_button(
-                    "🔐 Kết nối Eldorado",
-                    type="primary",
-                    use_container_width=True,
-                    disabled=not _ep,
+            _btn_connect = st.button(
+                "🔐 Kết nối",
+                type="primary",
+                use_container_width=True,
+                key="btn_eldo_connect",
+                disabled=not _token_raw.strip(),
+            )
+
+            # Hướng dẫn ngắn
+            with st.expander("❓ Lấy cookie ở đâu?", expanded=False):
+                st.markdown(
+                    "1. Mở **[eldorado.gg](https://eldorado.gg)** trên Chrome/Edge → đăng nhập\n"
+                    "2. Nhấn **F12** → tab **Network**\n"
+                    "3. Click bất kỳ request nào trong danh sách\n"
+                    "4. Kéo xuống phần **Request Headers** → tìm dòng **`Cookie:`**\n"
+                    "5. Click chuột phải → **Copy value** → Paste vào ô trên\n\n"
+                    "> 💡 Cookie hợp lệ thường dài **>3000 ký tự** và chứa "
+                    "`__Host-EldoradoIdToken`, `__Host-XSRF-TOKEN`, `cf_clearance`"
                 )
 
-            if _conn_btn:
-                if not _cookie_input.strip():
-                    st.error("❌ Vui lòng nhập cookie string.")
-                elif len(_cookie_input.strip()) < 100:
-                    st.warning("⚠️ Cookie string có vẻ quá ngắn. Hãy copy toàn bộ Cookie header.")
+            if _btn_connect:
+                _tok = _token_raw.strip()
+                if len(_tok) < 100:
+                    st.warning("⚠️ Token quá ngắn — hãy copy toàn bộ Cookie header từ DevTools.")
                 else:
-                    with st.spinner("Đang kết nối Eldorado..."):
-                        _cr = call_eldo_connect(_cookie_input.strip(), _ua_input.strip())
+                    with st.spinner("⏳ Đang xác thực tài khoản Eldorado..."):
+                        _cr = call_eldo_connect(_tok)
                     if _cr.get("ok"):
-                        _uname = _cr.get("username", "?")
+                        _uname = _cr.get("username") or "?"
                         st.success(f"🎉 Kết nối thành công! Tài khoản: **{_uname}**", icon="✅")
                         st.session_state.pop("_eldo_conn_cache", None)
                         st.rerun()
                     else:
-                        _cerr = _cr.get("error", "Unknown error")
+                        _cerr = _cr.get("error") or "Unknown error"
                         st.error(
-                            f"❌ Kết nối thất bại: {_cerr}\n\n"
-                            "**Kiểm tra lại:**\n"
-                            "- Cookie còn hạn không? Thử đăng nhập lại eldorado.gg rồi copy cookie mới.\n"
-                            "- Cookie có đủ dài không (>3000 ký tự)?\n"
-                            "- `__Host-EldoradoIdToken` và `__Host-XSRF-TOKEN` có trong cookie không?"
+                            f"❌ **Xác thực thất bại:** {_cerr}\n\n"
+                            "- Token đã hết hạn? Thử đăng nhập lại eldorado.gg và copy cookie mới.\n"
+                            "- Thiếu `__Host-EldoradoIdToken` hoặc `__Host-XSRF-TOKEN` trong chuỗi?"
                         )
+
 
     # ══════════════════════════════════════════════════════════════════════
     # QUẢN LÝ DANH MỤC

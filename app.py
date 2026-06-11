@@ -507,25 +507,60 @@ def build_pet_namestock_map() -> dict:
 # ELDORADO SERVER HELPERS
 # =============================================================================
 def get_eldo_port() -> int:
-    """Đọc port của Express server từ file port.txt hoặc st.secrets."""
-    # 1. Ưu tiên st.secrets
+    """
+    Đọc port Express server từ nhiều nguồn theo thứ tự ưu tiên:
+    1. st.secrets["ELDO_PORT"]
+    2. Session state (đã nhập tay)
+    3. startup-debug.log (lấy lần chạy cuối cùng — hoạt động với bản packaged)
+    4. port.txt (nếu có — chỉ với dev build)
+    """
+    import os as _os, re as _re
+
+    # 1. st.secrets
     try:
         port_secret = st.secrets.get("ELDO_PORT", None)
         if port_secret:
             return int(port_secret)
     except Exception:
         pass
-    # 2. Đọc từ file port.txt mà server.js ghi ra
-    import os as _os
+
+    # 2. Session state (người dùng nhập tay)
+    manual = st.session_state.get("_eldo_port_manual", 0)
+    if manual:
+        try:
+            return int(manual)
+        except Exception:
+            pass
+
     appdata = _os.environ.get("APPDATA") or _os.environ.get("HOME") or "."
-    port_file = _os.path.join(appdata, "bkshub-eldorado", "port.txt")
+    base_dir = _os.path.join(appdata, "bkshub-eldorado")
+
+    # 3. Đọc startup-debug.log — tìm dòng "server port: XXXXX" cuối cùng
+    log_file = _os.path.join(base_dir, "startup-debug.log")
+    try:
+        if _os.path.exists(log_file):
+            with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            # Tìm tất cả lần xuất hiện "server port: <number>"
+            matches = _re.findall(r"server port:\s*(\d+)", content)
+            if matches:
+                port = int(matches[-1])  # lấy lần cuối cùng
+                if 1024 <= port <= 65535:
+                    return port
+    except Exception:
+        pass
+
+    # 4. port.txt (dev build)
+    port_file = _os.path.join(base_dir, "port.txt")
     try:
         if _os.path.exists(port_file):
             with open(port_file, "r") as f:
                 return int(f.read().strip())
     except Exception:
         pass
+
     return 0
+
 
 
 def call_eldo_autolist(items: list, price_map: dict, description: str = "", delivery: str = "Minute20") -> dict | None:
@@ -5869,13 +5904,39 @@ with tab_settings:
 
         _ep = get_eldo_port()
 
+        # ── Port status + nhập tay ──
+        _pa1, _pa2 = st.columns([3, 1])
+        if _ep:
+            _pa1.caption(f"🔌 Server phát hiện tự động · port **{_ep}**")
+        else:
+            _pa1.warning("⚡ Chưa tự động phát hiện port — nhập thủ công bên phải.", icon="⚡")
+
+        _port_manual_str = _pa2.text_input(
+            "Port",
+            value=str(st.session_state.get("_eldo_port_manual", _ep or "")),
+            placeholder="vd: 53564",
+            key="eldo_port_input",
+            label_visibility="collapsed",
+            help="Nhập port của Electron server (tìm trong startup-debug.log)",
+        )
+        if _port_manual_str.strip().isdigit():
+            _port_manual = int(_port_manual_str.strip())
+            if _port_manual != st.session_state.get("_eldo_port_manual", 0):
+                st.session_state["_eldo_port_manual"] = _port_manual
+                st.session_state.pop("_eldo_conn_cache", None)
+                _ep = _port_manual
+                st.rerun()
+
         if not _ep:
-            st.warning(
-                "⚡ Chưa phát hiện Electron server đang chạy. "
-                "Mở app từ Electron trước, hoặc cấu hình `ELDO_PORT` trong `.streamlit/secrets.toml`.",
-                icon="⚡",
+            st.info(
+                "**Cách tìm port thủ công:**  \n"
+                f"Mở file `%APPDATA%\\bkshub-eldorado\\startup-debug.log`  \n"
+                "→ tìm dòng cuối cùng có `server port: XXXXX`  \n"
+                "→ nhập số đó vào ô Port bên trên.",
+                icon="📋",
             )
         else:
+
             # ── Trạng thái hiện tại ──
             _es = check_eldo_status()
             _is_connected = _es.get("ok", False)

@@ -2,6 +2,7 @@ import json
 import os
 import re
 import shutil
+import time as _time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 
@@ -18,6 +19,13 @@ except ImportError:
 
 # --- SUPABASE ---
 from supabase import create_client, Client
+
+# --- ELDORADO ---
+try:
+    from eldorado_client import EldoradoClient, DELIVERY_MAP, DELIVERY_REV, COOKIE_FILE
+    _HAS_ELDORADO = True
+except ImportError:
+    _HAS_ELDORADO = False
 
 # =============================================================================
 # PAGE CONFIG (must be first Streamlit call)
@@ -993,6 +1001,77 @@ def init_session():
 
 init_session()
 
+# ── Eldorado Client ──────────────────────────────────────────────────────
+if _HAS_ELDORADO:
+    if "eldorado_client" not in st.session_state:
+        _eld_c = EldoradoClient(log_fn=lambda msg: None)
+        st.session_state.eldorado_client = _eld_c
+        # Auto-login nếu có cookie đã lưu (file .eldorado_cookies.enc)
+        if _eld_c._raw:
+            try:
+                _auth = _eld_c.check_auth()
+                if not _auth.get("ok") and _eld_c.refresh_tokens():
+                    _eld_c.check_auth()
+            except Exception:
+                pass
+    eld_client = st.session_state.eldorado_client
+else:
+    eld_client = None
+
+# ── Eldorado Settings (loaded from Supabase app_settings) ────────────────
+def _load_eld_settings():
+    if not USE_SUPABASE:
+        return {}
+    try:
+        r = supabase_client.table("app_settings").select("value").eq("key", "eldorado_settings").execute()
+        if r.data:
+            return json.loads(r.data[0].get("value", "{}"))
+    except Exception:
+        pass
+    return {}
+
+def _save_eld_settings(settings: dict):
+    if not USE_SUPABASE:
+        return
+    try:
+        supabase_client.table("app_settings").upsert(
+            {"key": "eldorado_settings", "value": json.dumps(settings, ensure_ascii=False)}
+        ).execute()
+    except Exception:
+        pass
+
+def _save_eld_cookie_to_sb(cookie_str: str):
+    if not USE_SUPABASE or not cookie_str:
+        return
+    try:
+        supabase_client.table("app_settings").upsert(
+            {"key": "eldorado_cookie", "value": cookie_str}
+        ).execute()
+    except Exception:
+        pass
+
+def _load_eld_cookie_from_sb() -> str:
+    if not USE_SUPABASE:
+        return ""
+    try:
+        r = supabase_client.table("app_settings").select("value").eq("key", "eldorado_cookie").execute()
+        if r.data:
+            return r.data[0].get("value", "")
+    except Exception:
+        pass
+    return ""
+
+def _clear_eld_cookie_from_sb():
+    if not USE_SUPABASE:
+        return
+    try:
+        supabase_client.table("app_settings").delete().eq("key", "eldorado_cookie").execute()
+    except Exception:
+        pass
+
+if "eld_settings" not in st.session_state:
+    st.session_state.eld_settings = _load_eld_settings()
+
 df           = st.session_state.df
 bulk_df      = st.session_state.bulk_df
 bulk_history = st.session_state.bulk_history
@@ -1813,8 +1892,8 @@ Secure. Professional. Super Fast. 👻⚡"""
 # =============================================================================
 # MAIN TABS
 # =============================================================================
-tab_kho, tab_pack, tab_chart, tab_ton, tab_settings = st.tabs([
-    "📦 Kho Lẻ", "🗃️ Lô Pack", "📊 Thống Kê", "⏳ Tồn Lâu", "⚙️ Cài Đặt",
+tab_kho, tab_pack, tab_chart, tab_ton, tab_eldo, tab_settings = st.tabs([
+    "📦 Kho Lẻ", "🗃️ Lô Pack", "📊 Thống Kê", "⏳ Tồn Lâu", "🎮 Eldorado", "⚙️ Cài Đặt",
 ])
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2543,6 +2622,15 @@ Return ONLY valid JSON, no markdown:
 
                             if _save_ok:
                                 st.session_state.json_saved_output = json.dumps(saved_original_json, ensure_ascii=False, indent=2)
+                                # Store items for potential Eldorado push
+                                _push_items = [r for r in edited_rows if r.get("_valid") and not r.get("_delete")]
+                                if _push_items:
+                                    st.session_state.json_just_saved = _push_items
+                                # Auto-push if enabled
+                                _eld_set = st.session_state.get("eld_settings", {})
+                                if (_eld_set.get("auto_push") and eld_client
+                                        and eld_client.logged_in and _push_items):
+                                    st.session_state.show_eld_push = True
                                 st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
                                 st.rerun()
 
@@ -2566,6 +2654,159 @@ Return ONLY valid JSON, no markdown:
                     st.session_state.show_saved_json = False
                     st.session_state.show_unsaved_json = False
                     st.rerun()
+
+            # =========================================================
+            # ELDORADO PUSH SECTION (post-import)
+            # =========================================================
+            if (_HAS_ELDORADO and st.session_state.get("show_eld_push")
+                    and st.session_state.get("json_just_saved")):
+                _push_items = st.session_state.json_just_saved
+                _eld_s = st.session_state.get("eld_settings", {})
+
+                with st.expander("🎮 Push lên Eldorado", expanded=True):
+                    if not (eld_client and eld_client.logged_in):
+                        st.warning("Chưa kết nối Eldorado. Vào tab Cài Đặt để kết nối.")
+                    else:
+                        st.caption(f"**{len(_push_items)}** mục sẵn sàng push lên Eldorado")
+
+                        if not st.session_state.get("eld_push_configured"):
+                            # Ensure game cache is loaded
+                            if not st.session_state.get("eld_game_loaded"):
+                                with st.spinner("Đang tải game data từ Eldorado..."):
+                                    loaded = eld_client.ensure_game_cache()
+                                    st.session_state.eld_game_loaded = loaded
+                                if not loaded:
+                                    st.error("Không thể tải game data. Kiểm tra lại cookie.")
+                                    st.stop()
+
+                            _def_price = float(_eld_s.get("default_price", 0.50))
+                            _def_del = _eld_s.get("default_delivery", "20 min")
+                            _def_desc = _eld_s.get("default_desc", "Fast delivery! Contact me if any issues.")
+                            _del_keys = list(DELIVERY_MAP.keys())
+                            _def_del_idx = _del_keys.index(_def_del) if _def_del in _del_keys else 2
+
+                            _push_cfg = []
+                            for _pi, _item in enumerate(_push_items):
+                                _pname = _item.get("Tên Pet", f"Item {_pi+1}")
+                                _pmut = _item.get("Mutation", "Normal")
+                                _pms = _item.get("M/s", 0)
+                                _pns = _item.get("NameStock", "")
+
+                                pc1, pc2, pc3 = st.columns([3, 1, 1])
+                                pc1.markdown(f"**{_pname}** · {_pmut} · {f'{_pms:g}' if _pms else '?'} M/s")
+                                _pprice = pc2.number_input(
+                                    "USD", min_value=0.10, max_value=9999.0,
+                                    value=_def_price, step=0.05, format="%.2f",
+                                    key=f"eld_push_price_{_pi}", label_visibility="collapsed"
+                                )
+                                _pdel = pc3.selectbox(
+                                    "Giao", _del_keys, index=_def_del_idx,
+                                    key=f"eld_push_del_{_pi}", label_visibility="collapsed"
+                                )
+
+                                # Optional image upload
+                                _pimg = st.file_uploader(
+                                    f"Ảnh cho {_pname} (tuỳ chọn)",
+                                    type=["png", "jpg", "jpeg", "webp"],
+                                    key=f"eld_push_img_{_pi}",
+                                    label_visibility="collapsed",
+                                )
+
+                                _push_cfg.append({
+                                    "item": _item, "price": _pprice,
+                                    "delivery": DELIVERY_MAP[_pdel], "image_file": _pimg,
+                                    "description": _def_desc,
+                                })
+
+                            st.session_state._eld_push_config = _push_cfg
+                            st.session_state.eld_push_configured = True
+
+                        # Push button
+                        _cfgs = st.session_state.get("_eld_push_config", [])
+                        if _cfgs:
+                            st.markdown("---")
+                            if st.button(
+                                f"🚀 Push {_cfgs.__len__()} mục lên Eldorado",
+                                type="primary", use_container_width=True,
+                                key="btn_eld_push_all"
+                            ):
+                                _progress = st.progress(0, text="Bắt đầu push...")
+                                _results = {"ok": 0, "fail": 0, "errors": []}
+
+                                for _ci, _cfg in enumerate(_cfgs):
+                                    _item = _cfg["item"]
+                                    _pname = _item.get("Tên Pet", "?")
+                                    _progress.progress(
+                                        _ci / len(_cfgs),
+                                        text=f"Pushing {_pname} ({_ci+1}/{len(_cfgs)})..."
+                                    )
+
+                                    try:
+                                        # Upload image if provided
+                                        _img_data = None
+                                        if _cfg.get("image_file"):
+                                            _img_bytes = _cfg["image_file"].read()
+                                            _img_data = eld_client.upload_image(
+                                                _img_bytes, _cfg["image_file"].name or "image.png"
+                                            )
+                                            if _img_data and _img_data.get("_rate_limit"):
+                                                _img_data = None
+                                                st.warning(f"⚠️ Rate limited on image upload for {_pname}")
+
+                                        # Build title
+                                        _title = eld_client.mutation_title(
+                                            _pname,
+                                            _item.get("NameStock", ""),
+                                            str(_item.get("Số Trait", "None")),
+                                            _item.get("Mutation", ""),
+                                        )
+
+                                        _resp = eld_client.create_listing(
+                                            title=_title,
+                                            description=_cfg.get("description", "Fast delivery!"),
+                                            price=_cfg["price"],
+                                            ms=float(_item.get("M/s", 0)),
+                                            mutation=_item.get("Mutation", "Normal"),
+                                            namestock=_item.get("NameStock", ""),
+                                            delivery_time=_cfg["delivery"],
+                                            image_data=_img_data,
+                                        )
+
+                                        if _resp and not _resp.get("error"):
+                                            _results["ok"] += 1
+                                        else:
+                                            _results["fail"] += 1
+                                            _err = _resp.get("error", "unknown") if isinstance(_resp, dict) else str(_resp)
+                                            _results["errors"].append(f"{_pname}: {_err[:80]}")
+                                    except Exception as _e:
+                                        _results["fail"] += 1
+                                        _results["errors"].append(f"{_pname}: {str(_e)[:80]}")
+
+                                    # Rate limit delay between items
+                                    if _ci < len(_cfgs) - 1:
+                                        _time.sleep(0.5)
+
+                                _progress.progress(1.0, text="Hoàn thành!")
+                                if _results["ok"]:
+                                    st.success(f"✅ Push thành công: {_results['ok']}/{len(_cfgs)}")
+                                if _results["fail"]:
+                                    st.error(f"❌ Thất bại: {_results['fail']}/{len(_cfgs)}")
+                                    for _err in _results["errors"]:
+                                        st.caption(f"• {_err}")
+
+                                # Clean up push state
+                                st.session_state.show_eld_push = False
+                                st.session_state.json_just_saved = []
+                                st.session_state.eld_push_configured = False
+                                st.session_state._eld_push_config = []
+
+                            # Cancel button
+                            if st.button("Huỷ Push", use_container_width=True, key="btn_eld_push_cancel"):
+                                st.session_state.show_eld_push = False
+                                st.session_state.json_just_saved = []
+                                st.session_state.eld_push_configured = False
+                                st.session_state._eld_push_config = []
+                                st.rerun()
 
             # =========================================================
             # NHẬP THỦ CÔNG (Always visible)
@@ -3587,6 +3828,112 @@ Return ONLY valid JSON, no markdown:
                     st.toast(f"✅ Đã tạo {_rs_inserted} bản ghi re-sell mới trong kho!", icon="🔄")
                     _clear_searches()
                     st.rerun()
+
+        # ── PUSH LÊN ELDORADO (Manual) ──
+        if _HAS_ELDORADO and eld_client and eld_client.logged_in:
+            with st.expander("🎮 Push Lên Eldorado", expanded=False):
+                _avail = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)].copy()
+                if _avail.empty:
+                    st.info("Không có hàng để push.")
+                else:
+                    st.caption(f"**{len(_avail)}** mặt hàng đang bán — chọn mặt hàng muốn push")
+
+                    _push_sel = []
+                    for _si, _srow in _avail.iterrows():
+                        _ms_disp = f"{_srow['M/s']:g}" if pd.notna(_srow.get("M/s")) and _srow.get("M/s", 0) > 0 else "?"
+                        if st.checkbox(
+                            f"{_srow.get('Tên Pet', '?')} · {_ms_disp} M/s · {_srow.get('Mutation', 'Normal')}",
+                            key=f"eld_manual_sel_{_srow.get('STT', _si)}"
+                        ):
+                            _push_sel.append(_srow)
+
+                    if _push_sel:
+                        _eld_ms = st.session_state.get("eld_settings", {})
+                        mp1, mp2, mp3 = st.columns([2, 1, 1])
+                        _mp_price = mp1.number_input(
+                            "Giá USD", min_value=0.10, max_value=9999.0,
+                            value=float(_eld_ms.get("default_price", 0.50)),
+                            step=0.05, format="%.2f", key="eld_manual_price"
+                        )
+                        _mp_del_keys = list(DELIVERY_MAP.keys())
+                        _mp_def_del = _eld_ms.get("default_delivery", "20 min")
+                        _mp_del_idx = _mp_del_keys.index(_mp_def_del) if _mp_def_del in _mp_del_keys else 2
+                        _mp_delivery = mp2.selectbox(
+                            "Giao", _mp_del_keys, index=_mp_del_idx,
+                            key="eld_manual_delivery"
+                        )
+                        _mp_img = mp3.file_uploader(
+                            "Ảnh chung (tuỳ chọn)", type=["png", "jpg", "jpeg", "webp"],
+                            key="eld_manual_shared_img"
+                        )
+
+                        if st.button(
+                            f"🚀 Push {_push_sel.__len__()} mục lên Eldorado",
+                            type="primary", use_container_width=True,
+                            key="btn_eld_manual_push"
+                        ):
+                            # Load game cache if needed
+                            if not st.session_state.get("eld_game_loaded"):
+                                with st.spinner("Đang tải game data..."):
+                                    st.session_state.eld_game_loaded = eld_client.ensure_game_cache()
+                                if not st.session_state.eld_game_loaded:
+                                    st.error("Không thể tải game data. Kiểm tra cookie.")
+                                    st.stop()
+
+                            _shared_img = None
+                            if _mp_img:
+                                _shared_img_bytes = _mp_img.read()
+                                _shared_img = eld_client.upload_image(_shared_img_bytes, _mp_img.name or "image.png")
+                                if _shared_img and _shared_img.get("_rate_limit"):
+                                    _shared_img = None
+
+                            _mp_desc = _eld_ms.get("default_desc", "Fast delivery! Contact me if any issues.")
+                            _mp_progress = st.progress(0, text="Bắt đầu push...")
+                            _mp_results = {"ok": 0, "fail": 0, "errors": []}
+
+                            for _mpi, _mp_row in enumerate(_push_sel):
+                                _mp_name = _mp_row.get("Tên Pet", "?")
+                                _mp_progress.progress(
+                                    _mpi / len(_push_sel),
+                                    text=f"Pushing {_mp_name} ({_mpi+1}/{len(_push_sel)})..."
+                                )
+                                try:
+                                    _mp_title = eld_client.mutation_title(
+                                        _mp_name,
+                                        str(_mp_row.get("NameStock", "")),
+                                        str(_mp_row.get("Số Trait", "None")),
+                                        str(_mp_row.get("Mutation", "")),
+                                    )
+                                    _mp_resp = eld_client.create_listing(
+                                        title=_mp_title,
+                                        description=_mp_desc,
+                                        price=_mp_price,
+                                        ms=float(_mp_row.get("M/s", 0)),
+                                        mutation=str(_mp_row.get("Mutation", "Normal")),
+                                        namestock=str(_mp_row.get("NameStock", "")),
+                                        delivery_time=DELIVERY_MAP[_mp_delivery],
+                                        image_data=_shared_img,
+                                    )
+                                    if _mp_resp and not _mp_resp.get("error"):
+                                        _mp_results["ok"] += 1
+                                    else:
+                                        _mp_results["fail"] += 1
+                                        _err = _mp_resp.get("error", "unknown") if isinstance(_mp_resp, dict) else str(_mp_resp)
+                                        _mp_results["errors"].append(f"{_mp_name}: {_err[:80]}")
+                                except Exception as _mp_e:
+                                    _mp_results["fail"] += 1
+                                    _mp_results["errors"].append(f"{_mp_name}: {str(_mp_e)[:80]}")
+
+                                if _mpi < len(_push_sel) - 1:
+                                    _time.sleep(0.5)
+
+                            _mp_progress.progress(1.0, text="Hoàn thành!")
+                            if _mp_results["ok"]:
+                                st.success(f"✅ Push thành công: {_mp_results['ok']}/{len(_push_sel)}")
+                            if _mp_results["fail"]:
+                                st.error(f"❌ Thất bại: {_mp_results['fail']}/{len(_push_sel)}")
+                                for _mp_err in _mp_results["errors"]:
+                                    st.caption(f"• {_mp_err}")
 
     # ─────────────────────────────────────────────────────────────────────────────
     # TAB 2: CHART & THỐNG KÊ
@@ -5627,6 +5974,239 @@ with tab_pack:
                         st.rerun()
 
     # ─────────────────────────────────────────────────────────────────────────────
+    # TAB ELDORADO: Quản lý listing trên sàn
+    # ─────────────────────────────────────────────────────────────────────────────
+with tab_eldo:
+    if not _HAS_ELDORADO:
+        st.warning("Module Eldorado không khả dụng. Kiểm tra eldorado_client.py.")
+    else:
+        # ── SECTION 1: LOGIN / PROFILE ──
+        with st.container(border=True):
+            st.markdown('<div class="sec-heading">🎮 Eldorado.gg</div>', unsafe_allow_html=True)
+
+            if eld_client and eld_client.logged_in:
+                ec1, ec2, ec3, ec4 = st.columns([2, 1, 1, 1])
+                ec1.success(f"**{eld_client.username}**")
+                ec2.metric("👍", eld_client.pos)
+                ec3.metric("👎", eld_client.neg)
+                if ec4.button("🔌 Logout", key="eldo_logout_top"):
+                    eld_client.disconnect()
+                    _clear_eld_cookie_from_sb()
+                    st.toast("Đã đăng xuất Eldorado")
+                    st.rerun()
+            else:
+                with st.form("form_eldo_login", clear_on_submit=False):
+                    st.caption("Paste cookie từ browser DevTools → F12 → Application → Cookies → eldorado.gg")
+                    cookie_str = st.text_area("Cookie", height=80, label_visibility="collapsed",
+                                               placeholder="__Host-XSRF-TOKEN=...; __Host-EldoradoIdToken=...")
+                    login_ok = st.form_submit_button("🔗 Đăng Nhập Eldorado", type="primary", use_container_width=True)
+                if login_ok and cookie_str.strip():
+                    with st.spinner("Đang xác thực..."):
+                        eld_client.set_cookies(cookie_str.strip())
+                        auth_r = eld_client.check_auth()
+                    if auth_r.get("ok"):
+                        eld_client.save_cookies()
+                        _save_eld_cookie_to_sb(cookie_str.strip())
+                        st.toast(f"Đăng nhập thành công: {eld_client.username}")
+                        st.rerun()
+                    else:
+                        st.error(f"Lỗi: {auth_r.get('error', 'unknown')}")
+
+        if eld_client and eld_client.logged_in:
+            # ── SECTION 2: LISTINGS + GIẢM GIÁ TOÀN BỘ ──
+            with st.container(border=True):
+                st.markdown('<div class="sec-heading">📦 Listing Của Tôi</div>', unsafe_allow_html=True)
+
+                if st.button("🔄 Tải lại listings", key="eldo_refresh_listings"):
+                    st.session_state.pop("eldo_listings", None)
+                    st.rerun()
+
+                if "eldo_listings" not in st.session_state:
+                    with st.spinner("Đang tải listings..."):
+                        _raw = eld_client.get_all_listings()
+                        st.session_state.el_do_listings = _raw.get("results", [])
+                _listings = st.session_state.get("eldo_listings", st.session_state.get("el_do_listings", []))
+
+                if not _listings:
+                    st.info("Không có listing nào.")
+                else:
+                    _states = {}
+                    try:
+                        _states = eld_client.get_states() or {}
+                    except Exception:
+                        pass
+                    active = _states.get("activeOffers", "?")
+                    paused = _states.get("pausedOffers", "?")
+                    closed = _states.get("closedOffers", "?")
+                    s1, s2, s3, s4 = st.columns(4)
+                    s1.metric("Tổng", len(_listings))
+                    s2.metric("🟢 Active", active)
+                    s3.metric("⏸️ Paused", paused)
+                    s4.metric("🔴 Closed", closed)
+
+                    # ── Giảm giá toàn bộ ──
+                    with st.expander("📉 Giảm giá toàn bộ listings", expanded=False):
+                        _active_listings = [x for x in _listings if x.get("offerState") == "Active"]
+                        if not _active_listings:
+                            st.info("Không có listing Active nào.")
+                        else:
+                            st.caption(f"**{len(_active_listings)}** listings Active sẽ bị giảm giá")
+                            _disc_mode = st.radio("Chế độ giảm", ["Giảm theo %", "Giảm theo $"],
+                                                   horizontal=True, key="eldo_disc_mode")
+                            if _disc_mode == "Giảm theo %":
+                                _disc_val = st.number_input("Giảm bao nhiêu %", min_value=0.1, max_value=90.0,
+                                                            value=5.0, step=0.5, format="%.1f",
+                                                            key="eldo_disc_pct")
+                            else:
+                                _disc_val = st.number_input("Giảm bao nhiêu USD", min_value=0.01, max_value=100.0,
+                                                            value=0.05, step=0.01, format="%.2f",
+                                                            key="eldo_disc_usd")
+
+                            # Preview
+                            _preview_rows = []
+                            for _l in _active_listings:
+                                _old_p = float(_l.get("pricePerUnit", {}).get("amount", 0))
+                                if _disc_mode == "Giảm theo %":
+                                    _new_p = max(0.01, round(_old_p * (1 - _disc_val / 100), 2))
+                                else:
+                                    _new_p = max(0.01, round(_old_p - _disc_val, 2))
+                                if _new_p != _old_p:
+                                    _preview_rows.append({
+                                        "Title": (_l.get("offerTitle", "") or "")[:50],
+                                        "Giá cũ": _old_p,
+                                        "Giá mới": _new_p,
+                                        "ID": _l.get("id", ""),
+                                    })
+
+                            if _preview_rows:
+                                st.dataframe(pd.DataFrame(_preview_rows)[["Title", "Giá cũ", "Giá mới"]],
+                                             use_container_width=True, hide_index=True)
+                                if st.button(f"📉 Xác nhận giảm giá {_preview_rows.__len__()} listings",
+                                             type="primary", use_container_width=True, key="btn_eldo_bulk_disc"):
+                                    _dp = st.progress(0, text="Đang giảm giá...")
+                                    _d_ok = 0
+                                    _d_fail = 0
+                                    for _di, _dr in enumerate(_preview_rows):
+                                        _dp.progress(_di / len(_preview_rows),
+                                                     text=f"({_di+1}/{len(_preview_rows)}) {_dr['Title'][:30]}...")
+                                        _res = eld_client.change_price(_dr["ID"], _dr["Giá mới"])
+                                        if _res and not _res.get("error"):
+                                            _d_ok += 1
+                                        else:
+                                            _d_fail += 1
+                                        _time.sleep(0.3)
+                                    _dp.progress(1.0, text="Hoàn thành!")
+                                    if _d_ok:
+                                        st.success(f"✅ Đã giảm giá: {_d_ok}/{len(_preview_rows)}")
+                                    if _d_fail:
+                                        st.warning(f"⚠️ Thất bại: {_d_fail}")
+                                    st.session_state.pop("eldo_listings", None)
+                                    st.rerun()
+                            else:
+                                st.info("Tất cả listings đã ở giá tối thiểu, không cần giảm.")
+
+                    # ── Danh sách từng listing ──
+                    _eldo_filter = st.radio("Lọc", ["Tất cả", "Active", "Paused", "Closed"],
+                                            horizontal=True, key="eldo_list_filter")
+                    filtered = _listings
+                    if _eldo_filter != "Tất cả":
+                        filtered = [x for x in _listings if str(x.get("offerState", "")).lower() == _eldo_filter.lower()]
+
+                    for idx, offer in enumerate(filtered):
+                        _oid = offer.get("id", "")
+                        _title = offer.get("offerTitle", "No title")[:60]
+                        _price = offer.get("pricePerUnit", {}).get("amount", 0)
+                        _state = offer.get("offerState", "?")
+                        _state_icon = {"Active": "🟢", "Paused": "⏸️", "Closed": "🔴"}.get(_state, "❓")
+
+                        with st.expander(f"{_state_icon} {_title} — ${_price}"):
+                            oc1, oc2 = st.columns([2, 1])
+                            with oc1:
+                                st.caption(f"ID: `{_oid}` | State: **{_state}**")
+                                new_price = st.number_input("Giá USD", min_value=0.01, max_value=9999.0,
+                                                            value=float(_price), step=0.05, format="%.2f",
+                                                            key=f"eldo_price_{_oid}")
+                            with oc2:
+                                ac1, ac2 = st.columns(2)
+                                if ac1.button("💾 Đổi giá", key=f"eldo_setprice_{_oid}"):
+                                    _r = eld_client.change_price(_oid, new_price)
+                                    if not _r.get("error"):
+                                        st.toast("Đã đổi giá")
+                                        st.session_state.pop("eldo_listings", None)
+                                        st.rerun()
+                                    else:
+                                        st.error(_r.get("error", "fail"))
+                                if _state == "Active":
+                                    if ac2.button("⏸️ Tạm dừng", key=f"eldo_pause_{_oid}"):
+                                        eld_client.change_state(_oid, "Paused")
+                                        st.session_state.pop("eldo_listings", None)
+                                        st.rerun()
+                                elif _state == "Paused":
+                                    if ac2.button("▶️ Tiếp tục", key=f"eldo_resume_{_oid}"):
+                                        eld_client.change_state(_oid, "Active")
+                                        st.session_state.pop("eldo_listings", None)
+                                        st.rerun()
+
+                            if st.button("🗑️ Xóa listing", key=f"eldo_del_{_oid}", type="secondary"):
+                                _r = eld_client.delete_listing(_oid)
+                                if not _r.get("error"):
+                                    st.toast("Đã xóa")
+                                    st.session_state.pop("eldo_listings", None)
+                                    st.rerun()
+                                else:
+                                    st.error(_r.get("error", "fail"))
+
+            # ── SECTION 3: ĐƠN HÀNG HÔM NAY ──
+            with st.container(border=True):
+                st.markdown('<div class="sec-heading">📋 Đơn Hàng Hôm Nay</div>', unsafe_allow_html=True)
+
+                if st.button("🔄 Tải lại", key="eldo_refresh_orders"):
+                    st.session_state.pop("eldo_orders_today", None)
+                    st.rerun()
+
+                if "eldo_orders_today" not in st.session_state:
+                    with st.spinner("Đang tải đơn hàng..."):
+                        _od = eld_client.get_orders(page_size=50)
+                        _all_orders = (_od or {}).get("results", [])
+                        # Lọc đơn Delivered trong ngày hôm nay
+                        _today_str = datetime.now(VN_TZ).strftime("%Y-%m-%d")
+                        _today_orders = []
+                        for _o in _all_orders:
+                            _created = _o.get("createdAt", "") or _o.get("updatedAt", "") or ""
+                            if _today_str in _created and _o.get("state") == "Delivered":
+                                _today_orders.append(_o)
+                        st.session_state._eldo_today = _today_orders
+                _today_orders = st.session_state.get("_eldo_today", [])
+
+                if not _today_orders:
+                    st.info("Chưa có đơn hàng nào hoàn thành hôm nay.")
+                else:
+                    # Tổng hợp
+                    _total_usd = sum(float(_o.get("amount", 0)) for _o in _today_orders)
+                    _total_vnd = _total_usd * EXCHANGE_RATE
+
+                    t1, t2, t3 = st.columns(3)
+                    t1.metric("📦 Đơn hôm nay", f"{len(_today_orders)}")
+                    t2.metric("💵 Tổng USD", f"${_total_usd:.2f}")
+                    t3.metric("💰 Thực nhận (VND)", fmt_vnd(_total_vnd),
+                              help=f"Tỷ giá: 1 USD = {EXCHANGE_RATE:,.0f} VND")
+
+                    st.markdown("---")
+                    for _oi in _today_orders:
+                        _ooid = _oi.get("id", "?")
+                        _oamt = float(_oi.get("amount", 0))
+                        _obuyer = _oi.get("buyerUsername", "?")
+                        _ogame = _oi.get("augmentedGame", {}).get("offerTitle", "")[:50]
+                        od_c1, od_c2 = st.columns([4, 1])
+                        od_c1.caption(f"📦 {_obuyer} | **${_oamt:.2f}** | {_ogame}")
+                        if od_c2.button("📦 Giao", key=f"eldo_deliver_{_ooid}"):
+                            _dr = eld_client.mark_delivered(_ooid)
+                            if not (_dr and _dr.get("error")):
+                                st.toast("Đã xác nhận giao hàng")
+                                st.session_state.pop("eldo_orders_today", None)
+                                st.rerun()
+
+    # ─────────────────────────────────────────────────────────────────────────────
     # TAB 5: CÀI ĐẶT (Chỉ danh mục)
     # ─────────────────────────────────────────────────────────────────────────────
 with tab_settings:
@@ -5732,6 +6312,95 @@ with tab_settings:
                     st.warning(f"Phát hiện **{len(dup_bulk)} bản ghi** trùng lặp:")
                     st.dataframe(dup_bulk[["id"] + [c for c in dup_bulk.columns if c != "id"]], use_container_width=True, hide_index=True)
                     st.caption("Truy cập Supabase Dashboard → Table Editor → bulk_inventory → xoá thủ công theo ID.")
+
+        # ── ELDORADO CONNECTION ──
+        if _HAS_ELDORADO:
+            st.markdown("---")
+            with st.container(border=True):
+                st.markdown('<div class="sec-heading">🎮 Eldorado.gg Connection</div>', unsafe_allow_html=True)
+
+                # Status indicator
+                if eld_client and eld_client.logged_in:
+                    st.success(f"Connected as **{eld_client.username}** (+{eld_client.pos}/-{eld_client.neg})")
+                else:
+                    st.warning("Chưa kết nối Eldorado.gg")
+
+                # Cookie paste area
+                with st.expander("🍪 Paste Cookie từ Browser DevTools", expanded=not (eld_client and eld_client.logged_in)):
+                    st.caption("F12 → Application → Cookies → eldorado.gg → Copy all cookies as string")
+                    cookie_input = st.text_area(
+                        "Cookie String",
+                        value="",
+                        height=80,
+                        placeholder="__Host-XSRF-TOKEN=...; __Host-EldoradoIdToken=...; ...",
+                        key="eld_cookie_input",
+                        label_visibility="collapsed",
+                    )
+                    c_conn, c_disc = st.columns(2)
+                    with c_conn:
+                        if st.button("🔗 Kết Nối", type="primary", use_container_width=True,
+                                     disabled=not cookie_input.strip(),
+                                     key="btn_eld_connect"):
+                            with st.spinner("Đang xác thực..."):
+                                eld_client.set_cookies(cookie_input.strip())
+                                auth_result = eld_client.check_auth()
+                            if auth_result["ok"]:
+                                eld_client.save_cookies()
+                                st.toast(f"Đăng nhập thành công: {eld_client.username}", icon="✅")
+                                st.rerun()
+                            else:
+                                st.error(f"Lỗi xác thực: {auth_result.get('error', 'unknown')}")
+
+                    with c_disc:
+                        if st.button("🔌 Ngắt Kết Nối", use_container_width=True,
+                                     disabled=not (eld_client and eld_client.logged_in),
+                                     key="btn_eld_disconnect"):
+                            eld_client.disconnect()
+                            st.toast("Đã ngắt kết nối Eldorado", icon="🔌")
+                            st.rerun()
+
+                # Push defaults (only when connected)
+                if eld_client and eld_client.logged_in:
+                    st.markdown("---")
+                    st.markdown("**⚙️ Push Defaults**")
+                    _eld_s = st.session_state.get("eld_settings", {})
+
+                    d1, d2, d3 = st.columns(3)
+                    default_price = d1.number_input(
+                        "Default Price (USD)", min_value=0.10, max_value=9999.0,
+                        value=float(_eld_s.get("default_price", 0.50)),
+                        step=0.05, format="%.2f", key="eld_default_price"
+                    )
+                    delivery_keys = list(DELIVERY_MAP.keys())
+                    _def_del = _eld_s.get("default_delivery", "20 min")
+                    _del_idx = delivery_keys.index(_def_del) if _def_del in delivery_keys else 2
+                    default_delivery = d2.selectbox(
+                        "Thời Gian Giao", delivery_keys, index=_del_idx,
+                        key="eld_default_delivery"
+                    )
+                    default_desc = d3.text_input(
+                        "Mô Tả Mặc Định",
+                        value=_eld_s.get("default_desc", "Fast delivery! Contact me if any issues."),
+                        key="eld_default_desc"
+                    )
+
+                    auto_push = st.toggle(
+                        "Tự động đẩy lên Eldorado sau JSON Import",
+                        value=_eld_s.get("auto_push", False),
+                        key="eld_auto_push"
+                    )
+
+                    if st.button("💾 Lưu Eldorado Settings", use_container_width=True,
+                                 key="btn_eld_save_settings"):
+                        settings = {
+                            "default_price": default_price,
+                            "default_delivery": default_delivery,
+                            "default_desc": default_desc,
+                            "auto_push": auto_push,
+                        }
+                        _save_eld_settings(settings)
+                        st.session_state.eld_settings = settings
+                        st.toast("Đã lưu Eldorado settings", icon="✅")
 
         # ── Tài Nguyên Hệ Thống ──
         st.markdown("---")

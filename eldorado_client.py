@@ -95,9 +95,8 @@ _MS_BRACKETS = [
 # ─── Vault (AES-256-GCM encryption for cookie persistence) ──────────────────
 
 class Vault:
+    """AES-256-GCM encrypt/decrypt for cookie persistence using pycryptodome."""
     def __init__(self, key_hex=None):
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-        self._AESGCM = AESGCM
         if key_hex is None:
             key_hex = self._load_or_create_key()
         self._key = bytes.fromhex(key_hex)
@@ -106,28 +105,32 @@ class Vault:
         p = Path(VAULT_KEY_FILE)
         if p.exists():
             return p.read_text().strip()
-        key = self._AESGCM.generate_key(bit_length=256).hex()
+        import secrets
+        key = secrets.token_hex(32)
         p.write_text(key)
         return key
 
     def seal(self, plaintext):
         if not plaintext:
             return b""
+        from Crypto.Cipher import AES
         nonce = os.urandom(12)
-        ct = self._AESGCM(self._key).encrypt(nonce, plaintext.encode(), None)
-        # AESGCM.encrypt returns ciphertext + authTag(16 bytes at end)
-        # Store as: nonce(12) + ct_part1(16) + rest
-        return nonce + ct[:16] + ct[16:]
+        cipher = AES.new(self._key, AES.MODE_GCM, nonce=nonce)
+        ct = cipher.encrypt(plaintext.encode())
+        tag = cipher.digest()
+        # Store as: nonce(12) + authTag(16) + ciphertext
+        return nonce + tag + ct
 
     def open(self, data):
         if not data:
             return ""
         try:
+            from Crypto.Cipher import AES
             nonce = data[:12]
-            # Reconstruct full ciphertext+authTag from the stored format
             tag = data[12:28]
             ct = data[28:]
-            return self._AESGCM(self._key).decrypt(nonce, tag + ct, None).decode()
+            cipher = AES.new(self._key, AES.MODE_GCM, nonce=nonce)
+            return cipher.decrypt_and_verify(ct, tag).decode()
         except Exception:
             return ""
 

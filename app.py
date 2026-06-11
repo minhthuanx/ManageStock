@@ -250,6 +250,7 @@ BULK_HISTORY  = "bulk_history.csv"
 PET_LIST_FILE = "pet_list.csv"
 NS_LIST_FILE  = "namestock_list.csv"
 TRAIT_LIST    = "traits_list.csv"
+OWNER_NS_FILE = "owner_namestock.txt"  # Format: username:NameStock per line
 BACKUP_DIR    = "backups"
 EXCHANGE_RATE = 20400
 
@@ -454,23 +455,26 @@ def parse_gen_text(gen_text: str) -> float:
         return 0.0
 
 
-@st.cache_data(show_spinner=False)
 def parse_json_import(json_str: str) -> list:
-    """Parse JSON string and extract pet data. Returns list of dicts with essential fields only."""
+    """Parse JSON string and extract pet data. Returns list of dicts with essential fields only.
+    Maps owner → NameStock via _owner_ns_map."""
     try:
         data = json.loads(json_str)
         if not isinstance(data, list):
             return []
-        
+
+        # Load owner→NameStock mapping
+        _on_map = st.session_state.get("_owner_ns_map", {})
+
         results = []
         for item in data:
             if not isinstance(item, dict):
                 continue
-            
+
             pet_name = str(item.get("name", ""))
             if not pet_name.strip():
                 continue
-            
+
             # Use gen_value for precise M/s if available
             gen_val = item.get("gen_value")
             if gen_val is not None:
@@ -484,16 +488,20 @@ def parse_json_import(json_str: str) -> list:
             else:
                 ms_val = parse_gen_text(item.get("gen_text", ""))
 
+            # Map owner → NameStock
+            _owner = str(item.get("owner", "")).strip()
+            _ns_from_owner = _on_map.get(_owner.lower(), "") if _owner else ""
+
             results.append({
                 "Tên Pet": pet_name,
                 "Mutation": str(item.get("mutation", "Normal")).strip() or "Normal",
                 "M/s": ms_val,
                 "Số Trait": str(len(item.get("traits", []))) if item.get("traits") else "None",
-                "NameStock": "",
+                "NameStock": _ns_from_owner,
                 "_ok": True,
                 "_original_json": item,
             })
-        
+
         return results
     except (json.JSONDecodeError, ValueError) as e:
         return []
@@ -1079,6 +1087,35 @@ bulk_history = st.session_state.bulk_history
 pet_db   = load_csv(PET_LIST_FILE, LIST_SCHEMA)
 ns_db    = load_csv(NS_LIST_FILE,  LIST_SCHEMA)
 trait_db = load_csv(TRAIT_LIST,    LIST_SCHEMA)
+
+# ── Owner → NameStock mapping ──
+def _load_owner_ns_map() -> dict:
+    """Load owner:NameStock mapping from txt file. Format: username:NameStock per line."""
+    _m = {}
+    if os.path.exists(OWNER_NS_FILE):
+        try:
+            for line in open(OWNER_NS_FILE, "r", encoding="utf-8"):
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if ":" in line:
+                    _k, _v = line.split(":", 1)
+                    _k, _v = _k.strip().lower(), _v.strip()
+                    if _k and _v:
+                        _m[_k] = _v
+        except Exception:
+            pass
+    return _m
+
+def _save_owner_ns_map(m: dict):
+    try:
+        with open(OWNER_NS_FILE, "w", encoding="utf-8") as f:
+            for k, v in sorted(m.items()):
+                f.write(f"{k}:{v}\n")
+    except Exception:
+        pass
+
+st.session_state["_owner_ns_map"] = _load_owner_ns_map()
 
 # =============================================================================
 # GLOBAL CSS - Mobile-first, dark premium
@@ -2477,6 +2514,11 @@ Return ONLY valid JSON, no markdown:
                             # Giá Nhập
                             r_cost_raw = c6d.text_input(f"Giá nhập", value="", placeholder="VD: 150k", key=f"dlg_json_cost_{i}", label_visibility="collapsed")
 
+                            # ── Auto Title preview ──
+                            _temp_ms = parse_usd(r_ms_raw)
+                            _preview_title = generate_auto_title(r_name, r_mut, r_trait, _temp_ms, effective_ns if effective_ns else "")
+                            st.caption(f"**Auto Title:** {_preview_title[:80]}{'...' if len(_preview_title) > 80 else ''}")
+
                             # ── Similar pet detection (dùng cache) ──
                             if effective_ns and effective_ns.strip():
                                 try:
@@ -2524,6 +2566,7 @@ Return ONLY valid JSON, no markdown:
                             "Giá Nhập":  r_cost,
                             "_delete":   r_delete,
                             "_valid":    r_delete or len(err_row) == 0,
+                            "_auto_title": generate_auto_title(r_name, r_mut, r_trait, r_ms, effective_ns if effective_ns else ""),
                         })
 
                     st.markdown("---")
@@ -2693,7 +2736,11 @@ Return ONLY valid JSON, no markdown:
                                 _pns = _item.get("NameStock", "")
 
                                 pc1, pc2, pc3 = st.columns([3, 1, 1])
+                                _auto_title = _item.get("_auto_title", "")
+                                _disp_title = _auto_title[:50] + ("..." if len(_auto_title) > 50 else "")
                                 pc1.markdown(f"**{_pname}** · {_pmut} · {f'{_pms:g}' if _pms else '?'} M/s")
+                                if _auto_title:
+                                    pc1.caption(f"📝 {_disp_title}")
                                 _pprice = pc2.number_input(
                                     "USD", min_value=0.10, max_value=9999.0,
                                     value=_def_price, step=0.05, format="%.2f",
@@ -2716,6 +2763,7 @@ Return ONLY valid JSON, no markdown:
                                     "item": _item, "price": _pprice,
                                     "delivery": DELIVERY_MAP[_pdel], "image_file": _pimg,
                                     "description": _def_desc,
+                                    "auto_title": _item.get("_auto_title", ""),
                                 })
 
                             st.session_state._eld_push_config = _push_cfg
@@ -2753,8 +2801,8 @@ Return ONLY valid JSON, no markdown:
                                                 _img_data = None
                                                 st.warning(f"⚠️ Rate limited on image upload for {_pname}")
 
-                                        # Build title
-                                        _title = eld_client.mutation_title(
+                                        # Build title từ auto_title đã tạo ở dialog
+                                        _title = _item.get("_auto_title", "") or eld_client.mutation_title(
                                             _pname,
                                             _item.get("NameStock", ""),
                                             str(_item.get("Số Trait", "None")),
@@ -5980,23 +6028,34 @@ with tab_eldo:
     if not _HAS_ELDORADO:
         st.warning("Module Eldorado không khả dụng. Kiểm tra eldorado_client.py.")
     else:
-        # ── SECTION 1: LOGIN / PROFILE ──
+        # ── SECTION 1: LOGIN / PROFILE CARD ──
         with st.container(border=True):
             st.markdown('<div class="sec-heading">🎮 Eldorado.gg</div>', unsafe_allow_html=True)
 
             if eld_client and eld_client.logged_in:
-                ec1, ec2, ec3, ec4 = st.columns([2, 1, 1, 1])
-                ec1.success(f"**{eld_client.username}**")
-                ec2.metric("👍", eld_client.pos)
-                ec3.metric("👎", eld_client.neg)
-                if ec4.button("🔌 Logout", key="eldo_logout_top"):
-                    eld_client.disconnect()
-                    _clear_eld_cookie_from_sb()
-                    st.toast("Đã đăng xuất Eldorado")
-                    st.rerun()
+                # Profile card với avatar
+                _av_url = eld_client.avatar or ""
+                _pf_col1, _pf_col2, _pf_col3 = st.columns([0.8, 2.5, 1.5])
+                with _pf_col1:
+                    if _av_url:
+                        st.image(_av_url, width=72)
+                    else:
+                        st.markdown('<div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#c084fc,#e879f9);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;">?</div>', unsafe_allow_html=True)
+                with _pf_col2:
+                    st.markdown(f"### {eld_client.username}")
+                    st.caption(f"ID: `{eld_client.userId[:12]}...`")
+                with _pf_col3:
+                    _rv_col1, _rv_col2 = st.columns(2)
+                    _rv_col1.metric("👍 Review +", eld_client.pos)
+                    _rv_col2.metric("👎 Review -", eld_client.neg)
+                    if st.button("🔌 Logout", key="eldo_logout_top"):
+                        eld_client.disconnect()
+                        _clear_eld_cookie_from_sb()
+                        st.toast("Đã đăng xuất Eldorado")
+                        st.rerun()
             else:
                 with st.form("form_eldo_login", clear_on_submit=False):
-                    st.caption("Paste cookie từ browser DevTools → F12 → Application → Cookies → eldorado.gg")
+                    st.caption("F12 → Application → Cookies → eldorado.gg → Copy all as string")
                     cookie_str = st.text_area("Cookie", height=80, label_visibility="collapsed",
                                                placeholder="__Host-XSRF-TOKEN=...; __Host-EldoradoIdToken=...")
                     login_ok = st.form_submit_button("🔗 Đăng Nhập Eldorado", type="primary", use_container_width=True)
@@ -6013,198 +6072,305 @@ with tab_eldo:
                         st.error(f"Lỗi: {auth_r.get('error', 'unknown')}")
 
         if eld_client and eld_client.logged_in:
-            # ── SECTION 2: LISTINGS + GIẢM GIÁ TOÀN BỘ ──
+            # ── SECTION 2: LISTINGS ──
             with st.container(border=True):
                 st.markdown('<div class="sec-heading">📦 Listing Của Tôi</div>', unsafe_allow_html=True)
 
-                if st.button("🔄 Tải lại listings", key="eldo_refresh_listings"):
-                    st.session_state.pop("eldo_listings", None)
-                    st.rerun()
+                # ── State counts từ API (nhanh, 1 call) ──
+                _states = {}
+                try:
+                    _states = eld_client.get_states() or {}
+                except Exception:
+                    pass
+                _cnt_a = _states.get("activeOffers", 0)
+                _cnt_p = _states.get("pausedOffers", 0)
+                _cnt_c = _states.get("closedOffers", 0)
+                _cnt_all = _cnt_a + _cnt_p + _cnt_c
+                sc1, sc2, sc3, sc4 = st.columns(4)
+                sc1.metric("Tổng", _cnt_all)
+                sc2.metric("🟢 Active", _cnt_a)
+                sc3.metric("⏸️ Paused", _cnt_p)
+                sc4.metric("🔴 Closed", _cnt_c)
 
-                if "eldo_listings" not in st.session_state:
-                    with st.spinner("Đang tải listings..."):
-                        _raw = eld_client.get_all_listings()
-                        st.session_state.el_do_listings = _raw.get("results", [])
-                _listings = st.session_state.get("eldo_listings", st.session_state.get("el_do_listings", []))
+                # ── Load listings theo trang (API pagination) ──
+                _ELDO_PAGE_SIZE = 40
+                _eldo_reload = st.button("🔄 Tải lại", key="eldo_refresh_listings")
+                if _eldo_reload:
+                    st.session_state._eldo_page = 1
+                    st.session_state._eldo_all = []
+                    st.session_state._eldo_total_pages = 1
 
+                _cur_page = st.session_state.get("_eldo_page", 1)
+                _all_data = st.session_state.get("_eldo_all", [])
+                _total_pages = st.session_state.get("_eldo_total_pages", 1)
+
+                # Fetch trang hiện tại nếu chưa có data
+                if not _all_data or _eldo_reload:
+                    with st.spinner(f"Đang tải trang {_cur_page}..."):
+                        _raw = eld_client.get_listings(page=_cur_page, page_size=_ELDO_PAGE_SIZE)
+                        if isinstance(_raw, dict) and "results" in _raw:
+                            _all_data = _raw.get("results", [])
+                            _total_pages = _raw.get("totalPages", 1)
+                            st.session_state._eldo_all = _all_data
+                            st.session_state._eldo_total_pages = _total_pages
+
+                # ── Pagination controls ──
+                if _total_pages > 1:
+                    pg1, pg2, pg3 = st.columns([1, 2, 1])
+                    if pg1.button("⬅️", key="eldo_prev", disabled=_cur_page <= 1):
+                        st.session_state._eldo_page = max(1, _cur_page - 1)
+                        st.session_state._eldo_all = []
+                        st.rerun()
+                    pg2.markdown(f"<div style='text-align:center;padding-top:0.3rem;'>Trang **{_cur_page}** / {_total_pages}</div>", unsafe_allow_html=True)
+                    if pg3.button("➡️", key="eldo_next", disabled=_cur_page >= _total_pages):
+                        st.session_state._eldo_page = min(_total_pages, _cur_page + 1)
+                        st.session_state._eldo_all = []
+                        st.rerun()
+
+                _listings = _all_data
                 if not _listings:
                     st.info("Không có listing nào.")
                 else:
-                    _states = {}
-                    try:
-                        _states = eld_client.get_states() or {}
-                    except Exception:
-                        pass
-                    active = _states.get("activeOffers", "?")
-                    paused = _states.get("pausedOffers", "?")
-                    closed = _states.get("closedOffers", "?")
-                    s1, s2, s3, s4 = st.columns(4)
-                    s1.metric("Tổng", len(_listings))
-                    s2.metric("🟢 Active", active)
-                    s3.metric("⏸️ Paused", paused)
-                    s4.metric("🔴 Closed", closed)
+                    # ── Bộ lọc client-side (nhanh, trên data đã load) ──
+                    fl1, fl2, fl3 = st.columns([1.5, 1, 1])
+                    _eldo_state_flt = fl1.radio("State", ["Tất cả", "Active", "Paused", "Closed"],
+                                                horizontal=True, key="eldo_state_flt")
+                    _eldo_search = fl2.text_input("🔍 Tìm kiếm", placeholder="Tên listing...",
+                                                   key="eldo_search_q", label_visibility="collapsed")
+                    _eldo_sort = fl3.selectbox("Sắp xếp", ["Mới nhất", "Giá thấp→cao", "Giá cao→thấp",
+                                                "Tên A→Z"], key="eldo_sort")
+
+                    _flt = _listings
+                    if _eldo_state_flt != "Tất cả":
+                        _flt = [x for x in _flt if x.get("offerState") == _eldo_state_flt]
+                    if _eldo_search.strip():
+                        _sq = _eldo_search.strip().lower()
+                        _flt = [x for x in _flt if _sq in (x.get("offerTitle") or "").lower()
+                                or _sq in str(x.get("id", ""))]
+                    if _eldo_sort == "Giá thấp→cao":
+                        _flt.sort(key=lambda x: float(x.get("pricePerUnit", {}).get("amount", 0)))
+                    elif _eldo_sort == "Giá cao→thấp":
+                        _flt.sort(key=lambda x: float(x.get("pricePerUnit", {}).get("amount", 0)), reverse=True)
+                    elif _eldo_sort == "Tên A→Z":
+                        _flt.sort(key=lambda x: (x.get("offerTitle") or "").lower())
 
                     # ── Giảm giá toàn bộ ──
-                    with st.expander("📉 Giảm giá toàn bộ listings", expanded=False):
-                        _active_listings = [x for x in _listings if x.get("offerState") == "Active"]
-                        if not _active_listings:
-                            st.info("Không có listing Active nào.")
+                    with st.expander("📉 Giảm giá toàn bộ (Active)", expanded=False):
+                        _act = [x for x in _listings if x.get("offerState") == "Active"]
+                        if not _act:
+                            st.info("Không có listing Active trên trang này.")
                         else:
-                            st.caption(f"**{len(_active_listings)}** listings Active sẽ bị giảm giá")
-                            _disc_mode = st.radio("Chế độ giảm", ["Giảm theo %", "Giảm theo $"],
-                                                   horizontal=True, key="eldo_disc_mode")
-                            if _disc_mode == "Giảm theo %":
-                                _disc_val = st.number_input("Giảm bao nhiêu %", min_value=0.1, max_value=90.0,
-                                                            value=5.0, step=0.5, format="%.1f",
-                                                            key="eldo_disc_pct")
+                            st.caption(f"**{len(_act)}** listings Active trên trang hiện tại")
+                            _dm, _dv = st.columns(2)
+                            _disc_mode = _dm.radio("Chế độ", ["%", "$"], horizontal=True, key="eldo_dm")
+                            if _disc_mode == "%":
+                                _disc_val = _dv.number_input("Giảm %", 0.1, 90.0, 5.0, 0.5,
+                                                             format="%.1f", key="eldo_dv")
                             else:
-                                _disc_val = st.number_input("Giảm bao nhiêu USD", min_value=0.01, max_value=100.0,
-                                                            value=0.05, step=0.01, format="%.2f",
-                                                            key="eldo_disc_usd")
+                                _disc_val = _dv.number_input("Giảm $", 0.01, 100.0, 0.05, 0.01,
+                                                             format="%.2f", key="eldo_dv")
 
-                            # Preview
-                            _preview_rows = []
-                            for _l in _active_listings:
-                                _old_p = float(_l.get("pricePerUnit", {}).get("amount", 0))
-                                if _disc_mode == "Giảm theo %":
-                                    _new_p = max(0.01, round(_old_p * (1 - _disc_val / 100), 2))
-                                else:
-                                    _new_p = max(0.01, round(_old_p - _disc_val, 2))
-                                if _new_p != _old_p:
-                                    _preview_rows.append({
-                                        "Title": (_l.get("offerTitle", "") or "")[:50],
-                                        "Giá cũ": _old_p,
-                                        "Giá mới": _new_p,
-                                        "ID": _l.get("id", ""),
-                                    })
+                            _prev = []
+                            for _l in _act:
+                                _op = float(_l.get("pricePerUnit", {}).get("amount", 0))
+                                _np = max(0.01, round(_op * (1 - _disc_val / 100), 2)) if _disc_mode == "%" \
+                                    else max(0.01, round(_op - _disc_val, 2))
+                                if _np != _op:
+                                    _prev.append({"Title": (_l.get("offerTitle", "") or "")[:50],
+                                                  "Cũ": _op, "Mới": _np, "ID": _l.get("id", "")})
 
-                            if _preview_rows:
-                                st.dataframe(pd.DataFrame(_preview_rows)[["Title", "Giá cũ", "Giá mới"]],
-                                             use_container_width=True, hide_index=True)
-                                if st.button(f"📉 Xác nhận giảm giá {_preview_rows.__len__()} listings",
-                                             type="primary", use_container_width=True, key="btn_eldo_bulk_disc"):
-                                    _dp = st.progress(0, text="Đang giảm giá...")
-                                    _d_ok = 0
-                                    _d_fail = 0
-                                    for _di, _dr in enumerate(_preview_rows):
-                                        _dp.progress(_di / len(_preview_rows),
-                                                     text=f"({_di+1}/{len(_preview_rows)}) {_dr['Title'][:30]}...")
-                                        _res = eld_client.change_price(_dr["ID"], _dr["Giá mới"])
-                                        if _res and not _res.get("error"):
-                                            _d_ok += 1
-                                        else:
-                                            _d_fail += 1
+                            if _prev:
+                                st.dataframe(pd.DataFrame(_prev)[["Title", "Cũ", "Mới"]],
+                                             use_container_width=True, hide_index=True, height=200)
+                                if st.button(f"📉 Xác nhận giảm {_prev.__len__()} listings",
+                                             type="primary", use_container_width=True, key="btn_eldo_disc"):
+                                    _dprog = st.progress(0)
+                                    _dok = 0
+                                    for _di, _dr in enumerate(_prev):
+                                        _dprog.progress(_di / len(_prev))
+                                        _r = eld_client.change_price(_dr["ID"], _dr["Mới"])
+                                        if _r and not _r.get("error"):
+                                            _dok += 1
                                         _time.sleep(0.3)
-                                    _dp.progress(1.0, text="Hoàn thành!")
-                                    if _d_ok:
-                                        st.success(f"✅ Đã giảm giá: {_d_ok}/{len(_preview_rows)}")
-                                    if _d_fail:
-                                        st.warning(f"⚠️ Thất bại: {_d_fail}")
-                                    st.session_state.pop("eldo_listings", None)
+                                    _dprog.progress(1.0)
+                                    st.success(f"✅ Đã giảm: {_dok}/{len(_prev)}")
+                                    st.session_state._eldo_all = []
                                     st.rerun()
                             else:
-                                st.info("Tất cả listings đã ở giá tối thiểu, không cần giảm.")
+                                st.info("Đã ở giá tối thiểu.")
 
-                    # ── Danh sách từng listing ──
-                    _eldo_filter = st.radio("Lọc", ["Tất cả", "Active", "Paused", "Closed"],
-                                            horizontal=True, key="eldo_list_filter")
-                    filtered = _listings
-                    if _eldo_filter != "Tất cả":
-                        filtered = [x for x in _listings if str(x.get("offerState", "")).lower() == _eldo_filter.lower()]
+                    # ── Danh sách listings (cuộn được) ──
+                    st.caption(f"Trang {_cur_page}: **{len(_flt)}** listings")
+                    _scroll_html = '<div style="max-height:520px;overflow-y:auto;border:1px solid rgba(192,132,252,0.2);border-radius:10px;padding:8px;">'
+                    st.markdown(_scroll_html, unsafe_allow_html=True)
 
-                    for idx, offer in enumerate(filtered):
-                        _oid = offer.get("id", "")
-                        _title = offer.get("offerTitle", "No title")[:60]
-                        _price = offer.get("pricePerUnit", {}).get("amount", 0)
-                        _state = offer.get("offerState", "?")
-                        _state_icon = {"Active": "🟢", "Paused": "⏸️", "Closed": "🔴"}.get(_state, "❓")
+                    for _o in _flt:
+                        _oid = _o.get("id", "")
+                        _otitle = (_o.get("offerTitle", "") or "")[:65]
+                        _oprice = float(_o.get("pricePerUnit", {}).get("amount", 0))
+                        _ostate = _o.get("offerState", "?")
+                        _oimg = (_o.get("mainOfferImage") or {}).get("smallImage", "")
+                        _sicon = {"Active": "🟢", "Paused": "⏸️", "Closed": "🔴"}.get(_ostate, "❓")
 
-                        with st.expander(f"{_state_icon} {_title} — ${_price}"):
-                            oc1, oc2 = st.columns([2, 1])
-                            with oc1:
-                                st.caption(f"ID: `{_oid}` | State: **{_state}**")
-                                new_price = st.number_input("Giá USD", min_value=0.01, max_value=9999.0,
-                                                            value=float(_price), step=0.05, format="%.2f",
-                                                            key=f"eldo_price_{_oid}")
-                            with oc2:
-                                ac1, ac2 = st.columns(2)
-                                if ac1.button("💾 Đổi giá", key=f"eldo_setprice_{_oid}"):
-                                    _r = eld_client.change_price(_oid, new_price)
-                                    if not _r.get("error"):
-                                        st.toast("Đã đổi giá")
-                                        st.session_state.pop("eldo_listings", None)
-                                        st.rerun()
-                                    else:
-                                        st.error(_r.get("error", "fail"))
-                                if _state == "Active":
-                                    if ac2.button("⏸️ Tạm dừng", key=f"eldo_pause_{_oid}"):
-                                        eld_client.change_state(_oid, "Paused")
-                                        st.session_state.pop("eldo_listings", None)
-                                        st.rerun()
-                                elif _state == "Paused":
-                                    if ac2.button("▶️ Tiếp tục", key=f"eldo_resume_{_oid}"):
-                                        eld_client.change_state(_oid, "Active")
-                                        st.session_state.pop("eldo_listings", None)
-                                        st.rerun()
-
-                            if st.button("🗑️ Xóa listing", key=f"eldo_del_{_oid}", type="secondary"):
-                                _r = eld_client.delete_listing(_oid)
-                                if not _r.get("error"):
-                                    st.toast("Đã xóa")
-                                    st.session_state.pop("eldo_listings", None)
-                                    st.rerun()
+                        with st.container(border=True):
+                            rc1, rc2, rc3 = st.columns([0.4, 4, 1.8])
+                            with rc1:
+                                if _oimg:
+                                    _img_url = _oimg if _oimg.startswith("http") else f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
+                                    st.image(_img_url, width=48)
                                 else:
-                                    st.error(_r.get("error", "fail"))
+                                    st.markdown(f'<div style="width:48px;height:48px;border-radius:8px;background:#1a1528;display:flex;align-items:center;justify-content:center;font-size:20px;">📦</div>', unsafe_allow_html=True)
+                            with rc2:
+                                st.markdown(f"**{_sicon} {_otitle}**")
+                                st.caption(f"${_oprice:.2f} · {_ostate}")
+                            with rc3:
+                                _b1, _b2, _b3 = st.columns(3)
+                                _np_val = _b1.number_input("USD", 0.01, 9999.0, _oprice, 0.05,
+                                                            format="%.2f", key=f"ep_{_oid}", label_visibility="collapsed")
+                                if _b2.button("💰", key=f"esp_{_oid}", help="Đổi giá"):
+                                    _r = eld_client.change_price(_oid, _np_val)
+                                    if _r and not _r.get("error"):
+                                        st.toast("Đã đổi giá")
+                                        st.session_state._eldo_all = []
+                                        st.rerun()
+                                if _ostate == "Active":
+                                    if _b3.button("⏸️", key=f"eps_{_oid}", help="Tạm dừng"):
+                                        eld_client.change_state(_oid, "Paused")
+                                        st.session_state._eldo_all = []
+                                        st.rerun()
+                                elif _ostate == "Paused":
+                                    if _b3.button("▶️", key=f"epr_{_oid}", help="Tiếp tục"):
+                                        eld_client.change_state(_oid, "Active")
+                                        st.session_state._eldo_all = []
+                                        st.rerun()
+                                else:
+                                    if _b3.button("🗑️", key=f"epd_{_oid}", help="Xóa"):
+                                        eld_client.delete_listing(_oid)
+                                        st.session_state._eldo_all = []
+                                        st.rerun()
+
+                    st.markdown("</div>", unsafe_allow_html=True)
 
             # ── SECTION 3: ĐƠN HÀNG HÔM NAY ──
             with st.container(border=True):
                 st.markdown('<div class="sec-heading">📋 Đơn Hàng Hôm Nay</div>', unsafe_allow_html=True)
 
                 if st.button("🔄 Tải lại", key="eldo_refresh_orders"):
-                    st.session_state.pop("eldo_orders_today", None)
+                    st.session_state.pop("_eldo_today", None)
                     st.rerun()
 
-                if "eldo_orders_today" not in st.session_state:
-                    with st.spinner("Đang tải đơn hàng..."):
-                        _od = eld_client.get_orders(page_size=50)
-                        _all_orders = (_od or {}).get("results", [])
-                        # Lọc đơn Delivered trong ngày hôm nay
-                        _today_str = datetime.now(VN_TZ).strftime("%Y-%m-%d")
-                        _today_orders = []
-                        for _o in _all_orders:
-                            _created = _o.get("createdAt", "") or _o.get("updatedAt", "") or ""
-                            if _today_str in _created and _o.get("state") == "Delivered":
-                                _today_orders.append(_o)
-                        st.session_state._eldo_today = _today_orders
-                _today_orders = st.session_state.get("_eldo_today", [])
+                if "_eldo_today" not in st.session_state:
+                    with st.spinner("Đang tải..."):
+                        # Lấy cả đơn seller + buyer trong ngày
+                        _od_s = eld_client.get_orders(page_size=50)
+                        _od_b = eld_client._req("GET", "/orders/me/statesCount",
+                                                params={"displayFilter": "DisplayBuyingOrders", "orderGroup": "Regular"})
+                        _all_o = []
+                        if isinstance(_od_s, dict):
+                            _all_o.extend(_od_s.get("results", []))
 
-                if not _today_orders:
+                        # Lọc đơn theo ngày + state (Paid/Delivered/Completed)
+                        _td = datetime.now(VN_TZ).strftime("%Y-%m-%d")
+                        _sold_states = {"Paid", "Delivered", "Completed", "New"}
+                        _tod = []
+                        for _o in _all_o:
+                            _ost = _o.get("state", "")
+                            if _ost not in _sold_states:
+                                continue
+                            # Check date: createdAt, updatedAt, completedAt, paidAt
+                            _odate = (_o.get("createdAt") or _o.get("updatedAt") or
+                                      _o.get("completedAt") or _o.get("paidAt") or "")
+                            if _td in _odate:
+                                _tod.append(_o)
+                        st.session_state._eldo_today = _tod
+                _tod = st.session_state.get("_eldo_today", [])
+
+                if not _tod:
                     st.info("Chưa có đơn hàng nào hoàn thành hôm nay.")
                 else:
-                    # Tổng hợp
-                    _total_usd = sum(float(_o.get("amount", 0)) for _o in _today_orders)
-                    _total_vnd = _total_usd * EXCHANGE_RATE
+                    _tu = sum(float(_o.get("amount", 0)) for _o in _tod)
+                    _tv = _tu * EXCHANGE_RATE
 
-                    t1, t2, t3 = st.columns(3)
-                    t1.metric("📦 Đơn hôm nay", f"{len(_today_orders)}")
-                    t2.metric("💵 Tổng USD", f"${_total_usd:.2f}")
-                    t3.metric("💰 Thực nhận (VND)", fmt_vnd(_total_vnd),
-                              help=f"Tỷ giá: 1 USD = {EXCHANGE_RATE:,.0f} VND")
+                    tc1, tc2, tc3 = st.columns(3)
+                    tc1.metric("📦 Đơn", len(_tod))
+                    tc2.metric("💵 USD", f"${_tu:.2f}")
+                    tc3.metric("💰 VND (thực nhận)", fmt_vnd(_tv),
+                               help=f"1 USD = {EXCHANGE_RATE:,.0f} VND")
 
-                    st.markdown("---")
-                    for _oi in _today_orders:
+                    for _oi in _tod:
                         _ooid = _oi.get("id", "?")
                         _oamt = float(_oi.get("amount", 0))
                         _obuyer = _oi.get("buyerUsername", "?")
-                        _ogame = _oi.get("augmentedGame", {}).get("offerTitle", "")[:50]
-                        od_c1, od_c2 = st.columns([4, 1])
-                        od_c1.caption(f"📦 {_obuyer} | **${_oamt:.2f}** | {_ogame}")
-                        if od_c2.button("📦 Giao", key=f"eldo_deliver_{_ooid}"):
-                            _dr = eld_client.mark_delivered(_ooid)
-                            if not (_dr and _dr.get("error")):
-                                st.toast("Đã xác nhận giao hàng")
-                                st.session_state.pop("eldo_orders_today", None)
-                                st.rerun()
+                        _otit = (_oi.get("augmentedGame") or {}).get("offerTitle", "")[:50]
+                        with st.container(border=True):
+                            oc1, oc2 = st.columns([4, 1])
+                            oc1.caption(f"📦 **{_obuyer}** · ${_oamt:.2f} · {_otit}")
+                            if oc2.button("📦 Giao", key=f"eldo_del_{_ooid}"):
+                                _dr = eld_client.mark_delivered(_ooid)
+                                if not (_dr and _dr.get("error")):
+                                    st.toast("Đã giao hàng")
+                                    st.session_state.pop("_eldo_today", None)
+                                    st.rerun()
+
+            # ── SECTION 4: WALLET ──
+            with st.container(border=True):
+                st.markdown('<div class="sec-heading">💰 Wallet</div>', unsafe_allow_html=True)
+
+                if st.button("🔄 Tải lại wallet", key="eldo_refresh_wallet"):
+                    st.session_state.pop("_eldo_wallet", None)
+                    st.rerun()
+
+                if "_eldo_wallet" not in st.session_state:
+                    with st.spinner("Đang tải dữ liệu wallet..."):
+                        _wp = eld_client.get_payments(page_size=30)
+                        _ws = eld_client.get_order_stats()
+                        _wh = eld_client.get_historical_seller_stats()
+                        _wpend = eld_client.get_pending_sum()
+                        st.session_state._eldo_wallet = {
+                            "payments": (_wp or {}).get("results", []),
+                            "stats": _ws if isinstance(_ws, dict) else {},
+                            "historical": _wh if isinstance(_wh, dict) else {},
+                            "pending": _wpend if isinstance(_wpend, dict) else {},
+                        }
+                _wallet = st.session_state.get("_eldo_wallet", {})
+                _wp_list = _wallet.get("payments", [])
+                _ws = _wallet.get("stats", {})
+                _wh = _wallet.get("historical", {})
+                _wpend = _wallet.get("pending", {})
+
+                # ── KPI cards ──
+                _pending_amt = float((_wpend or {}).get("amount", 0))
+                _total_sales = float((_ws or {}).get("totalSaleAmount", 0))
+                _total_orders = int((_ws or {}).get("totalOrdersCount", 0))
+                _total_earned = float((_wh or {}).get("totalSaleAmount", 0))
+                _total_all_orders = int((_wh or {}).get("totalOrdersCount", 0))
+
+                wc1, wc2, wc3, wc4 = st.columns(4)
+                wc1.metric("⏳ Pending", f"${_pending_amt:.2f}",
+                           help="Số tiền đang chờ xử lý")
+                wc2.metric("📦 Đang bán", f"${_total_sales:.2f}",
+                           delta=f"{_total_orders} đơn", help="Tổng doanh thu đang bán")
+                wc3.metric("💵 Tổng nhận", f"${_total_earned:.2f}",
+                           delta=f"{_total_all_orders} đơn", help="Tổng lịch sử nhận được")
+                wc4.metric("💰 VND (tích lũy)", fmt_vnd(_total_earned * EXCHANGE_RATE),
+                           help=f"1 USD = {EXCHANGE_RATE:,.0f} VND")
+
+                # ── Transactions list ──
+                if _wp_list:
+                    st.markdown("---")
+                    st.caption(f"**{len(_wp_list)}** giao dịch gần đây")
+                    _pw_rows = []
+                    for _pw in _wp_list:
+                        _pw_rows.append({
+                            "Ngày": (_pw.get("createdAt") or "")[:10],
+                            "Loại": _pw.get("type", "?"),
+                            "USD": float(_pw.get("amount", 0)),
+                            "Mô tả": (_pw.get("description") or _pw.get("paymentMethod") or "")[:40],
+                            "State": _pw.get("state", "?"),
+                        })
+                    if _pw_rows:
+                        _pw_df = pd.DataFrame(_pw_rows)
+                        st.dataframe(_pw_df, use_container_width=True, hide_index=True, height=300)
 
     # ─────────────────────────────────────────────────────────────────────────────
     # TAB 5: CÀI ĐẶT (Chỉ danh mục)
@@ -6401,6 +6567,42 @@ with tab_settings:
                         _save_eld_settings(settings)
                         st.session_state.eld_settings = settings
                         st.toast("Đã lưu Eldorado settings", icon="✅")
+
+                # ── Owner → NameStock Mapping ──
+                st.markdown("---")
+                st.markdown("**🏷️ Owner → NameStock Mapping**")
+                st.caption("JSON có `owner: bjn8th` → tự động map NameStock = `#B8`. Format txt: `username:NameStock` mỗi dòng.")
+
+                _on_map = st.session_state.get("_owner_ns_map", {})
+                if _on_map:
+                    _on_df = pd.DataFrame([{"Owner": k, "NameStock": v} for k, v in sorted(_on_map.items())])
+                    st.dataframe(_on_df, use_container_width=True, hide_index=True, height=min(200, 40 + len(_on_df) * 35))
+
+                oc1, oc2 = st.columns([3, 1])
+                _new_owner = oc1.text_input("Thêm owner", placeholder="username:NameStock (VD: bjn8th:#B8)",
+                                             key="new_owner_ns_input", label_visibility="collapsed")
+                if oc2.button("➕ Thêm", key="btn_add_owner_ns"):
+                    if ":" in _new_owner.strip():
+                        _k, _v = _new_owner.strip().split(":", 1)
+                        _k, _v = _k.strip().lower(), _v.strip()
+                        if _k and _v:
+                            _on_map[_k] = _v
+                            _save_owner_ns_map(_on_map)
+                            st.session_state["_owner_ns_map"] = _on_map
+                            st.toast(f"Đã thêm: {_k} → {_v}")
+                            st.rerun()
+                    elif _new_owner.strip():
+                        st.warning("Sai format. Cần: `username:NameStock`")
+
+                if _on_map:
+                    _del_owner = st.selectbox("Xóa mapping", list(_on_map.keys()),
+                                              key="del_owner_ns", label_visibility="collapsed")
+                    if st.button("🗑️ Xóa", key="btn_del_owner_ns"):
+                        _on_map.pop(_del_owner, None)
+                        _save_owner_ns_map(_on_map)
+                        st.session_state["_owner_ns_map"] = _on_map
+                        st.toast(f"Đã xóa: {_del_owner}")
+                        st.rerun()
 
         # ── Tài Nguyên Hệ Thống ──
         st.markdown("---")

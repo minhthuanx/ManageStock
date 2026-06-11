@@ -2514,20 +2514,6 @@ Return ONLY valid JSON, no markdown:
                             # Giá Nhập
                             r_cost_raw = c6d.text_input(f"Giá nhập", value="", placeholder="VD: 150k", key=f"dlg_json_cost_{i}", label_visibility="collapsed")
 
-                            # Giá bán ($) + Ảnh cho Eldorado push
-                            _sell_row1, _sell_row2 = st.columns(2)
-                            r_sell_price = _sell_row1.number_input(
-                                "Giá bán ($)", min_value=0.01, max_value=9999.0,
-                                value=0.50, step=0.05, format="%.2f",
-                                key=f"dlg_json_sell_{i}", label_visibility="collapsed",
-                                placeholder="Giá bán $",
-                            )
-                            r_sell_image = _sell_row2.file_uploader(
-                                f"Ảnh listing (tuỳ chọn)",
-                                type=["png", "jpg", "jpeg", "webp"],
-                                key=f"dlg_json_img_{i}",
-                                label_visibility="collapsed",
-                            )
 
                             # ── Auto Title preview ──
                             _temp_ms = parse_usd(r_ms_raw)
@@ -2579,8 +2565,6 @@ Return ONLY valid JSON, no markdown:
                             "Số Trait":  r_trait,
                             "NameStock": r_ns,
                             "Giá Nhập":  r_cost,
-                            "_sell_price": float(r_sell_price) if not r_delete else 0.50,
-                            "_sell_image": r_sell_image,
                             "_delete":   r_delete,
                             "_valid":    r_delete or len(err_row) == 0,
                             "_auto_title": generate_auto_title(r_name, r_mut, r_trait, r_ms, effective_ns if effective_ns else ""),
@@ -2716,115 +2700,159 @@ Return ONLY valid JSON, no markdown:
                     st.rerun()
 
             # =========================================================
-            # ELDORADO PUSH SECTION (post-import)
+            # ELDORADO PUSH DIALOG (post-import, popup 2)
             # =========================================================
             if (_HAS_ELDORADO and st.session_state.get("show_eld_push")
                     and st.session_state.get("json_just_saved")):
-                _push_items = st.session_state.json_just_saved
-                _eld_s = st.session_state.get("eld_settings", {})
 
-                with st.expander("🎮 Push lên Eldorado", expanded=True):
+                @st.dialog("🎮 Push lên Eldorado", width="large")
+                def eld_push_dialog():
+                    _push_items = st.session_state.json_just_saved
+                    _eld_s = st.session_state.get("eld_settings", {})
+
                     if not (eld_client and eld_client.logged_in):
                         st.warning("Chưa kết nối Eldorado. Vào tab Cài Đặt để kết nối.")
-                    else:
-                        st.caption(f"**{len(_push_items)}** mục sẵn sàng push lên Eldorado")
-
-                        # Preview danh sách + delivery time chung
-                        _def_del = _eld_s.get("default_delivery", "20 min")
-                        _del_keys = list(DELIVERY_MAP.keys())
-                        _def_del_idx = _del_keys.index(_def_del) if _def_del in _del_keys else 2
-
-                        _preview_rows = []
-                        for _pi, _item in enumerate(_push_items):
-                            _pname = _item.get("Tên Pet", f"Item {_pi+1}")
-                            _pmut = _item.get("Mutation", "Normal")
-                            _pms = _item.get("M/s", 0)
-                            _pprice = _item.get("_sell_price", 0.50)
-                            _pimg = _item.get("_sell_image")
-                            _preview_rows.append({
-                                "Tên": _pname, "Mut": _pmut,
-                                "M/s": f"{_pms:g}" if _pms else "?",
-                                "Giá $": f"${_pprice:.2f}",
-                                "Ảnh": "✅" if _pimg else "—",
-                            })
-                        st.dataframe(pd.DataFrame(_preview_rows), use_container_width=True, hide_index=True, height=min(200, 40 * len(_preview_rows) + 40))
-
-                        _push_del = st.selectbox("Thời gian giao", _del_keys, index=_def_del_idx, key="eld_push_del_global")
-
-                        if st.button(
-                            f"🚀 Push {_push_items.__len__()} mục lên Eldorado",
-                            type="primary", use_container_width=True,
-                            key="btn_eld_push_all"
-                        ):
-                            _def_desc = _eld_s.get("default_desc", "Fast delivery! Contact me if any issues.")
-                            _progress = st.progress(0, text="Đang tải game data...")
-                            if not st.session_state.get("eld_game_loaded"):
-                                loaded = eld_client.ensure_game_cache()
-                                st.session_state.eld_game_loaded = loaded
-                                if not loaded:
-                                    st.error("Không thể tải game data. Kiểm tra lại cookie.")
-                                    st.stop()
-
-                            _results = {"ok": 0, "fail": 0, "errors": []}
-
-                            for _ci, _item in enumerate(_push_items):
-                                _pname = _item.get("Tên Pet", f"Item {_ci+1}")
-                                _progress.progress(_ci / len(_push_items), text=f"Pushing {_pname} ({_ci+1}/{len(_push_items)})...")
-
-                                try:
-                                    # Upload + xoá ảnh sau khi upload xong
-                                    _img_data = None
-                                    _img_file = _item.get("_sell_image")
-                                    if _img_file:
-                                        _img_bytes = _img_file.read()
-                                        _img_data = eld_client.upload_image(_img_bytes, _img_file.name or "image.png")
-                                        if _img_data and _img_data.get("_rate_limit"):
-                                            _img_data = None
-                                            st.warning(f"⚠️ Rate limited on image upload for {_pname}")
-
-                                    _title = _item.get("_auto_title", "") or eld_client.mutation_title(
-                                        _pname, _item.get("NameStock", ""),
-                                        str(_item.get("Số Trait", "None")), _item.get("Mutation", ""),
-                                    )
-
-                                    _resp = eld_client.create_listing(
-                                        title=_title, description=_def_desc,
-                                        price=float(_item.get("_sell_price", 0.50)),
-                                        ms=float(_item.get("M/s", 0)),
-                                        mutation=_item.get("Mutation", "Normal"),
-                                        namestock=_item.get("NameStock", ""),
-                                        delivery_time=DELIVERY_MAP[_push_del],
-                                        image_data=_img_data,
-                                    )
-
-                                    if _resp and not _resp.get("error"):
-                                        _results["ok"] += 1
-                                    else:
-                                        _results["fail"] += 1
-                                        _err = _resp.get("error", "unknown") if isinstance(_resp, dict) else str(_resp)
-                                        _results["errors"].append(f"{_pname}: {_err[:80]}")
-                                except Exception as _e:
-                                    _results["fail"] += 1
-                                    _results["errors"].append(f"{_pname}: {str(_e)[:80]}")
-
-                                if _ci < len(_push_items) - 1:
-                                    _time.sleep(0.5)
-
-                            _progress.progress(1.0, text="Hoàn thành!")
-                            if _results["ok"]:
-                                st.success(f"✅ Push thành công: {_results['ok']}/{len(_push_items)}")
-                            if _results["fail"]:
-                                st.error(f"❌ Thất bại: {_results['fail']}/{len(_push_items)}")
-                                for _err in _results["errors"]:
-                                    st.caption(f"• {_err}")
-
-                            st.session_state.show_eld_push = False
-                            st.session_state.json_just_saved = []
-
-                        if st.button("Huỷ Push", use_container_width=True, key="btn_eld_push_cancel"):
+                        if st.button("Đóng", use_container_width=True):
                             st.session_state.show_eld_push = False
                             st.session_state.json_just_saved = []
                             st.rerun()
+                        return
+
+                    st.caption(f"**{len(_push_items)}** pet đã lưu — chọn ảnh & nhập giá để push")
+
+                    _def_price = float(_eld_s.get("default_price", 0.50))
+                    _def_del = _eld_s.get("default_delivery", "20 min")
+                    _def_desc = _eld_s.get("default_desc", "Fast delivery! Contact me if any issues.")
+                    _del_keys = list(DELIVERY_MAP.keys())
+                    _def_del_idx = _del_keys.index(_def_del) if _def_del in _del_keys else 2
+
+                    _push_cfg = []
+                    _all_valid_push = True
+                    for _pi, _item in enumerate(_push_items):
+                        _pname = _item.get("Tên Pet", f"Item {_pi+1}")
+                        _pmut = _item.get("Mutation", "Normal")
+                        _pms = _item.get("M/s", 0)
+
+                        pc1, pc2, pc3 = st.columns([3, 1, 1])
+                        _auto_title = _item.get("_auto_title", "")
+                        _disp_title = _auto_title[:50] + ("..." if len(_auto_title) > 50 else "")
+                        pc1.markdown(f"**{_pname}** · {_pmut} · {f'{_pms:g}' if _pms else '?'} M/s")
+                        if _auto_title:
+                            pc1.caption(f"📝 {_disp_title}")
+                        _pprice_raw = pc2.text_input(
+                            "Giá bán ($)", value="",
+                            placeholder="$0.50",
+                            key=f"eld_push_price_{_pi}", label_visibility="collapsed",
+                        )
+                        try:
+                            _pprice = float(_pprice_raw)
+                        except (ValueError, TypeError):
+                            _pprice = 0.0
+                        _pdel = pc3.selectbox(
+                            "Giao", _del_keys, index=_def_del_idx,
+                            key=f"eld_push_del_{_pi}", label_visibility="collapsed"
+                        )
+                        _pimg = st.file_uploader(
+                            f"Ảnh listing cho {_pname}",
+                            type=["png", "jpg", "jpeg", "webp"],
+                            key=f"eld_push_img_{_pi}", label_visibility="collapsed",
+                        )
+
+                        _missing = []
+                        if not _pimg:
+                            _missing.append("thiếu ảnh")
+                        if not _pprice_raw.strip():
+                            _missing.append("thiếu giá bán")
+                        elif _pprice < 0.5:
+                            _missing.append("giá tối thiểu $0.50")
+                        if _missing:
+                            st.caption(f"⚠️ **{_pname}**: {', '.join(_missing)}")
+                            _all_valid_push = False
+
+                        _push_cfg.append({
+                            "item": _item, "price": _pprice,
+                            "delivery": DELIVERY_MAP[_pdel], "image_file": _pimg,
+                            "description": _def_desc,
+                            "auto_title": _item.get("_auto_title", ""),
+                        })
+
+                    st.markdown("---")
+                    if not _all_valid_push:
+                        st.error("⚠️ Cần nhập đầy đủ **giá bán** và **ảnh** cho TẤT CẢ pet trước khi push.")
+                    cc1, cc2 = st.columns(2)
+                    if cc1.button(f"🚀 Push {len(_push_cfg)} mục lên Eldorado",
+                                  type="primary", use_container_width=True, key="dlg_eld_push",
+                                  disabled=not _all_valid_push):
+                        # Ensure game cache
+                        if not st.session_state.get("eld_game_loaded"):
+                            with st.spinner("Đang tải game data..."):
+                                st.session_state.eld_game_loaded = eld_client.ensure_game_cache()
+                        if not st.session_state.get("eld_game_loaded"):
+                            st.error("Không thể tải game data.")
+                            return
+
+                        _progress = st.progress(0, text="Bắt đầu push...")
+                        _results = {"ok": 0, "fail": 0, "errors": []}
+
+                        for _ci, _cfg in enumerate(_push_cfg):
+                            _item = _cfg["item"]
+                            _pname = _item.get("Tên Pet", "?")
+                            _progress.progress(_ci / len(_push_cfg),
+                                               text=f"{_pname} ({_ci+1}/{len(_push_cfg)})...")
+                            try:
+                                _img_data = None
+                                if _cfg.get("image_file"):
+                                    _img_bytes = _cfg["image_file"].read()
+                                    _img_data = eld_client.upload_image(
+                                        _img_bytes, _cfg["image_file"].name or "image.png"
+                                    )
+                                    if _img_data and _img_data.get("_rate_limit"):
+                                        _img_data = None
+                                        st.warning(f"⚠️ Rate limited on image upload for {_pname}")
+
+                                _title = _item.get("_auto_title", "") or eld_client.mutation_title(
+                                    _pname, _item.get("NameStock", ""),
+                                    str(_item.get("Số Trait", "None")), _item.get("Mutation", ""),
+                                )
+                                _resp = eld_client.create_listing(
+                                    title=_title, description=_cfg["description"],
+                                    price=_cfg["price"],
+                                    ms=float(_item.get("M/s", 0)),
+                                    mutation=_item.get("Mutation", "Normal"),
+                                    namestock=_item.get("NameStock", ""),
+                                    delivery_time=_cfg["delivery"],
+                                    image_data=_img_data,
+                                )
+                                if _resp and not _resp.get("error"):
+                                    _results["ok"] += 1
+                                else:
+                                    _results["fail"] += 1
+                                    _err = _resp.get("error", "unknown") if isinstance(_resp, dict) else str(_resp)
+                                    _results["errors"].append(f"{_pname}: {_err[:80]}")
+                            except Exception as _e:
+                                _results["fail"] += 1
+                                _results["errors"].append(f"{_pname}: {str(_e)[:80]}")
+                            if _ci < len(_push_cfg) - 1:
+                                _time.sleep(0.5)
+
+                        _progress.progress(1.0, text="Hoàn thành!")
+                        if _results["ok"]:
+                            st.success(f"✅ Push thành công: {_results['ok']}/{len(_push_cfg)}")
+                        if _results["fail"]:
+                            st.error(f"❌ Thất bại: {_results['fail']}/{len(_push_cfg)}")
+                            for _err in _results["errors"]:
+                                st.caption(f"• {_err}")
+
+                        st.session_state.show_eld_push = False
+                        st.session_state.json_just_saved = []
+                        st.rerun()
+
+                    if cc2.button("Huỷ Push", use_container_width=True, key="dlg_eld_push_cancel"):
+                        st.session_state.show_eld_push = False
+                        st.session_state.json_just_saved = []
+                        st.rerun()
+
+                eld_push_dialog()
 
             # =========================================================
             # NHẬP THỦ CÔNG (Always visible)

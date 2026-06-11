@@ -884,6 +884,23 @@ class EldoradoClient:
         return self._req("GET", f"/fees/me/feesForGame/{game_id}",
                          params={"category": category})
 
+    # ── Wallet ──────────────────────────────────────────────────────────
+
+    def get_payments(self, page_size=30, cursor=None):
+        default_cursor = "9999-99-99 99:99:99.999999999999999-9999-9999-9999-999999999999"
+        return self._req("GET", "/userpayment/me/payments", params={
+            "paymentsCategory": "All", "pageSize": page_size,
+            "pageDirection": "Next", "cursorValue": cursor or default_cursor,
+        })
+
+    def get_pending_sum(self):
+        return self._req("GET", "/orders/me/pendingOrdersSum")
+
+    def get_historical_seller_stats(self):
+        return self._req("GET", "/orders/me/statesCount", params={
+            "displayFilter": "DisplaySellingOrders", "orderGroup": "Historical",
+        })
+
     # ── Disconnect ───────────────────────────────────────────────────────
 
     def disconnect(self):

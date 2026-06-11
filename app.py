@@ -24,8 +24,10 @@ from supabase import create_client, Client
 try:
     from eldorado_client import EldoradoClient, DELIVERY_MAP, DELIVERY_REV, COOKIE_FILE
     _HAS_ELDORADO = True
-except ImportError:
+except Exception as _eldo_import_err:
     _HAS_ELDORADO = False
+    import sys
+    print(f"[ELDO] Import failed: {_eldo_import_err}", file=sys.stderr)
 
 # =============================================================================
 # PAGE CONFIG (must be first Streamlit call)
@@ -1864,10 +1866,8 @@ with st.sidebar:
     _td2.metric("Lợi nhuận", fmt_vnd(_today_profit))
 
     # ── #22 Mục tiêu lãi ngày ──
-    if "daily_profit_target" not in st.session_state:
-        st.session_state["daily_profit_target"] = 5_000_000
     st.number_input("Mục tiêu lợi nhuận (₫)", min_value=0, step=500_000,
-                    key="daily_profit_target", format="%d")
+                    value=5_000_000, key="daily_profit_target", format="%d")
     _daily_target_val = st.session_state["daily_profit_target"]
     if _daily_target_val > 0:
         _goal_pct = max(0, min(_today_profit / _daily_target_val, 1.0))

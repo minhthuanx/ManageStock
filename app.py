@@ -463,13 +463,27 @@ def parse_json_import(json_str: str) -> list:
             if not pet_name.strip():
                 continue
             
+            # Use gen_value for precise M/s if available
+            gen_val = item.get("gen_value")
+            if gen_val is not None:
+                try:
+                    ms_val = float(gen_val) / 1000000.0
+                    # Nếu >= 1 tỷ (1000M/s) thì lấy theo gen_text
+                    if ms_val >= 1000:
+                        ms_val = parse_gen_text(item.get("gen_text", ""))
+                except:
+                    ms_val = parse_gen_text(item.get("gen_text", ""))
+            else:
+                ms_val = parse_gen_text(item.get("gen_text", ""))
+
             results.append({
                 "Tên Pet": pet_name,
                 "Mutation": str(item.get("mutation", "Normal")).strip() or "Normal",
-                "M/s": parse_gen_text(item.get("gen_text", "")),
+                "M/s": ms_val,
                 "Số Trait": str(len(item.get("traits", []))) if item.get("traits") else "None",
                 "NameStock": "",
                 "_ok": True,
+                "_original_json": item,
             })
         
         return results
@@ -2270,6 +2284,20 @@ Return ONLY valid JSON, no markdown:
 
                     st.caption(f"**{len(json_results)}** mục từ JSON · Xem lại và xác nhận trước khi lưu")
 
+                    if st.button("🗑️ Xoá ngay các mục đang chọn", use_container_width=True):
+                        kept = []
+                        for i, res in enumerate(json_results):
+                            if not st.session_state.get(f"dlg_json_delete_{i}", False):
+                                kept.append(res)
+                        if len(kept) < len(json_results):
+                            st.session_state.json_batch_results = kept
+                            for k in list(st.session_state.keys()):
+                                if k.startswith("dlg_json_delete_"):
+                                    del st.session_state[k]
+                            st.rerun()
+                        else:
+                            st.warning("Bạn chưa tick chọn mục nào để xoá!")
+
                     # ── NameStock chung cho cả batch ──
                     _gn1, _gn2 = st.columns([1, 3])
                     use_global_ns = _gn1.checkbox("NameStock chung", key="dlg_json_global_ns_check",
@@ -2319,7 +2347,8 @@ Return ONLY valid JSON, no markdown:
                                 r_delete = st.checkbox("🗑️ Xoá", key=f"dlg_json_delete_{i}", label_visibility="collapsed")
                             
                             with _info_col:
-                                st.caption(f"M/s: {int(res.get('M/s')) if res.get('M/s') else '?'} | Traits: {res.get('Số Trait')}")
+                                ms_val = res.get('M/s')
+                                st.caption(f"M/s: {f'{ms_val:g}' if ms_val else '?'} | Traits: {res.get('Số Trait')}")
                             
                             # Main form columns
                             c1d, c2d, c3d = st.columns(3)
@@ -2339,7 +2368,9 @@ Return ONLY valid JSON, no markdown:
                             r_mut = c2d.selectbox(f"Mutation", MUTATION_OPTIONS, index=mi, key=f"dlg_json_mut_{i}", label_visibility="collapsed")
 
                             # M/s
-                            r_ms_raw = c3d.text_input(f"M/s", value=str(int(res.get("M/s")) if res.get("M/s") else ""), key=f"dlg_json_ms_{i}", label_visibility="collapsed")
+                            val_ms = res.get("M/s")
+                            str_ms = f"{val_ms:g}" if val_ms else ""
+                            r_ms_raw = c3d.text_input(f"M/s", value=str_ms, key=f"dlg_json_ms_{i}", label_visibility="collapsed")
 
                             c4d, c5d, c6d = st.columns([1, 1, 1])
                             
@@ -2378,15 +2409,14 @@ Return ONLY valid JSON, no markdown:
                                         key = (effective_ns.strip(), r_mut_str, int(r_ms / 50) * 50)
                                         similar_pets = similar_cache.get(key, [])
                                         
-                                        # Filter ±5% range + EXPLICIT CHECK NameStock
-                                        ms_range = r_ms * 0.05
+                                        # Exact Match (100%) + EXPLICIT CHECK NameStock
                                         similar_pets = [
                                             p for p in similar_pets 
-                                            if abs(p[1] - r_ms) <= ms_range and p[2] == effective_ns.strip()
+                                            if p[1] == r_ms and p[2] == effective_ns.strip()
                                         ]
                                         
                                         if similar_pets:
-                                            similar_names = ", ".join([f"{p[0]} ({p[1]:.0f}M/s)" for p in similar_pets[:3]])
+                                            similar_names = ", ".join([f"{p[0]} ({p[1]:.1f}M/s)" for p in similar_pets[:3]])
                                             if len(similar_pets) > 3:
                                                 similar_names += f" +{len(similar_pets)-3} nữa"
                                             st.warning(f"⚠️ **Có vẻ trùng (cùng {effective_ns}):** {similar_names}")
@@ -2435,14 +2465,23 @@ Return ONLY valid JSON, no markdown:
                             sb_records_to_insert = []
                             _ts_batch   = now_iso()
                             _ngay_batch = now_str()
+                            saved_original_json = []
+                            unsaved_original_json = []
 
-                            for r in edited_rows:
+                            for i, r in enumerate(edited_rows):
                                 if not r["_valid"]:
+                                    if "_original_json" in json_results[i]:
+                                        unsaved_original_json.append(json_results[i]["_original_json"])
                                     continue
                                 
                                 # ── BỎ QUA NẾU TICK XOÁ (Không thêm vào, không xoá DB) ──
                                 if r["_delete"]:
+                                    if "_original_json" in json_results[i]:
+                                        unsaved_original_json.append(json_results[i]["_original_json"])
                                     continue
+                                
+                                if "_original_json" in json_results[i]:
+                                    saved_original_json.append(json_results[i]["_original_json"])
                                 
                                 # ── THÊM MỚI ──
                                 existing_lower = [x.lower() for x in get_name_options(pet_db)]
@@ -2503,10 +2542,30 @@ Return ONLY valid JSON, no markdown:
                                     _save_ok = True
 
                             if _save_ok:
+                                st.session_state.json_saved_output = json.dumps(saved_original_json, ensure_ascii=False, indent=2)
                                 st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
                                 st.rerun()
 
                 json_preview_dialog()
+
+            if st.session_state.get("json_saved_output"):
+                st.success("🎉 Đã lưu thành công!")
+                
+                if st.session_state.json_saved_output != "[]":
+                    if st.button("📦 Trích xuất JSON các pet ĐÃ ĐƯỢC LƯU"):
+                        st.session_state.show_saved_json = True
+                    
+                    if st.session_state.get("show_saved_json"):
+                        st.code(st.session_state.json_saved_output, language="json")
+                else:
+                    st.info("Không có pet nào được lưu.")
+
+                if st.button("❌ Xóa toàn bộ kết quả này", key="btn_clear_json_results"):
+                    st.session_state.json_saved_output = ""
+                    st.session_state.json_unsaved_output = ""
+                    st.session_state.show_saved_json = False
+                    st.session_state.show_unsaved_json = False
+                    st.rerun()
 
             # =========================================================
             # NHẬP THỦ CÔNG (Always visible)

@@ -2252,7 +2252,6 @@ Return ONLY valid JSON, no markdown:
                     else:
                         st.session_state.json_batch_results = json_results
                         st.session_state.json_show_dialog = True
-                        st.rerun()
 
             # =========================================================
             # JSON DIALOG PREVIEW + EDIT
@@ -2313,7 +2312,7 @@ Return ONLY valid JSON, no markdown:
                         
                         _expander_label = f"✅ {pet_name} · {mutation}"
                         
-                        with st.expander(_expander_label, expanded=(i < 3)):
+                        with st.expander(_expander_label, expanded=True):
                             # Top row: Delete checkbox + basic info
                             _del_col, _info_col = st.columns([0.5, 5])
                             with _del_col:
@@ -2342,7 +2341,7 @@ Return ONLY valid JSON, no markdown:
                             # M/s
                             r_ms_raw = c3d.text_input(f"M/s", value=str(int(res.get("M/s")) if res.get("M/s") else ""), key=f"dlg_json_ms_{i}", label_visibility="collapsed")
 
-                            c4d, c5d = st.columns(2)
+                            c4d, c5d, c6d = st.columns([1, 1, 1])
                             
                             # Số Trait
                             json_trait = str(res.get("Số Trait") or "None").strip()
@@ -2364,6 +2363,9 @@ Return ONLY valid JSON, no markdown:
                             else:
                                 r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_json_ns_{i}", label_visibility="collapsed")
                                 effective_ns = r_ns
+
+                            # Giá Nhập
+                            r_cost_raw = c6d.text_input(f"Giá nhập", value="", placeholder="VD: 150k", key=f"dlg_json_cost_{i}", label_visibility="collapsed")
 
                             # ── Similar pet detection (dùng cache) ──
                             if effective_ns and effective_ns.strip():
@@ -2392,11 +2394,13 @@ Return ONLY valid JSON, no markdown:
                                     pass
 
                         r_ms = parse_usd(r_ms_raw)
+                        r_cost = parse_vnd(r_cost_raw)
                         err_row = []
                         if not r_delete:  # Chỉ validate nếu không xoá
                             if not r_name or r_name == "None": err_row.append("Tên Pet")
                             if r_ms <= 0:  err_row.append("M/s")
                             if not r_ns.strip(): err_row.append("NameStock")
+                            if r_cost <= 0: err_row.append("Giá nhập")
                         
                         if not r_delete and err_row:
                             st.info(f"⚠️ Thiếu thông tin: {', '.join(err_row)}")
@@ -2408,6 +2412,7 @@ Return ONLY valid JSON, no markdown:
                             "M/s":       r_ms,
                             "Số Trait":  r_trait,
                             "NameStock": r_ns,
+                            "Giá Nhập":  r_cost,
                             "_delete":   r_delete,
                             "_valid":    r_delete or len(err_row) == 0,
                         })
@@ -2453,7 +2458,7 @@ Return ONLY valid JSON, no markdown:
                                     "Mutation":   r["Mutation"],
                                     "Số Trait":   r["Số Trait"],
                                     "NameStock":  r["NameStock"],
-                                    "Giá Nhập":   0.0,
+                                    "Giá Nhập":   float(r.get("Giá Nhập", 0.0)),
                                     "Giá Bán":    0.0,
                                     "Lợi Nhuận":  0.0,
                                     "Doanh Thu":  0.0,

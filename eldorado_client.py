@@ -830,6 +830,60 @@ class EldoradoClient:
     def mark_delivered(self, order_id):
         return self._req("PUT", f"/orders/me/{order_id}/deliver")
 
+    def get_order_detail(self, order_id):
+        return self._req("GET", f"/orders/me/{order_id}")
+
+    # ── States ─────────────────────────────────────────────────────────
+
+    def get_states(self, category=CATEGORY):
+        r = self._req("GET", "/v1/item-management/me/offers/state-count",
+                       params={"category": category})
+        if isinstance(r, dict) and ("activeOffers" in r or "closedOffers" in r):
+            return r
+        return self._req("GET", "/flexibleOffersUser/me/stateCount",
+                         params={"category": category})
+
+    def get_offer_private(self, offer_id):
+        return self._req("GET", f"/v1/item-management/me/offers/{offer_id}/private")
+
+    def change_state(self, offer_id, state):
+        action = "pause" if state == "Paused" else "resume"
+        return self._req("POST", f"/v1/item-management/me/offers/{offer_id}/{action}",
+                         json_data={})
+
+    # ── Offline/Online ─────────────────────────────────────────────────
+
+    def switch_offline(self):
+        return self._req("PUT", "/offerUser/me/switchOffline", json_data={})
+
+    def switch_online(self):
+        return self._req("PUT", "/offerUser/me/switchOnline", json_data={})
+
+    def get_offline_status(self):
+        r = self._req("GET", "/offerUser/me")
+        if isinstance(r, dict) and isinstance(r.get("offlineMode"), str):
+            return r["offlineMode"] != "Online"
+        return None
+
+    # ── Notifications ──────────────────────────────────────────────────
+
+    def get_notifications(self, page_size=20, cursor=None):
+        default_cursor = "9999-99-99 99:99:99.999999999999999-9999-9999-9999-999999999999"
+        return self._req("GET", "/notifications/me", params={
+            "pageSize": page_size, "pageDirection": "Next",
+            "cursorValue": cursor or default_cursor,
+            "notificationReadStatuses": ["IsUnread", "IsRead"],
+        })
+
+    def mark_notifications_read(self):
+        return self._req("PUT", "/notifications/me/markAllAsRead")
+
+    # ── Fees ───────────────────────────────────────────────────────────
+
+    def get_fees(self, game_id=GAME_ID, category=CATEGORY):
+        return self._req("GET", f"/fees/me/feesForGame/{game_id}",
+                         params={"category": category})
+
     # ── Disconnect ───────────────────────────────────────────────────────
 
     def disconnect(self):

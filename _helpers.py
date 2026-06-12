@@ -319,6 +319,7 @@ def parse_json_import(json_str: str) -> list:
             results.append({
                 "Tên Pet": pet_name,
                 "Mutation": str(item.get("mutation", "Normal")).strip() or "Normal",
+                "Rarity": str(item.get("rarity", "")).strip(),
                 "M/s": ms_val,
                 "Số Trait": str(len(item.get("traits", []))) if item.get("traits") else "None",
                 "NameStock": _ns,

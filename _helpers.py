@@ -166,7 +166,7 @@ def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> s
         t_str = ""
     display_ms = f"{ms_value / 1000:g}B/s" if ms_value >= 1000 else f"{ms_value:g}M/s"
     ns_str = f" {namestock}" if namestock else ""
-    if str(mutation).lower() == "normal" or not mutation:
+    if str(mutation).lower() in ("normal", "none") or not mutation:
         return f"🌸{pet_name} {display_ms}{t_str}🌸Cheapest🚛 Fast Delivery 🚛{ns_str}"
     return f"🌸{icon}{mutation} {pet_name} {display_ms}{t_str}{icon}🌸Cheapest🚛 Fast Delivery 🚛{ns_str}"
 
@@ -319,7 +319,7 @@ def parse_json_import(json_str: str) -> list:
             _ms_range = str(item.get("ms_range", "")).strip()
             results.append({
                 "Tên Pet": pet_name,
-                "Mutation": str(item.get("mutation", "Normal")).strip() or "Normal",
+                "Mutation": str(item.get("mutation", "Normal")).strip().lower().replace("yinyang", "yin-yang").replace("yin yang", "yin-yang").title() or "Normal",
                 "Rarity": str(item.get("rarity", "")).strip(),
                 "M/s": ms_val,
                 "ms_range": _ms_range,

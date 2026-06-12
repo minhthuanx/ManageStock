@@ -293,6 +293,7 @@ def parse_json_import(json_str: str) -> list:
             return []
         _on_map = st.session_state.get("_owner_ns_map", {})
         _pet_ns_map = build_pet_namestock_map()
+        _pet_ns_lower = {k.lower(): v for k, v in _pet_ns_map.items()}
         results = []
         for item in data:
             if not isinstance(item, dict):
@@ -312,7 +313,7 @@ def parse_json_import(json_str: str) -> list:
                 ms_val = parse_gen_text(item.get("gen_text", ""))
             _owner = str(item.get("owner", "")).strip()
             _ns_from_owner = _on_map.get(_owner.lower(), "") if _owner else ""
-            _ns_from_pet = _pet_ns_map.get(pet_name.strip(), [""])[0] if pet_name.strip() in _pet_ns_map else ""
+            _ns_from_pet = (_pet_ns_lower.get(pet_name.strip().lower()) or [""])[0] if pet_name.strip() else ""
             _ns = _ns_from_owner or _ns_from_pet
             _owner_unmapped = bool(_owner and not _ns_from_owner)
             results.append({

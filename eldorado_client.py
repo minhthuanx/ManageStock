@@ -138,6 +138,8 @@ class Vault:
 # ─── EldoradoClient ──────────────────────────────────────────────────────────
 
 class EldoradoClient:
+    CLIENT_VERSION = 2  # bump khi class thay đổi method signature
+
     def __init__(self, log_fn=None):
         self._vault = Vault()
         self._log = log_fn or (lambda msg: print(msg))
@@ -507,9 +509,9 @@ class EldoradoClient:
             else:
                 self._flatten_envs(children, parts, out)
 
-    def find_env(self, name, rarity=""):
+    def find_env(self, name, rarity="", index=""):
         """Fuzzy-match an item name against cached trade environments.
-        Matches server.js buildEnvLookup/findEnv priority order."""
+        Matches server.js findEnv priority order."""
         if not self._game_cache["loaded"]:
             return None
 
@@ -518,8 +520,9 @@ class EldoradoClient:
 
         name_n = norm(name)
         rarity_n = norm(rarity)
+        index_n = norm(index)
 
-        # 1. Two-part key (name_rarity) — highest priority, matches JS envLookupRR
+        # 1. name_rarity 2-part key — matches JS envLookupRR
         if rarity_n:
             key2 = name_n + "_" + rarity_n
             for env in self._game_cache["envs"]:
@@ -538,13 +541,23 @@ class EldoradoClient:
             if last == name_n:
                 return env
 
-        # 3. Substring match
+        # 3. Index fallback — matches JS: if not found && index → v337[normName(index)]
+        if index_n:
+            for env in self._game_cache["envs"]:
+                parts = env["parts"]
+                if not parts:
+                    continue
+                last = norm(parts[-1])
+                if last == index_n:
+                    return env
+
+        # 4. Substring match (name vs last part)
         for env in self._game_cache["envs"]:
             last = norm(env["parts"][-1] if env["parts"] else "")
-            if last in name_n or name_n in last:
+            if last and (last in name_n or name_n in last):
                 return env
 
-        # 4. Word overlap (>= 2 words)
+        # 5. Word overlap (>= 2 words)
         name_words = set(name_n.split())
         if len(name_words) >= 2:
             best_score = 0
@@ -694,12 +707,12 @@ class EldoradoClient:
     # ── Listing CRUD ─────────────────────────────────────────────────────
 
     def create_listing(self, title, description, price, ms, mutation="",
-                       namestock="", delivery_time="Minute20", image_data=None,
+                       trade_env_id=None, delivery_time="Minute20", image_data=None,
                        quantity=1, game_id=GAME_ID, category=CATEGORY):
-        """Create a new listing. Returns API response dict."""
-        trade_env = self.find_env(namestock or "")
-        if not trade_env:
-            return {"error": f"No trade env match for '{namestock}'"}
+        """Create a new listing. Returns API response dict.
+        Matches eldorado-api.js createListing signature."""
+        if not trade_env_id:
+            return {"error": "Missing tradeEnvironmentId"}
 
         offer_attrs = self.build_offer_attributes(ms, mutation)
 
@@ -707,7 +720,7 @@ class EldoradoClient:
             "augmentedGame": {
                 "gameId": str(game_id),
                 "category": category,
-                "tradeEnvironmentId": trade_env["id"],
+                "tradeEnvironmentId": trade_env_id,
                 "offerAttributes": offer_attrs,
             },
             "details": {

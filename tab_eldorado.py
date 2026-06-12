@@ -272,53 +272,31 @@ def render_tab_eldorado(eld_client):
                     # ── Danh sách listings ──
                     st.caption(f"**{len(_flt)}** / {len(_listings)} listings")
 
-                    # Tạo HTML scroll container + listing cards
-                    _cards_html = ""
+                    # Dùng st.radio để chọn listing từ list compact
+                    _radio_opts = {}
                     for _o in _flt:
                         _oid = _o.get("id", "")
-                        _otitle = (_o.get("offerTitle", "") or "")[:65]
+                        _otitle = (_o.get("offerTitle", "") or "")[:50]
                         _oprice = float(_o.get("pricePerUnit", {}).get("amount", 0))
                         _ostate = _o.get("offerState", "?")
-                        _oimg = (_o.get("mainOfferImage") or {}).get("smallImage", "")
-                        _state_colors = {"Active": ("#22c55e", "Active"), "Paused": ("#f59e0b", "Paused"), "Closed": ("#ef4444", "Closed")}
-                        _sc, _sl = _state_colors.get(_ostate, ("#6b7280", _ostate))
+                        _label = f"[{_ostate}] {_otitle} — ${_oprice:.2f} (ID: {_oid})"
+                        _radio_opts[_label] = _o
 
-                        if _oimg:
-                            if not _oimg.startswith("http"):
-                                _oimg = f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
-                            _img_tag = f'<img src="{_oimg}" width="52" height="52" style="border-radius:8px;object-fit:cover;">'
-                        else:
-                            _img_tag = '<div style="width:52px;height:52px;border-radius:8px;background:#1a1528;display:flex;align-items:center;justify-content:center;font-size:22px;">📦</div>'
-
-                        _cards_html += f'''
-                        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:6px;border:1px solid rgba(192,132,252,0.2);border-radius:10px;background:rgba(17,15,26,0.6);">
-                            {_img_tag}
-                            <div style="flex:1;min-width:0;">
-                                <div style="font-size:0.92rem;font-weight:600;color:#f0e6ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{_otitle}</div>
-                                <div style="font-size:0.82rem;color:#9d8fbf;margin-top:2px;">${_oprice:.2f} · <span style="color:{_sc};font-weight:600;">{_sl}</span> · ID: {_oid}</div>
-                            </div>
-                        </div>'''
-
-                    st.markdown(
-                        f'<div style="max-height:700px;overflow-y:auto;border:1px solid rgba(192,132,252,0.15);border-radius:10px;padding:8px;">'
-                        f'{_cards_html}'
-                        f'</div>',
-                        unsafe_allow_html=True,
+                    _sel_label = st.radio(
+                        "Chọn listing",
+                        list(_radio_opts.keys()),
+                        key="eldo_radio_select",
+                        label_visibility="collapsed",
                     )
-
-                    # ── Action buttons cho mỗi listing (bên ngoài scroll) ──
-                    _sel_oid = st.selectbox(
-                        "Chọn listing để thao tác",
-                        [f"{x.get('id', '')} — {(x.get('offerTitle', '') or '')[:40]} — ${float(x.get('pricePerUnit', {}).get('amount', 0)):.2f} — {x.get('offerState', '?')}" for x in _flt],
-                        key="eldo_select_listing",
-                    )
-                    _sel_idx = next((i for i, x in enumerate(_flt) if f"{x.get('id', '')} —" in _sel_oid), 0)
-                    _sel_o = _flt[_sel_idx] if _flt else None
+                    _sel_o = _radio_opts.get(_sel_label)
 
                     if _sel_o:
                         _oid = _sel_o.get("id", "")
+                        _otitle = (_sel_o.get("offerTitle", "") or "")
                         _oprice = float(_sel_o.get("pricePerUnit", {}).get("amount", 0))
                         _ostate = _sel_o.get("offerState", "?")
+
+                        st.markdown(f"**{_otitle}** · ${_oprice:.2f} · {_ostate}")
 
                         ac1, ac2, ac3, ac4 = st.columns(4)
                         _np_val = ac1.number_input("Giá mới ($)", 0.01, 9999.0, _oprice, 0.05, format="%.2f", key="eldo_new_price")

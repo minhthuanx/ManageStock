@@ -316,11 +316,13 @@ def parse_json_import(json_str: str) -> list:
             if not _ns:
                 _ns = (_pet_ns_lower.get(pet_name.strip().lower()) or [""])[0] if pet_name.strip() else ""
             _owner_unmapped = bool(_owner and not _ns)
+            _ms_range = str(item.get("ms_range", "")).strip()
             results.append({
                 "Tên Pet": pet_name,
                 "Mutation": str(item.get("mutation", "Normal")).strip() or "Normal",
                 "Rarity": str(item.get("rarity", "")).strip(),
                 "M/s": ms_val,
+                "ms_range": _ms_range,
                 "Số Trait": str(len(item.get("traits", []))) if item.get("traits") else "None",
                 "NameStock": _ns,
                 "_ok": True,

@@ -31,12 +31,22 @@ def render_tab_eldorado(eld_client):
                     _av_url = eld_client.avatar or ""
                     if _av_url:
                         try:
-                            _av_full = f"https://eldorado.gg{_av_url}" if _av_url.startswith("/") else _av_url
-                            _av_resp = eld_client._session.get(_av_full, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-                            if _av_resp.ok and _av_resp.headers.get("content-type", "").startswith("image/"):
-                                import base64 as _b64
-                                st.session_state["_eldo_avatar_b64"] = _b64.b64encode(_av_resp.content).decode()
-                                st.session_state["_eldo_avatar_ct"] = _av_resp.headers["content-type"]
+                            # Thử nhiều URL patterns
+                            _patterns = [
+                                f"https://eldorado.gg{_av_url}" if _av_url.startswith("/") else _av_url,
+                                f"https://eldorado.gg{_av_url}" if not _av_url.startswith("http") else _av_url,
+                            ]
+                            for _av_full in _patterns:
+                                try:
+                                    _av_resp = eld_client._session.get(_av_full, timeout=8,
+                                        headers={"User-Agent": "Mozilla/5.0", "Referer": "https://eldorado.gg/"})
+                                    if _av_resp.ok and _av_resp.headers.get("content-type", "").startswith("image/"):
+                                        import base64 as _b64
+                                        st.session_state["_eldo_avatar_b64"] = _b64.b64encode(_av_resp.content).decode()
+                                        st.session_state["_eldo_avatar_ct"] = _av_resp.headers["content-type"]
+                                        break
+                                except Exception:
+                                    continue
                         except Exception:
                             pass
 
@@ -103,28 +113,22 @@ def render_tab_eldorado(eld_client):
             with st.container(border=True):
                 st.markdown('<div class="sec-heading">📦 Listing Của Tôi</div>', unsafe_allow_html=True)
 
-                # ── Load listings ──
-                _ELDO_PAGE_SIZE = 40
+                # ── Load ALL listings ──
                 _eldo_reload = st.button("🔄 Tải lại", key="eldo_refresh_listings")
                 if _eldo_reload:
-                    st.session_state._eldo_page = 1
                     st.session_state._eldo_all = []
-                    st.session_state._eldo_total_pages = 1
+                    st.session_state["_eldo_states_loaded"] = False
 
-                _cur_page = st.session_state.get("_eldo_page", 1)
                 _all_data = st.session_state.get("_eldo_all", [])
-                _total_pages = st.session_state.get("_eldo_total_pages", 1)
 
                 if not _all_data or _eldo_reload:
-                    with st.spinner(f"Đang tải trang {_cur_page}..."):
-                        _raw = eld_client.get_listings(page=_cur_page, page_size=_ELDO_PAGE_SIZE)
+                    with st.spinner("Đang tải toàn bộ listings..."):
+                        _raw = eld_client.get_all_listings()
                         if isinstance(_raw, dict) and "results" in _raw:
-                            _all_data = _raw.get("results", [])
-                            _total_pages = _raw.get("totalPages", 1)
+                            _all_data = _raw["results"]
                             st.session_state._eldo_all = _all_data
-                            st.session_state._eldo_total_pages = _total_pages
 
-                # ── State counts (luôn lấy từ API = toàn bộ) ──
+                # ── State counts (lấy từ API) ──
                 if not st.session_state.get("_eldo_states_loaded") or _eldo_reload:
                     try:
                         _raw_states = eld_client.get_states()
@@ -144,22 +148,9 @@ def render_tab_eldorado(eld_client):
                 sc3.metric("Paused", _cnt_p)
                 sc4.metric("Closed", _cnt_c)
 
-                # ── Pagination ──
-                if _total_pages > 1:
-                    pg1, pg2, pg3 = st.columns([1, 2, 1])
-                    if pg1.button("⬅️", key="eldo_prev", disabled=_cur_page <= 1):
-                        st.session_state._eldo_page = max(1, _cur_page - 1)
-                        st.session_state._eldo_all = []
-                        st.rerun()
-                    pg2.markdown(f"<div style='text-align:center;padding-top:0.3rem;'>Trang **{_cur_page}** / {_total_pages}</div>", unsafe_allow_html=True)
-                    if pg3.button("➡️", key="eldo_next", disabled=_cur_page >= _total_pages):
-                        st.session_state._eldo_page = min(_total_pages, _cur_page + 1)
-                        st.session_state._eldo_all = []
-                        st.rerun()
-
                 _listings = _all_data
                 if not _listings:
-                    st.info("Không có listing nào.")
+                    st.info("Không có listing nào. Nhấn 🔄 Tải lại.")
                 else:
                     # ── Filters ──
                     fl1, fl2, fl3 = st.columns([2, 1.5, 1])
@@ -170,7 +161,7 @@ def render_tab_eldorado(eld_client):
                     _eldo_state_flt = fl3.selectbox("State", ["Tất cả", "Active", "Paused", "Closed"],
                                                     key="eldo_state_flt", label_visibility="collapsed")
 
-                    _flt = _listings
+                    _flt = list(_listings)
                     if _eldo_search.strip():
                         _sq = _eldo_search.strip().lower()
                         _flt = [x for x in _flt if _sq in (x.get("offerTitle") or "").lower()
@@ -186,11 +177,10 @@ def render_tab_eldorado(eld_client):
 
                     # ── Bulk actions ──
                     with st.expander("⚡ Thao Tác Hàng Loạt", expanded=False):
-                        _bulk_state = fl3.selectbox("Chọn state", ["Active", "Paused", "Closed"],
-                                                    key="eldo_bulk_state", label_visibility="collapsed",
-                                                    placeholder="Chọn state...")
-                        _bulk_items = [x for x in _flt if x.get("offerState") == _bulk_state]
-                        st.caption(f"**{len(_bulk_items)}** listing {_bulk_state} trên trang hiện tại")
+                        _bulk_state = st.selectbox("Chọn state", ["Active", "Paused", "Closed"],
+                                                    key="eldo_bulk_state")
+                        _bulk_items = [x for x in _listings if x.get("offerState") == _bulk_state]
+                        st.caption(f"**{len(_bulk_items)}** listing {_bulk_state} trong toàn bộ kho")
 
                         if _bulk_items:
                             ba1, ba2 = st.columns(2)
@@ -238,9 +228,9 @@ def render_tab_eldorado(eld_client):
                     with st.expander("📉 Giảm giá toàn bộ (Active)", expanded=False):
                         _act = [x for x in _listings if x.get("offerState") == "Active"]
                         if not _act:
-                            st.info("Không có listing Active trên trang này.")
+                            st.info("Không có listing Active.")
                         else:
-                            st.caption(f"**{len(_act)}** listings Active trên trang hiện tại")
+                            st.caption(f"**{len(_act)}** listings Active trong toàn bộ kho")
                             _dm, _dv = st.columns(2)
                             _disc_mode = _dm.radio("Chế độ", ["%", "$"], horizontal=True, key="eldo_dm")
                             if _disc_mode == "%":
@@ -280,7 +270,7 @@ def render_tab_eldorado(eld_client):
                                 st.info("Đã ở giá tối thiểu.")
 
                     # ── Danh sách listings ──
-                    st.caption(f"Trang {_cur_page}: **{len(_flt)}** listings")
+                    st.caption(f"**{len(_flt)}** / {len(_listings)} listings")
                     _scroll_html = '<div style="max-height:520px;overflow-y:auto;border:1px solid rgba(192,132,252,0.2);border-radius:10px;padding:8px;">'
                     st.markdown(_scroll_html, unsafe_allow_html=True)
 

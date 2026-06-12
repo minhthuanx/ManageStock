@@ -193,10 +193,16 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                         effective_ns = global_ns_val
                     else:
                         _ns_val = res.get("NameStock", "")
-                        if _ns_val and _ns_val not in ns_opts_dlg:
-                            ns_opts_dlg = [ns_opts_dlg[0], _ns_val] + ns_opts_dlg[1:]
-                        nsi = next((j for j, x in enumerate(ns_opts_dlg) if x.lower() == _ns_val.lower()), 0)
-                        r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, index=nsi, key=f"dlg_json_ns_{i}", label_visibility="collapsed")
+                        if _ns_val:
+                            c5d.markdown(
+                                f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#a78bfa;">'
+                                f'NS: <b>{_ns_val}</b> <span style="color:#4b3f6b;">(tự động)</span></div>',
+                                unsafe_allow_html=True,
+                            )
+                            r_ns = _ns_val
+                        else:
+                            nsi = next((j for j, x in enumerate(ns_opts_dlg) if x.lower() == _ns_val.lower()), 0)
+                            r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, index=nsi, key=f"dlg_json_ns_{i}", label_visibility="collapsed")
                         effective_ns = r_ns
 
                     # Giá Nhập

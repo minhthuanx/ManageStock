@@ -38,7 +38,7 @@ html, body, [data-testid="stAppViewContainer"] {
 }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] { background: var(--surface) !important; border-right: 1px solid var(--border); }
-.block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; contain: layout style; }
+.block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; }
 
 /* --- Main content area --- */
 [data-testid="stAppViewContainer"] > section.main > div.block-container {
@@ -46,19 +46,6 @@ html, body, [data-testid="stAppViewContainer"] {
   border-radius: 16px !important;
   border: 1px solid rgba(192,132,252,0.15) !important;
   box-shadow: 0 0 60px rgba(192,132,252,0.07) inset !important;
-  min-width: 900px !important;
-  contain: layout style;
-}
-
-/* ── FIX LAYOUT SHIFT ──
-   Section.main luôn có scrollbar ẩn để width không đổi */
-[data-testid="stAppViewContainer"] > section.main {
-  scrollbar-gutter: stable;
-}
-/* Tab content luôn có min-height cố định để không shift */
-[data-testid="stTabContent"] {
-  min-height: 600px !important;
-  contain: size layout;
 }
 
 div[data-testid="stMetricValue"] { font-size: clamp(1rem, 2.5vw, 1.4rem) !important; font-weight: 700 !important; color: var(--text) !important; }
@@ -176,16 +163,6 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   border-top: none !important;
   border-radius: 0 0 var(--radius) var(--radius) !important;
   padding: 1rem !important;
-  contain: layout style;
-}
-
-/* --- Plotly charts: tránh layout shift --- */
-.js-plotly-plot, .plotly {
-  contain: layout style paint !important;
-  transition: none !important;
-}
-.js-plotly-plot .plotly, .plotly-graph-div {
-  contain: layout style paint !important;
 }
 
 /* --- DataFrames --- */

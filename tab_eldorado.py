@@ -26,7 +26,7 @@ def render_tab_eldorado(eld_client):
             st.markdown('<div class="sec-heading">🎮 Eldorado.gg</div>', unsafe_allow_html=True)
 
             if eld_client and eld_client.logged_in:
-                # Profile card — download avatar + hiển thị compact
+                # Profile card — download avatar + hiển thị
                 if not st.session_state.get("_eldo_avatar_b64"):
                     _av_url = eld_client.avatar or ""
                     if _av_url:
@@ -43,23 +43,43 @@ def render_tab_eldorado(eld_client):
                 _av_b64 = st.session_state.get("_eldo_avatar_b64", "")
                 _av_ct = st.session_state.get("_eldo_avatar_ct", "image/png")
 
-                _pf_col1, _pf_col2 = st.columns([1, 5])
-                with _pf_col1:
+                # Centered profile card
+                st.markdown('<div style="display:flex;justify-content:center;">', unsafe_allow_html=True)
+                _pf_col1, _pf_col2, _pf_col3 = st.columns([1, 3, 1])
+                with _pf_col2:
                     if _av_b64:
-                        _av_html = f'<img src="data:{_av_ct};base64,{_av_b64}" width="64" height="64" style="border-radius:50%;object-fit:cover;border:2px solid #c084fc;">'
+                        st.markdown(
+                            f'<div style="text-align:center;">'
+                            f'<img src="data:{_av_ct};base64,{_av_b64}" width="96" height="96" '
+                            f'style="border-radius:50%;object-fit:cover;border:3px solid #c084fc;">'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
                     else:
                         _initial = (eld_client.username or "?")[0].upper()
-                        _av_html = f'<div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#c084fc,#e879f9);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:#fff;border:2px solid #c084fc;">{_initial}</div>'
-                    st.markdown(_av_html, unsafe_allow_html=True)
-                with _pf_col2:
-                    st.markdown(f"**{eld_client.username}**")
-                    _info_row = f"ID: `{eld_client.userId[:12]}...` · 👍 {eld_client.pos} · 👎 {eld_client.neg}"
-                    st.caption(_info_row)
-                    if st.button("🔌 Logout", key="eldo_logout_top"):
+                        st.markdown(
+                            f'<div style="text-align:center;">'
+                            f'<div style="width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#c084fc,#e879f9);'
+                            f'display:inline-flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;'
+                            f'color:#fff;border:3px solid #c084fc;">{_initial}</div>'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+                    st.markdown(
+                        f'<div style="text-align:center;margin-top:8px;">'
+                        f'<div style="font-size:1.3rem;font-weight:700;color:#f0e6ff;">{eld_client.username}</div>'
+                        f'<div style="font-size:0.85rem;color:#9d8fbf;margin-top:4px;">'
+                        f'ID: <code>{eld_client.userId[:12]}...</code> &nbsp;|&nbsp; '
+                        f'👍 {eld_client.pos} &nbsp; 👎 {eld_client.neg}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                    if st.button("🔌 Logout", key="eldo_logout_top", use_container_width=True):
                         eld_client.disconnect()
                         _clear_eld_cookie_from_sb()
                         st.toast("Đã đăng xuất Eldorado")
                         st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
             else:
                 with st.form("form_eldo_login", clear_on_submit=False):
                     st.caption("F12 → Application → Cookies → eldorado.gg → Copy all as string")
@@ -142,17 +162,21 @@ def render_tab_eldorado(eld_client):
                     st.info("Không có listing nào.")
                 else:
                     # ── Filters ──
-                    fl1, fl2, fl3 = st.columns([1.5, 1, 1])
+                    fl1, fl2, fl3 = st.columns([2, 1.5, 1])
                     _eldo_search = fl1.text_input("🔍 Tìm kiếm", placeholder="Tên listing...",
                                                    key="eldo_search_q", label_visibility="collapsed")
                     _eldo_sort = fl2.selectbox("Sắp xếp", ["Mới nhất", "Giá thấp→cao", "Giá cao→thấp",
                                                 "Tên A→Z"], key="eldo_sort", label_visibility="collapsed")
+                    _eldo_state_flt = fl3.selectbox("State", ["Tất cả", "Active", "Paused", "Closed"],
+                                                    key="eldo_state_flt", label_visibility="collapsed")
 
                     _flt = _listings
                     if _eldo_search.strip():
                         _sq = _eldo_search.strip().lower()
                         _flt = [x for x in _flt if _sq in (x.get("offerTitle") or "").lower()
                                 or _sq in str(x.get("id", ""))]
+                    if _eldo_state_flt != "Tất cả":
+                        _flt = [x for x in _flt if x.get("offerState") == _eldo_state_flt]
                     if _eldo_sort == "Giá thấp→cao":
                         _flt.sort(key=lambda x: float(x.get("pricePerUnit", {}).get("amount", 0)))
                     elif _eldo_sort == "Giá cao→thấp":

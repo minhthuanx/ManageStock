@@ -138,7 +138,7 @@ class Vault:
 # ─── EldoradoClient ──────────────────────────────────────────────────────────
 
 class EldoradoClient:
-    CLIENT_VERSION = 3  # bump khi class thay đổi method signature
+    CLIENT_VERSION = 4  # bump khi class thay đổi method signature
 
     def __init__(self, log_fn=None):
         self._vault = Vault()
@@ -583,12 +583,13 @@ class EldoradoClient:
                 return bracket_id
         return "0"
 
-    def build_offer_attributes(self, ms, mutation=""):
+    def build_offer_attributes(self, ms, mutation="", ms_range=""):
         """Build offerAttributes array — mirrors JS buildOfferAttributes.
-        Iterates all gameCache attrs, sets Numeric/dynamic values from ms+mutation."""
+        Iterates all gameCache attrs, sets Numeric/dynamic values from ms+mutation.
+        If ms_range is provided (from JSON), use it directly as bracket ID."""
         raw = ms * 1_000_000  # convert M/s → game raw units
         # Determine multiplier from MS bracket (mirrors JS r96)
-        ms_bracket_id = self._ms_bracket_id(ms)
+        ms_bracket_id = ms_range if ms_range else self._ms_bracket_id(ms)
         if ms_bracket_id and ms_bracket_id.endswith("-bs"):
             divisor = 1_000_000_000
         elif ms_bracket_id and ms_bracket_id.endswith("-ks"):
@@ -734,14 +735,14 @@ class EldoradoClient:
     # ── Listing CRUD ─────────────────────────────────────────────────────
 
     def create_listing(self, title, description, price, ms, mutation="",
-                       trade_env_id=None, delivery_time="Minute20", image_data=None,
-                       quantity=1, game_id=GAME_ID, category=CATEGORY):
+                       ms_range="", trade_env_id=None, delivery_time="Minute20",
+                       image_data=None, quantity=1, game_id=GAME_ID, category=CATEGORY):
         """Create a new listing. Returns API response dict.
         Matches eldorado-api.js createListing signature."""
         if not trade_env_id:
             return {"error": "Missing tradeEnvironmentId"}
 
-        offer_attrs = self.build_offer_attributes(ms, mutation)
+        offer_attrs = self.build_offer_attributes(ms, mutation, ms_range)
 
         payload = {
             "augmentedGame": {

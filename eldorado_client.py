@@ -619,8 +619,7 @@ class EldoradoClient:
                     attrs.append({"id": a["id"], "type": "Select", "value": ms_bracket_id or "0"})
                 elif a["id"] == "steal-a-brainrot-mutations":
                     _mut = mutation.lower() if mutation else "none"
-                    if _mut not in ("normal",):
-                        attrs.append({"id": a["id"], "type": "Select", "value": _mut})
+                    attrs.append({"id": a["id"], "type": "Select", "value": _mut})
                 # any other Select attrs could be added here if needed
         return attrs
 

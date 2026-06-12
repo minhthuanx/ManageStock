@@ -138,7 +138,7 @@ class Vault:
 # ─── EldoradoClient ──────────────────────────────────────────────────────────
 
 class EldoradoClient:
-    CLIENT_VERSION = 2  # bump khi class thay đổi method signature
+    CLIENT_VERSION = 3  # bump khi class thay đổi method signature
 
     def __init__(self, log_fn=None):
         self._vault = Vault()
@@ -584,36 +584,61 @@ class EldoradoClient:
         return "0"
 
     def build_offer_attributes(self, ms, mutation=""):
-        """Build offerAttributes array from MS value and mutation name."""
-        # Check dynamic attrs first
+        """Build offerAttributes array — mirrors JS buildOfferAttributes.
+        Iterates all gameCache attrs, sets Numeric/dynamic values from ms+mutation."""
+        raw = ms * 1_000_000  # convert M/s → game raw units
+        # Determine multiplier from MS bracket (mirrors JS r96)
+        ms_bracket_id = self._ms_bracket_id(ms)
+        if ms_bracket_id and ms_bracket_id.endswith("-bs"):
+            divisor = 1_000_000_000
+        elif ms_bracket_id and ms_bracket_id.endswith("-ks"):
+            divisor = 1_000
+        else:
+            divisor = 1_000_000
+
+        attrs = []
+        for a in self._game_cache.get("attrs", []):
+            if a["type"] == "Numeric":
+                val = None
+                if "ms" in a["id"]:
+                    # Use raw value divided by divisor (mirrors JS line 379-383)
+                    if raw > 0:
+                        val = round(raw / divisor, 2)
+                if val is None:
+                    val = 0
+                # Clamp
+                if isinstance(a.get("maxValue"), (int, float)) and val > a["maxValue"]:
+                    val = a["maxValue"]
+                if isinstance(a.get("minValue"), (int, float)) and val < a["minValue"]:
+                    val = a["minValue"]
+                attrs.append({"id": a["id"], "type": "Numeric", "value": val})
+            else:
+                # Select type
+                if a["id"] == "steal-a-brainrot-ms":
+                    attrs.append({"id": a["id"], "type": "Select", "value": ms_bracket_id or "0"})
+                elif a["id"] == "steal-a-brainrot-mutations":
+                    _mut = mutation.lower()
+                    if _mut and _mut not in ("normal", "none"):
+                        attrs.append({"id": a["id"], "type": "Select", "value": _mut})
+                # any other Select attrs could be added here if needed
+        return attrs
+
+    def _ms_bracket_id(self, ms):
+        """Find matching MS bracket ID (Select value) for a given M/s."""
+        raw = ms * 1_000_000
         ms_attr = None
         for a in self._game_cache.get("attrs", []):
             if a["id"] == "steal-a-brainrot-ms":
                 ms_attr = a
                 break
-
         if ms_attr and ms_attr.get("values"):
-            # Use dynamic bracket matching
-            ms_bracket = ms_attr["values"][-1]["id"]  # fallback to last (largest)
             for val in ms_attr["values"]:
                 vid = val["id"]
-                # Parse bracket from ID (e.g. "25-4999-ms")
                 parsed = self._parse_bracket(vid)
-                if parsed and ms >= parsed[0] and ms < parsed[1]:
-                    ms_bracket = vid
-                    break
-        else:
-            ms_bracket = self._gen_to_ms_bracket(ms)
-
-        attrs = [{"id": "steal-a-brainrot-ms", "type": "Select", "value": ms_bracket}]
-
-        if mutation and mutation.lower() != "normal" and mutation.lower() != "none":
-            attrs.append({
-                "id": "steal-a-brainrot-mutations",
-                "type": "Select",
-                "value": mutation.lower(),
-            })
-        return attrs
+                if parsed and raw >= parsed[0] and raw < parsed[1]:
+                    return vid
+            return ms_attr["values"][-1]["id"]  # fallback > last bracket
+        return self._gen_to_ms_bracket(ms)
 
     @staticmethod
     def _parse_bracket(bracket_id):

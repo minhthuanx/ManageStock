@@ -182,6 +182,8 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                     r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, index=ti, key=f"dlg_json_trait_{i}", label_visibility="collapsed")
 
                     # NameStock: dùng global nếu checkbox bật, ngược lại dùng per-row
+                    _ns_raw = res.get("NameStock", "")
+                    _ns_owner = res.get("_owner", "")
                     if use_global_ns:
                         r_ns = global_ns_val
                         _ns_display = global_ns_val if global_ns_val else "—"
@@ -191,18 +193,18 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                             unsafe_allow_html=True,
                         )
                         effective_ns = global_ns_val
+                    elif _ns_raw:
+                        r_ns = _ns_raw
+                        _source = f"({_ns_owner})" if _ns_owner else ""
+                        c5d.markdown(
+                            f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#a78bfa;">'
+                            f'NS: <b>{_ns_raw}</b> <span style="color:#6b5b95;">{_source}</span></div>',
+                            unsafe_allow_html=True,
+                        )
+                        effective_ns = _ns_raw
                     else:
-                        _ns_val = res.get("NameStock", "")
-                        if _ns_val:
-                            c5d.markdown(
-                                f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#a78bfa;">'
-                                f'NS: <b>{_ns_val}</b> <span style="color:#4b3f6b;">(tự động)</span></div>',
-                                unsafe_allow_html=True,
-                            )
-                            r_ns = _ns_val
-                        else:
-                            nsi = next((j for j, x in enumerate(ns_opts_dlg) if x.lower() == _ns_val.lower()), 0)
-                            r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, index=nsi, key=f"dlg_json_ns_{i}", label_visibility="collapsed")
+                        nsi = next((j for j, x in enumerate(ns_opts_dlg) if x.lower() == _ns_raw.lower()), 0)
+                        r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, index=nsi, key=f"dlg_json_ns_{i}", label_visibility="collapsed")
                         effective_ns = r_ns
 
                     # Giá Nhập

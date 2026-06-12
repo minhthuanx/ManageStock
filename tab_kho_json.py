@@ -298,6 +298,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                     "Mutation":  r_mut,
                     "Rarity":    res.get("Rarity", ""),
                     "M/s":       r_ms,
+                    "ms_range":  res.get("ms_range", ""),
                     "Số Trait":  r_trait,
                     "NameStock": r_ns,
                     "Giá Nhập":  r_cost,
@@ -431,6 +432,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                         _pet_name = _pcfg.get("Tên Pet", "")
                                         _pet_idx = _pcfg.get("_index", "")
                                         _pet_rarity = _pcfg.get("Rarity", "")
+                                        _pet_ms_range = _pcfg.get("ms_range", "")
                                         _env = eld_client.find_env(_pet_name, rarity=_pet_rarity, index=_pet_idx)
                                         _tid = _env["id"] if _env else None
                                         _resp = eld_client.create_listing(
@@ -438,6 +440,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                             description=_def_desc,
                                             price=_pcfg["_price"],
                                             ms=float(_pcfg.get("M/s", 0)),
+                                            ms_range=_pet_ms_range,
                                             mutation=_pcfg.get("Mutation", "Normal"),
                                             trade_env_id=_tid,
                                             delivery_time=_def_del_code,

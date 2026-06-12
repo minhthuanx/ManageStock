@@ -406,21 +406,17 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                         # ── PUSH LÊN ELDORADO SAU KHI LƯU DB ──
                         _push_items = [r for r in edited_rows if r.get("_valid") and not r.get("_delete")
                                        and r.get("_image") and r.get("_price", 0) >= 0.50]
+                        _push_results = {"ok": [], "fail": []}
                         if _push_items and _HAS_ELDORADO and eld_client and eld_client.logged_in:
                             if not st.session_state.get("eld_game_loaded"):
-                                with st.spinner("Đang tải game data..."):
-                                    st.session_state.eld_game_loaded = eld_client.ensure_game_cache()
+                                st.session_state.eld_game_loaded = eld_client.ensure_game_cache()
                             if st.session_state.get("eld_game_loaded"):
                                 _eld_set = st.session_state.get("eld_settings", {})
                                 _def_desc = _eld_set.get("default_desc", "Fast delivery! Contact me if any issues.")
                                 _def_del = _eld_set.get("default_delivery", "20 min")
                                 _def_del_code = DELIVERY_MAP.get(_def_del, "Minute20")
-                                _push_prog = st.progress(0, text="Bắt đầu push lên Eldorado...")
-                                _push_results = {"ok": [], "fail": []}
                                 for _pci, _pcfg in enumerate(_push_items):
                                     _pname = _pcfg.get("Tên Pet", "?")
-                                    _push_prog.progress(_pci / len(_push_items),
-                                                        text=f"Pushing {_pname} ({_pci+1}/{len(_push_items)})...")
                                     try:
                                         _img_data = None
                                         if _pcfg.get("_image"):
@@ -448,17 +444,8 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                         _push_results["fail"].append(f"{_pname}: {str(_pe)[:80]}")
                                     if _pci < len(_push_items) - 1:
                                         _time.sleep(0.5)
-                                _push_prog.progress(1.0, text="Hoàn thành!")
-                                if _push_results["ok"]:
-                                    st.success(f"✅ Push thành công: {len(_push_results['ok'])}/{len(_push_items)}")
-                                    with st.expander("📋 Danh sách đã push", expanded=False):
-                                        for _t in _push_results["ok"]:
-                                            st.caption(f"• {_t}")
-                                if _push_results["fail"]:
-                                    st.error(f"❌ Thất bại: {len(_push_results['fail'])}/{len(_push_items)}")
-                                    with st.expander("❌ Chi tiết lỗi", expanded=True):
-                                        for _e in _push_results["fail"]:
-                                            st.caption(f"• {_e}")
+                        st.session_state.json_push_results = _push_results
+                        st.session_state.json_push_total = len(_push_items)
                         st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
                         st.rerun()
 
@@ -473,6 +460,28 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
 
             if st.session_state.get("show_saved_json"):
                 st.code(st.session_state.json_saved_output, language="json")
+
+            # ── Hiển thị kết quả push Eldorado sau rerun ──
+            if "json_push_results" in st.session_state:
+                _pr = st.session_state.json_push_results
+                _pt = st.session_state.json_push_total
+                if _pr:
+                    if _pr["ok"]:
+                        st.success(f"✅ Push Eldorado thành công: {len(_pr['ok'])}/{_pt}")
+                        with st.expander("📋 Danh sách đã push", expanded=False):
+                            for _t in _pr["ok"]:
+                                st.caption(f"• {_t}")
+                    if _pr["fail"]:
+                        st.error(f"❌ Push Eldorado thất bại: {len(_pr['fail'])}/{_pt}")
+                        with st.expander("❌ Chi tiết lỗi", expanded=True):
+                            for _e in _pr["fail"]:
+                                st.caption(f"• {_e}")
+                else:
+                    st.info("ℹ️ Không có mục nào đủ điều kiện push lên Eldorado (cần ảnh + giá $ ≥0.50).")
+                if st.button("❌ Ẩn kết quả push", key="btn_hide_push"):
+                    del st.session_state.json_push_results
+                    del st.session_state.json_push_total
+                    st.rerun()
         else:
             st.info("Không có pet nào được lưu.")
 

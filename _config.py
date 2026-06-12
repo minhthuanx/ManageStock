@@ -96,7 +96,7 @@ HISTORY_SCHEMA = {
 LIST_SCHEMA = {"Name": ""}
 
 MUTATION_OPTIONS = [
-    "Normal", "Gold", "Diamond", "Bloodrot", "Candy",
+    "None", "Normal", "Gold", "Diamond", "Bloodrot", "Candy",
     "Divine", "Lava", "Galaxy", "Yin-Yang", "Radioactive",
     "Cursed", "Rainbow", "Cyber",
 ]

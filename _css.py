@@ -165,7 +165,16 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   border-top: none !important;
   border-radius: 0 0 var(--radius) var(--radius) !important;
   padding: 1rem !important;
-  min-height: 100vh !important;
+  contain: layout style;
+}
+
+/* --- Plotly charts: tránh layout shift --- */
+.js-plotly-plot, .plotly {
+  contain: layout style paint !important;
+  transition: none !important;
+}
+.js-plotly-plot .plotly, .plotly-graph-div {
+  contain: layout style paint !important;
 }
 
 /* --- DataFrames --- */

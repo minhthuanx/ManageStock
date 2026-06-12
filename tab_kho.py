@@ -35,7 +35,7 @@ def render_tab_kho(df, bulk_df, bulk_history, pet_db, ns_db, trait_db, eld_clien
             st.markdown('<div class="sec-heading">Nhập Kho</div>', unsafe_allow_html=True)
 
             # AI Vision — multi-image upload + Groq API
-            render_ai_vision(pet_db, ns_db, trait_db)
+            render_ai_vision(df, pet_db, ns_db, trait_db)
 
             # JSON Import — paste JSON from game
             render_json_import(pet_db, ns_db, trait_db, eld_client)

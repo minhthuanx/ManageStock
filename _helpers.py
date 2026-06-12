@@ -291,7 +291,7 @@ def parse_json_import(json_str: str) -> list:
         data = json.loads(json_str)
         if not isinstance(data, list):
             return []
-        _on_map = st.session_state.get("_owner_ns_map", {})
+        _on_map = _load_owner_ns_map()
         _pet_ns_map = build_pet_namestock_map()
         _pet_ns_lower = {k.lower(): v for k, v in _pet_ns_map.items()}
         results = []

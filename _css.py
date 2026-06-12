@@ -50,6 +50,17 @@ html, body, [data-testid="stAppViewContainer"] {
   contain: layout style;
 }
 
+/* ── FIX LAYOUT SHIFT ──
+   Section.main luôn có scrollbar ẩn để width không đổi */
+[data-testid="stAppViewContainer"] > section.main {
+  scrollbar-gutter: stable;
+}
+/* Tab content luôn có min-height cố định để không shift */
+[data-testid="stTabContent"] {
+  min-height: 600px !important;
+  contain: size layout;
+}
+
 div[data-testid="stMetricValue"] { font-size: clamp(1rem, 2.5vw, 1.4rem) !important; font-weight: 700 !important; color: var(--text) !important; }
 div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--muted) !important; letter-spacing: 0.03em; text-transform: uppercase; }
 

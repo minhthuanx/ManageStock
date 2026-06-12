@@ -30,7 +30,7 @@ except ImportError:
     DELIVERY_MAP = {}
 
 
-def render_json_import(df, pet_db, ns_db, trait_db, eld_client):
+def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
     """Render the JSON Import section: text area, parse, dialog preview, save, Eldorado push."""
 
     # =========================================================

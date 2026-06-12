@@ -312,21 +312,7 @@ def parse_json_import(json_str: str) -> list:
             else:
                 ms_val = parse_gen_text(item.get("gen_text", ""))
             _owner = str(item.get("owner", "")).strip()
-            _ns = ""
-            if _owner:
-                import os as _os
-                _ns_file_path = "owner_namestock.txt"
-                if _os.path.exists(_ns_file_path):
-                    try:
-                        for _line in open(_ns_file_path, "r", encoding="utf-8"):
-                            _line = _line.strip()
-                            if _line and not _line.startswith("#") and ":" in _line:
-                                _k, _v = _line.split(":", 1)
-                                if _k.strip().lower() == _owner.lower():
-                                    _ns = _v.strip()
-                                    break
-                    except Exception:
-                        pass
+            _ns = _on_map.get(_owner.lower(), "") if _owner else ""
             if not _ns:
                 _ns = (_pet_ns_lower.get(pet_name.strip().lower()) or [""])[0] if pet_name.strip() else ""
             _owner_unmapped = bool(_owner and not _ns)

@@ -269,62 +269,71 @@ def render_tab_eldorado(eld_client):
                             else:
                                 st.info("Đã ở giá tối thiểu.")
 
-                    # ── Danh sách listings ──
-                    st.caption(f"**{len(_flt)}** / {len(_listings)} listings")
+                    # ── Danh sách listings (Active only trong scroll container) ──
+                    _active_listings = [x for x in _flt if x.get("offerState") == "Active"]
+                    st.caption(f"**{len(_active_listings)}** Active / {len(_flt)} tổng")
 
-                    # Cards với nút Chọn trực tiếp
-                    for _o in _flt:
-                        _oid = _o.get("id", "")
-                        _otitle = (_o.get("offerTitle", "") or "")[:65]
-                        _oprice = float(_o.get("pricePerUnit", {}).get("amount", 0))
-                        _ostate = _o.get("offerState", "?")
-                        _oimg = (_o.get("mainOfferImage") or {}).get("smallImage", "")
-                        _state_colors = {"Active": ("#22c55e", "Active"), "Paused": ("#f59e0b", "Paused"), "Closed": ("#ef4444", "Closed")}
-                        _sc, _sl = _state_colors.get(_ostate, ("#6b7280", _ostate))
-
-                        _c1, _c2 = st.columns([6, 1])
-                        with _c1:
+                    if not _active_listings:
+                        st.info("Không có listing Active nào.")
+                    else:
+                        # Cards trong scroll container
+                        _scroll_cards = '<div style="max-height:600px;overflow-y:auto;border:1px solid rgba(192,132,252,0.15);border-radius:10px;padding:8px;">'
+                        for _o in _active_listings:
+                            _oid = _o.get("id", "")
+                            _otitle = (_o.get("offerTitle", "") or "")[:65]
+                            _oprice = float(_o.get("pricePerUnit", {}).get("amount", 0))
+                            _oimg = (_o.get("mainOfferImage") or {}).get("smallImage", "")
                             if _oimg:
                                 if not _oimg.startswith("http"):
                                     _oimg = f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
-                                st.markdown(f'<div style="display:flex;align-items:center;gap:10px;padding:6px 0;"><img src="{_oimg}" width="48" height="48" style="border-radius:8px;object-fit:cover;"><div><div style="font-size:0.88rem;font-weight:600;color:#f0e6ff;">{_otitle}</div><div style="font-size:0.8rem;color:#9d8fbf;">${_oprice:.2f} · <span style="color:{_sc};font-weight:600;">{_sl}</span></div></div></div>', unsafe_allow_html=True)
+                                _img_tag = f'<img src="{_oimg}" width="52" height="52" style="border-radius:8px;object-fit:cover;">'
                             else:
-                                st.markdown(f'<div style="display:flex;align-items:center;gap:10px;padding:6px 0;"><div style="width:48px;height:48px;border-radius:8px;background:#1a1528;display:flex;align-items:center;justify-content:center;font-size:20px;">📦</div><div><div style="font-size:0.88rem;font-weight:600;color:#f0e6ff;">{_otitle}</div><div style="font-size:0.8rem;color:#9d8fbf;">${_oprice:.2f} · <span style="color:{_sc};font-weight:600;">{_sl}</span></div></div></div>', unsafe_allow_html=True)
-                        with _c2:
-                            if st.button("▶", key=f"sel_{_oid}", help="Chọn listing này"):
-                                st.session_state["_eldo_selected"] = _o
-                                st.rerun()
+                                _img_tag = '<div style="width:52px;height:52px;border-radius:8px;background:#1a1528;display:flex;align-items:center;justify-content:center;font-size:22px;">📦</div>'
+                            _scroll_cards += f'''
+                            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:6px;border:1px solid rgba(192,132,252,0.2);border-radius:10px;background:rgba(17,15,26,0.6);">
+                                {_img_tag}
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-size:0.92rem;font-weight:600;color:#f0e6ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{_otitle}</div>
+                                    <div style="font-size:0.82rem;color:#9d8fbf;margin-top:2px;">${_oprice:.2f}</div>
+                                </div>
+                            </div>'''
+                        _scroll_cards += '</div>'
+                        st.markdown(_scroll_cards, unsafe_allow_html=True)
 
-                    # Action panel cho listing đã chọn
+                    # Action panel cho listing đã chọn (popup dialog)
                     _sel_o = st.session_state.get("_eldo_selected")
-                    if _sel_o:
-                        _oid = _sel_o.get("id", "")
-                        _otitle = (_sel_o.get("offerTitle", "") or "")
-                        _oprice = float(_sel_o.get("pricePerUnit", {}).get("amount", 0))
-                        _ostate = _sel_o.get("offerState", "?")
+                    if _sel_o and _sel_o.get("offerState") == "Active":
+                        @st.dialog("Chỉnh sửa Listing", width="medium")
+                        def _edit_listing_dialog():
+                            _oid = _sel_o.get("id", "")
+                            _otitle = (_sel_o.get("offerTitle", "") or "")
+                            _oprice = float(_sel_o.get("pricePerUnit", {}).get("amount", 0))
+                            _oimg = (_sel_o.get("mainOfferImage") or {}).get("smallImage", "")
 
-                        st.markdown(f"**{_otitle}** · ${_oprice:.2f} · {_ostate}")
-                        ac1, ac2, ac3, ac4 = st.columns(4)
-                        _np_val = ac1.number_input("Giá mới ($)", 0.01, 9999.0, _oprice, 0.05, format="%.2f", key="eldo_new_price")
-                        if ac2.button("💰 Đổi giá", type="primary", use_container_width=True, key="btn_change_price"):
-                            _r = eld_client.change_price(_oid, _np_val)
-                            if _r and not _r.get("error"):
-                                st.toast("Đã đổi giá")
-                                st.session_state._eldo_all = []
-                                st.rerun()
-                        if _ostate == "Active":
-                            if ac3.button("⏸️ Pause", use_container_width=True, key="btn_pause"):
+                            st.markdown(f"**{_otitle}**")
+                            if _oimg:
+                                if not _oimg.startswith("http"):
+                                    _oimg = f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
+                                st.image(_oimg, width=200)
+
+                            ac1, ac2 = st.columns(2)
+                            _np_val = ac1.number_input("Giá mới ($)", 0.01, 9999.0, _oprice, 0.05, format="%.2f")
+                            ac2.markdown(f"**{st.session_state.get('_eldo_selected', {}).get('offerState', '?')}**")
+
+                            bc1, bc2, bc3 = st.columns(3)
+                            if bc1.button("💰 Đổi giá", type="primary", use_container_width=True):
+                                _r = eld_client.change_price(_oid, _np_val)
+                                if _r and not _r.get("error"):
+                                    st.toast("Đã đổi giá")
+                                    st.session_state._eldo_all = []
+                                    st.rerun()
+                            if bc2.button("⏸️ Pause", use_container_width=True):
                                 eld_client.change_state(_oid, "Paused")
                                 st.session_state._eldo_all = []
                                 st.rerun()
-                        elif _ostate == "Paused":
-                            if ac3.button("▶️ Resume", use_container_width=True, key="btn_resume"):
-                                eld_client.change_state(_oid, "Active")
+                            if bc3.button("🗑️ Xoá", type="primary", use_container_width=True):
+                                eld_client.delete_listing(_oid)
                                 st.session_state._eldo_all = []
                                 st.rerun()
-                        else:
-                            ac3.button("⏸️", disabled=True, key="btn_pause_disabled")
-                        if ac4.button("🗑️ Xoá", type="primary", use_container_width=True, key="btn_delete_sel"):
-                            eld_client.delete_listing(_oid)
-                            st.session_state._eldo_all = []
-                            st.rerun()
+
+                        _edit_listing_dialog()

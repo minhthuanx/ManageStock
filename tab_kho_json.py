@@ -227,6 +227,8 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                             type=["png", "jpg", "jpeg", "webp"],
                             key=f"dlg_json_img_{i}", label_visibility="collapsed",
                         )
+                        if r_img:
+                            _img_col.image(r_img, width=320)
                         r_price_raw = _price_col.text_input(
                             "Giá bán ($)", value="",
                             placeholder="$0.50",

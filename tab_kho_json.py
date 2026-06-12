@@ -296,6 +296,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                 edited_rows.append({
                     "Tên Pet":   r_name,
                     "Mutation":  r_mut,
+                    "Rarity":    res.get("Rarity", ""),
                     "M/s":       r_ms,
                     "Số Trait":  r_trait,
                     "NameStock": r_ns,
@@ -305,6 +306,8 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                     "_title":    r_title,
                     "_price":    r_price,
                     "_image":    r_img,
+                    "_index":    res.get("_original_json", {}).get("index", ""),
+                    "_owner":    res.get("_owner", ""),
                 })
 
             st.markdown("---")
@@ -425,13 +428,18 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                                 _img_bytes, _pcfg["_image"].name or "image.png")
                                             if _img_data and _img_data.get("_rate_limit"):
                                                 _img_data = None
+                                        _pet_name = _pcfg.get("Tên Pet", "")
+                                        _pet_idx = _pcfg.get("_index", "")
+                                        _pet_rarity = _pcfg.get("Rarity", "")
+                                        _env = eld_client.find_env(_pet_name, rarity=_pet_rarity, index=_pet_idx)
+                                        _tid = _env["id"] if _env else None
                                         _resp = eld_client.create_listing(
                                             title=_pcfg.get("_title", ""),
                                             description=_def_desc,
                                             price=_pcfg["_price"],
                                             ms=float(_pcfg.get("M/s", 0)),
                                             mutation=_pcfg.get("Mutation", "Normal"),
-                                            namestock=_pcfg.get("NameStock", ""),
+                                            trade_env_id=_tid,
                                             delivery_time=_def_del_code,
                                             image_data=_img_data,
                                         )

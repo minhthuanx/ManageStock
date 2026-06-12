@@ -642,14 +642,16 @@ class EldoradoClient:
 
     @staticmethod
     def _parse_bracket(bracket_id):
-        """Parse a bracket ID like '25-4999-ms' or '1-499-bs' into (low, high)."""
+        """Parse a bracket ID like '1-24.99-ms' or '25-49.99-ms' or '750-99999-ms' into (low, high)."""
         import re
-        m = re.match(r"(\d+)-(\d+)-([kmbt]s?)$", bracket_id, re.I)
+        m = re.match(r"(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)-([kmbt]s?)$", bracket_id, re.I)
         if not m:
             return None
-        lo, hi, unit = int(m.group(1)), int(m.group(2)), m.group(3).lower()
+        lo = float(m.group(1))
+        hi = float(m.group(2))
+        unit = m.group(3).lower()
         multiplier = {"ks": 1_000, "ms": 1_000_000, "bs": 1_000_000_000}.get(unit, 1)
-        return lo * multiplier, (hi + 1) * multiplier
+        return int(lo * multiplier), int((hi + 0.01) * multiplier)
 
     # ── Title generation ─────────────────────────────────────────────────
 

@@ -38,7 +38,7 @@ def render_tab_kho(df, bulk_df, bulk_history, pet_db, ns_db, trait_db, eld_clien
             render_ai_vision(df, pet_db, ns_db, trait_db)
 
             # JSON Import — paste JSON from game
-            render_json_import(pet_db, ns_db, trait_db, eld_client)
+            render_json_import(df, pet_db, ns_db, trait_db, eld_client)
 
             # Manual form — always visible
             render_manual_import(df, pet_db, ns_db, trait_db)

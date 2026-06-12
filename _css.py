@@ -40,6 +40,19 @@ html, body, [data-testid="stAppViewContainer"] {
 [data-testid="stSidebar"] { background: var(--surface) !important; border-right: 1px solid var(--border); }
 .block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; }
 
+/* --- FIX layout shift: giữ left fixed, scrollbar thay đổi bên phải --- */
+[data-testid="stAppViewContainer"] > section.main {
+  scrollbar-gutter: stable;
+  position: relative;
+}
+[data-testid="stAppViewContainer"] > section.main > div.block-container {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+[data-testid="stTabContent"] {
+  scrollbar-gutter: stable;
+}
+
 /* --- Main content area --- */
 [data-testid="stAppViewContainer"] > section.main > div.block-container {
   background: var(--surface2) !important;
@@ -221,7 +234,6 @@ div[data-testid="stMetricLabel"] { font-size: 0.72rem !important; color: var(--m
   border-radius: var(--radius);
   padding: 0.75rem 0.9rem;
   text-align: center;
-  transition: all 0.2s;
 }
 .stat-card:hover { border-color: var(--accent); box-shadow: 0 8px 24px rgba(192,132,252,0.2); }
 .stat-card .val  { font-size: 1.2rem; font-weight: 700; color: var(--accent); }

@@ -82,21 +82,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
             trait_opts_dlg = ["None"] + [str(n) for n in range(1, 16)]
             ns_opts_dlg    = [""] + list(get_name_options(ns_db, fallback=""))
 
-            st.caption(f"**{len(json_results)}** mục từ JSON · Xem lại và xác nhận trước khi lưu")
-
-            if st.button("🗑️ Xoá ngay các mục đang chọn", use_container_width=True):
-                kept = []
-                for i, res in enumerate(json_results):
-                    if not st.session_state.get(f"dlg_json_delete_{i}", False):
-                        kept.append(res)
-                if len(kept) < len(json_results):
-                    st.session_state.json_batch_results = kept
-                    for k in list(st.session_state.keys()):
-                        if k.startswith("dlg_json_delete_"):
-                            del st.session_state[k]
-                    st.rerun()
-                else:
-                    st.warning("Bạn chưa tick chọn mục nào để xoá!")
+            st.caption(f"**{len(json_results)}** mục từ JSON · Tick 🗑️ Xoá ở từng dòng để bỏ qua khi lưu")
 
             # ── NameStock chung cho cả batch ──
             _gn1, _gn2 = st.columns([1, 3])

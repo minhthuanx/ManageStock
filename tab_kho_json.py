@@ -75,7 +75,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
 
         @st.dialog("Kết Quả JSON — Xem trước & Chỉnh sửa", width="large")
         def json_preview_dialog():
-            global pet_db
+            nonlocal pet_db
             # ── CACHE OPTIONS TRƯỚC ──
             pet_opts_dlg   = list(get_name_options(pet_db))
             pet_opts_lower_set = set(x.lower() for x in pet_opts_dlg)  # O(1) lookup

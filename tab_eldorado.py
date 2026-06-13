@@ -233,59 +233,148 @@ def render_tab_eldorado(eld_client):
                     else:
                         for _o in _active_listings:
                             _oid = _o.get("id", "")
-                            _otitle = (_o.get("offerTitle", "") or "")[:65]
+                            _otitle = (_o.get("offerTitle", "") or "")[:55]
                             _oprice = float(_o.get("pricePerUnit", {}).get("amount", 0))
                             _oimg = (_o.get("mainOfferImage") or {}).get("smallImage", "")
-                            if _oimg:
-                                if not _oimg.startswith("http"):
-                                    _oimg = f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
-                                _img_tag = f'<img src="{_oimg}" width="48" height="48" style="border-radius:8px;object-fit:cover;">'
-                            else:
-                                _img_tag = '<div style="width:48px;height:48px;border-radius:8px;background:#1a1528;display:flex;align-items:center;justify-content:center;font-size:20px;">📦</div>'
+                            _is_expanded = st.session_state.get("_eldo_expanded_id") == _oid
 
-                            _c1, _c2 = st.columns([5, 1])
-                            with _c1:
-                                st.markdown(f'{_img_tag} <span style="margin-left:8px;font-size:0.88rem;font-weight:600;color:#f0e6ff;">{_otitle}</span> <span style="font-size:0.82rem;color:#9d8fbf;margin-left:8px;">${_oprice:.2f}</span>', unsafe_allow_html=True)
-                            with _c2:
-                                if st.button("✏️", key=f"eld_sel_{_oid}", help="Chỉnh sửa listing này"):
-                                    st.session_state["_eldo_selected"] = _o
-
-                        # Action panel cho listing đã chọn
-                        _sel_o = st.session_state.get("_eldo_selected")
-                        if _sel_o:
-                            _oid = _sel_o.get("id", "")
-                            _otitle = (_sel_o.get("offerTitle", "") or "")
-                            _oprice = float(_sel_o.get("pricePerUnit", {}).get("amount", 0))
-                            _oimg = (_sel_o.get("mainOfferImage") or {}).get("smallImage", "")
-
-                            with st.container(border=True):
-                                st.markdown(f"**✏️ {_otitle}** · ${_oprice:.2f}")
+                            # Compact card row
+                            rc1, rc2, rc3 = st.columns([0.5, 4, 1.5])
+                            with rc1:
                                 if _oimg:
                                     if not _oimg.startswith("http"):
                                         _oimg = f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
-                                    st.image(_oimg, width=120)
+                                    st.markdown(f'<img src="{_oimg}" width="42" height="42" style="border-radius:8px;object-fit:cover;">', unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f'<div style="width:42px;height:42px;border-radius:8px;background:#1a1528;display:flex;align-items:center;justify-content:center;font-size:18px;">📦</div>', unsafe_allow_html=True)
+                            with rc2:
+                                st.markdown(f"**{_otitle}**")
+                                st.caption(f"**${_oprice:.2f}**")
+                            with rc3:
+                                if st.button("▼" if not _is_expanded else "▲", key=f"ed_{_oid}", use_container_width=True):
+                                    st.session_state["_eldo_expanded_id"] = _oid if not _is_expanded else None
+                                    st.rerun()
 
-                                ac1, ac2, ac3 = st.columns([1, 1, 1])
-                                _np_val = ac1.number_input("Giá mới ($)", 0.01, 9999.0, _oprice, 0.05, format="%.2f", key="eldo_new_price")
-                                if ac2.button("💰 Đổi giá", type="primary", use_container_width=True, key="btn_change_price"):
-                                    _r = eld_client.change_price(_oid, _np_val)
-                                    if _r and not _r.get("error"):
-                                        st.toast("Đã đổi giá")
+                            # Inline action panel
+                            if _is_expanded:
+                                with st.container(border=True):
+                                    ac1, ac2, ac3, ac4 = st.columns([2, 1, 1, 1])
+                                    _np_val = ac1.number_input("Giá mới ($)", 0.01, 9999.0, _oprice, 0.05, format="%.2f", key="eldo_price_edit")
+                                    if ac2.button("💰", key="btn_upd_price", use_container_width=True, help="Đổi giá"):
+                                        _r = eld_client.change_price(_oid, _np_val)
+                                        if _r and not _r.get("error"):
+                                            st.toast("Đã đổi giá")
+                                            st.session_state._eldo_all = []
+                                            st.session_state.pop("_eldo_expanded_id", None)
+                                            st.rerun()
+                                        else:
+                                            st.error(_r.get("error", "Lỗi"))
+                                    if ac3.button("⏸️", key="btn_pause_one", use_container_width=True, help="Tạm dừng"):
+                                        eld_client.change_state(_oid, "Paused")
                                         st.session_state._eldo_all = []
-                                        st.session_state.pop("_eldo_selected", None)
+                                        st.session_state.pop("_eldo_expanded_id", None)
                                         st.rerun()
-                                if ac3.button("⏸️ Pause", use_container_width=True, key="btn_pause"):
-                                    eld_client.change_state(_oid, "Paused")
-                                    st.session_state._eldo_all = []
-                                    st.session_state.pop("_eldo_selected", None)
-                                    st.rerun()
+                                    if ac4.button("🗑️", key="btn_del_one", use_container_width=True, help="Xoá"):
+                                        eld_client.delete_listing(_oid)
+                                        st.session_state._eldo_all = []
+                                        st.session_state.pop("_eldo_expanded_id", None)
+                                        st.rerun()
 
-                                bc1, bc2 = st.columns(2)
-                                if bc1.button("🗑️ Xoá", type="primary", use_container_width=True, key="btn_delete_sel"):
-                                    eld_client.delete_listing(_oid)
-                                    st.session_state._eldo_all = []
-                                    st.session_state.pop("_eldo_selected", None)
-                                    st.rerun()
-                                if bc2.button("❌ Đóng", use_container_width=True, key="btn_close_panel"):
-                                    st.session_state.pop("_eldo_selected", None)
-                                    st.rerun()
+            # ══════════════════════════════════════════════════════════════
+            # SECTION 3: ORDERS
+            # ══════════════════════════════════════════════════════════════
+        if eld_client and eld_client.logged_in:
+            with st.container(border=True):
+                st.markdown('<div class="sec-heading">📋 Đơn Hàng</div>', unsafe_allow_html=True)
+
+                _eldo_reload_orders = st.button("🔄 Tải đơn hàng", key="eldo_refresh_orders")
+                if _eldo_reload_orders:
+                    st.session_state._eldo_orders = None
+                    st.session_state._eldo_notifications = None
+
+                # ── Orders ──
+                if st.session_state.get("_eldo_orders") is None or _eldo_reload_orders:
+                    with st.spinner("Đang tải đơn hàng..."):
+                        _orders_raw = eld_client.get_orders(page_size=50)
+                        st.session_state["_eldo_orders"] = _orders_raw if isinstance(_orders_raw, dict) else {"orders": []}
+                _orders = st.session_state.get("_eldo_orders", {})
+                _order_list = _orders.get("orders", [])
+
+                # ── Notifications ──
+                if st.session_state.get("_eldo_notifications") is None or _eldo_reload_orders:
+                    with st.spinner("Đang tải thông báo..."):
+                        _notifs_raw = eld_client.get_notifications(page_size=20)
+                        st.session_state["_eldo_notifications"] = _notifs_raw if isinstance(_notifs_raw, dict) else {"notifications": []}
+                _notifs = st.session_state.get("_eldo_notifications", {})
+                _notif_list = _notifs.get("notifications", [])
+
+                # Stats
+                _pending_count = sum(1 for o in _order_list if o.get("orderState") == "Pending")
+                _active_count = sum(1 for o in _order_list if o.get("orderState") == "Active")
+                _delivered_count = sum(1 for o in _order_list if o.get("orderState") == "Delivered")
+                _unread_count = sum(1 for n in _notif_list if not n.get("isRead", True))
+
+                oc1, oc2, oc3, oc4 = st.columns(4)
+                oc1.metric("⏳ Pending", _pending_count)
+                oc2.metric("🔄 Active", _active_count)
+                oc3.metric("✅ Delivered", _delivered_count)
+                oc4.metric("🔔 Thông báo mới", _unread_count)
+
+                # ── Notifications feed ──
+                if _notif_list:
+                    with st.expander(f"🔔 Thông báo ({len(_notif_list)})", expanded=False):
+                        for _n in _notif_list[:10]:
+                            _nread = _n.get("isRead", True)
+                            _ntitle = _n.get("title", "") or _n.get("message", "") or str(_n.get("type", ""))
+                            _ncard = f"{'🔵' if not _nread else '⚪'} {_ntitle}"
+                            st.caption(_ncard)
+                        if _unread_count > 0:
+                            if st.button("✅ Đánh dấu tất cả đã đọc", key="btn_mark_read"):
+                                eld_client.mark_notifications_read()
+                                st.session_state._eldo_notifications = None
+                                st.rerun()
+
+                # ── Orders list ──
+                if not _order_list:
+                    st.info("Không có đơn hàng nào.")
+                else:
+                    for _o in _order_list:
+                        _oid = _o.get("id", "")
+                        _ostate = _o.get("orderState", "?")
+                        _oprice = float((_o.get("pricePerUnit") or {}).get("amount", 0))
+                        _otitle = (_o.get("offerTitle") or _o.get("augmentedGame", {}).get("offerTitle", "") or "")[:60]
+                        _buyer = _o.get("buyerUsername", "") or _o.get("buyer", "") or ""
+                        _created = (_o.get("createdDate") or _o.get("createdAt", ""))[:16]
+                        _deliver = _o.get("guaranteedDeliveryTime", "")
+                        _game = _o.get("augmentedGame", {})
+                        _pet = (_game.get("offerAttributes") or [{}])[0].get("value", "") if _game.get("offerAttributes") else ""
+
+                        _state_colors = {"Pending": ("#f59e0b", "⏳ Pending"), "Active": ("#22c55e", "🔄 Active"), "Delivered": ("#3b82f6", "✅ Delivered"), "Cancelled": ("#ef4444", "❌ Cancelled")}
+                        _sc, _sl = _state_colors.get(_ostate, ("#6b7280", _ostate))
+
+                        with st.container(border=True):
+                            _o1, _o2, _o3, _o4 = st.columns([3, 1.5, 1.5, 1])
+                            with _o1:
+                                st.markdown(f"**{_otitle}**")
+                                if _buyer:
+                                    st.caption(f"👤 {_buyer} · 📅 {_created}")
+                            with _o2:
+                                st.markdown(f"**${_oprice:.2f}**")
+                                st.caption(f"{_sl}")
+                            with _o3:
+                                st.caption(f"⏱ {_deliver}" if _deliver else "")
+                                if _pet:
+                                    st.caption(f"🎮 {str(_pet)[:20]}")
+                            with _o4:
+                                if _ostate == "Pending":
+                                    if st.button("✅ Xác nhận", key=f"od_{_oid}", use_container_width=True, type="primary"):
+                                        eld_client.mark_delivered(_oid)
+                                        st.session_state._eldo_orders = None
+                                        st.rerun()
+                                elif _ostate == "Active":
+                                    if st.button("📦 Đã giao", key=f"od_{_oid}", use_container_width=True):
+                                        eld_client.mark_delivered(_oid)
+                                        st.session_state._eldo_orders = None
+                                        st.rerun()
+                                else:
+                                    st.caption("")

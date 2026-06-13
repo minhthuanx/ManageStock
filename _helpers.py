@@ -295,37 +295,7 @@ def parse_json_import(json_str: str) -> list:
         _pet_ns_map = build_pet_namestock_map()
         _pet_ns_lower = {k.lower(): v for k, v in _pet_ns_map.items()}
 
-        # ── So sánh với JSON history theo owner ──
-        _owners_in_batch = set()
-        for item in data:
-            if isinstance(item, dict):
-                _o = str(item.get("owner", "")).strip().lower()
-                if _o:
-                    _owners_in_batch.add(_o)
-
-        _existing_keys_map = {}  # owner → set of existing keys
-        for _o in _owners_in_batch:
-            _hist = _load_json_history(_o)
-            if _hist:
-                _existing_keys_map[_o] = {_pet_key(h) for h in _hist}
-
-        _batch_by_owner = {}
-        for item in data:
-            if isinstance(item, dict):
-                _o = str(item.get("owner", "")).strip().lower()
-                if _o not in _batch_by_owner:
-                    _batch_by_owner[_o] = []
-                _batch_by_owner[_o].append(item)
-
-        _is_new_map = set()  # keys của items mới (không trùng)
-        for _o, _batch in _batch_by_owner.items():
-            if _o in _existing_keys_map and _existing_keys_map[_o]:
-                for _item in _batch:
-                    if _pet_key(_item) not in _existing_keys_map[_o]:
-                        _is_new_map.add(_pet_key(_item))
-            else:
-                for _item in _batch:
-                    _is_new_map.add(_pet_key(_item))
+        # ── JSON history: TẠM TẮT ──
 
         results = []
         for item in data:
@@ -350,7 +320,7 @@ def parse_json_import(json_str: str) -> list:
                 _ns = (_pet_ns_lower.get(pet_name.strip().lower()) or [""])[0] if pet_name.strip() else ""
             _owner_unmapped = bool(_owner and not _ns)
             _ms_range = str(item.get("ms_range", "")).strip()
-            _is_new = _pet_key(item) in _is_new_map
+            _is_new = True
             results.append({
                 "Tên Pet": pet_name,
                 "Mutation": str(item.get("mutation", "Normal")).strip().lower().replace("yinyang", "yin-yang").replace("yin yang", "yin-yang").title() or "Normal",

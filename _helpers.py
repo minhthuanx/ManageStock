@@ -11,7 +11,7 @@ import streamlit as st
 
 from _config import (
     COL_MAP, REVERSE_MAP, MAIN_SCHEMA, MUTATION_ICONS,
-    OWNER_NS_FILE, BACKUP_DIR,
+    OWNER_NS_FILE, BACKUP_DIR, JSON_HISTORY_DIR,
 )
 from _timezone import now_vn, now_str, now_iso
 
@@ -166,7 +166,7 @@ def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> s
         t_str = ""
     display_ms = f"{ms_value / 1000:g}B/s" if ms_value >= 1000 else f"{ms_value:g}M/s"
     ns_str = f" {namestock}" if namestock else ""
-    if str(mutation).lower() == "normal" or not mutation:
+    if str(mutation).lower() in ("normal", "none") or not mutation:
         return f"🌸{pet_name} {display_ms}{t_str}🌸Cheapest🚛 Fast Delivery 🚛{ns_str}"
     return f"🌸{icon}{mutation} {pet_name} {display_ms}{t_str}{icon}🌸Cheapest🚛 Fast Delivery 🚛{ns_str}"
 
@@ -291,7 +291,42 @@ def parse_json_import(json_str: str) -> list:
         data = json.loads(json_str)
         if not isinstance(data, list):
             return []
-        _on_map = st.session_state.get("_owner_ns_map", {})
+        _on_map = _load_owner_ns_map()
+        _pet_ns_map = build_pet_namestock_map()
+        _pet_ns_lower = {k.lower(): v for k, v in _pet_ns_map.items()}
+
+        # ── So sánh với JSON history theo owner ──
+        _owners_in_batch = set()
+        for item in data:
+            if isinstance(item, dict):
+                _o = str(item.get("owner", "")).strip().lower()
+                if _o:
+                    _owners_in_batch.add(_o)
+
+        _existing_keys_map = {}  # owner → set of existing keys
+        for _o in _owners_in_batch:
+            _hist = _load_json_history(_o)
+            if _hist:
+                _existing_keys_map[_o] = {_pet_key(h) for h in _hist}
+
+        _batch_by_owner = {}
+        for item in data:
+            if isinstance(item, dict):
+                _o = str(item.get("owner", "")).strip().lower()
+                if _o not in _batch_by_owner:
+                    _batch_by_owner[_o] = []
+                _batch_by_owner[_o].append(item)
+
+        _is_new_map = set()  # keys của items mới (không trùng)
+        for _o, _batch in _batch_by_owner.items():
+            if _o in _existing_keys_map and _existing_keys_map[_o]:
+                for _item in _batch:
+                    if _pet_key(_item) not in _existing_keys_map[_o]:
+                        _is_new_map.add(_pet_key(_item))
+            else:
+                for _item in _batch:
+                    _is_new_map.add(_pet_key(_item))
+
         results = []
         for item in data:
             if not isinstance(item, dict):
@@ -310,17 +345,24 @@ def parse_json_import(json_str: str) -> list:
             else:
                 ms_val = parse_gen_text(item.get("gen_text", ""))
             _owner = str(item.get("owner", "")).strip()
-            _ns_from_owner = _on_map.get(_owner.lower(), "") if _owner else ""
-            _owner_unmapped = bool(_owner and not _ns_from_owner)
+            _ns = _on_map.get(_owner.lower(), "") if _owner else ""
+            if not _ns:
+                _ns = (_pet_ns_lower.get(pet_name.strip().lower()) or [""])[0] if pet_name.strip() else ""
+            _owner_unmapped = bool(_owner and not _ns)
+            _ms_range = str(item.get("ms_range", "")).strip()
+            _is_new = _pet_key(item) in _is_new_map
             results.append({
                 "Tên Pet": pet_name,
-                "Mutation": str(item.get("mutation", "Normal")).strip() or "Normal",
+                "Mutation": str(item.get("mutation", "Normal")).strip().lower().replace("yinyang", "yin-yang").replace("yin yang", "yin-yang").title() or "Normal",
+                "Rarity": str(item.get("rarity", "")).strip(),
                 "M/s": ms_val,
+                "ms_range": _ms_range,
                 "Số Trait": str(len(item.get("traits", []))) if item.get("traits") else "None",
-                "NameStock": _ns_from_owner,
+                "NameStock": _ns,
                 "_ok": True,
                 "_owner": _owner,
                 "_owner_unmapped": _owner_unmapped,
+                "_is_new": _is_new,
                 "_original_json": item,
             })
         return results
@@ -371,3 +413,62 @@ def _save_owner_ns_map(m: dict):
                 f.write(f"{k}:{v}\n")
     except Exception:
         pass
+
+
+# ─── JSON History (phân loại theo owner) ────────────────────────────────
+def _load_json_history(owner: str) -> list:
+    """Load JSON history của 1 owner từ file."""
+    if not owner:
+        return []
+    _path = os.path.join(JSON_HISTORY_DIR, f"{owner.strip().lower()}.json")
+    try:
+        if os.path.exists(_path):
+            with open(_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, list) else []
+    except Exception:
+        pass
+    return []
+
+
+def _save_json_history(owner: str, data: list):
+    """Lưu JSON history của 1 owner vào file."""
+    if not owner:
+        return
+    os.makedirs(JSON_HISTORY_DIR, exist_ok=True)
+    _path = os.path.join(JSON_HISTORY_DIR, f"{owner.strip().lower()}.json")
+    try:
+        with open(_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def _pet_key(item: dict) -> str:
+    """Tạo unique key cho 1 pet: owner+slot (slot phân biệt pet trong plot)."""
+    owner = str(item.get("owner", "")).strip().lower()
+    slot = str(item.get("slot", "")).strip()
+    if slot:
+        return f"{owner}|s{slot}"
+    # Fallback: nếu không có slot → dùng name+ms+mutation
+    name = str(item.get("name", "")).strip().lower()
+    mut = str(item.get("mutation", "")).strip().lower()
+    ms = str(item.get("gen_value", "")).strip()
+    return f"{owner}|{name}|{mut}|{ms}"
+
+
+def _compare_json_batches(old_data: list, new_data: list) -> tuple:
+    """So sánh 2 batch JSON. Trả về (only_new, existing_keys).
+    only_new: list items mới (chưa có trong old).
+    existing_keys: set keys đã tồn tại trong old.
+    """
+    old_keys = {_pet_key(item) for item in old_data}
+    existing_keys = set()
+    only_new = []
+    for item in new_data:
+        k = _pet_key(item)
+        if k in old_keys:
+            existing_keys.add(k)
+        else:
+            only_new.append(item)
+    return only_new, existing_keys

@@ -45,9 +45,7 @@ def render_tab_kho(df, bulk_df, bulk_history, pet_db, ns_db, trait_db, eld_clien
 
     # ── BAN LE (right column) ──
     with col_sell:
-        with st.container(border=True):
-            st.markdown('<div class="sec-heading">Bán Pet Lẻ</div>', unsafe_allow_html=True)
-            render_sell_single(df)
+        render_sell_single(df)
 
     # ── BANG TON KHO (full width, below both columns) ──
     render_inventory_table(df)

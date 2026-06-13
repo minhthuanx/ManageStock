@@ -396,16 +396,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                 current_df = apply_ngay_ton(current_df)
                                 st.session_state.df = current_df
                             save_csv(st.session_state.df, DB_FILE)
-                            # ── Merge JSON history: old + new per owner ──
-                            _merged_owners = {}
-                            for _orig in saved_original_json:
-                                _o = str(_orig.get("owner", "")).strip().lower()
-                                if _o:
-                                    if _o not in _merged_owners:
-                                        _merged_owners[_o] = _load_json_history(_o)
-                                    _merged_owners[_o].append(_orig)
-                            for _o, _new_list in _merged_owners.items():
-                                _save_json_history(_o, _new_list)
+                            # ── JSON history: TẠM TẮT ──
                             st.session_state.json_show_dialog = False
                             st.session_state.json_batch_results = []
                             st.session_state.json_import_expander = False

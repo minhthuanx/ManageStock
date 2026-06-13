@@ -138,6 +138,8 @@ class Vault:
 # ─── EldoradoClient ──────────────────────────────────────────────────────────
 
 class EldoradoClient:
+    CLIENT_VERSION = 4  # bump khi class thay đổi method signature
+
     def __init__(self, log_fn=None):
         self._vault = Vault()
         self._log = log_fn or (lambda msg: print(msg))
@@ -507,9 +509,9 @@ class EldoradoClient:
             else:
                 self._flatten_envs(children, parts, out)
 
-    def find_env(self, name, rarity=""):
+    def find_env(self, name, rarity="", index=""):
         """Fuzzy-match an item name against cached trade environments.
-        Matches server.js buildEnvLookup/findEnv priority order."""
+        Matches server.js findEnv priority order."""
         if not self._game_cache["loaded"]:
             return None
 
@@ -518,8 +520,9 @@ class EldoradoClient:
 
         name_n = norm(name)
         rarity_n = norm(rarity)
+        index_n = norm(index)
 
-        # 1. Two-part key (name_rarity) — highest priority, matches JS envLookupRR
+        # 1. name_rarity 2-part key — matches JS envLookupRR
         if rarity_n:
             key2 = name_n + "_" + rarity_n
             for env in self._game_cache["envs"]:
@@ -538,13 +541,23 @@ class EldoradoClient:
             if last == name_n:
                 return env
 
-        # 3. Substring match
+        # 3. Index fallback — matches JS: if not found && index → v337[normName(index)]
+        if index_n:
+            for env in self._game_cache["envs"]:
+                parts = env["parts"]
+                if not parts:
+                    continue
+                last = norm(parts[-1])
+                if last == index_n:
+                    return env
+
+        # 4. Substring match (name vs last part)
         for env in self._game_cache["envs"]:
             last = norm(env["parts"][-1] if env["parts"] else "")
-            if last in name_n or name_n in last:
+            if last and (last in name_n or name_n in last):
                 return env
 
-        # 4. Word overlap (>= 2 words)
+        # 5. Word overlap (>= 2 words)
         name_words = set(name_n.split())
         if len(name_words) >= 2:
             best_score = 0
@@ -570,48 +583,75 @@ class EldoradoClient:
                 return bracket_id
         return "0"
 
-    def build_offer_attributes(self, ms, mutation=""):
-        """Build offerAttributes array from MS value and mutation name."""
-        # Check dynamic attrs first
+    def build_offer_attributes(self, ms, mutation="", ms_range=""):
+        """Build offerAttributes array — mirrors JS buildOfferAttributes.
+        Iterates all gameCache attrs, sets Numeric/dynamic values from ms+mutation.
+        If ms_range is provided (from JSON), use it directly as bracket ID."""
+        raw = ms * 1_000_000  # convert M/s → game raw units
+        # Determine multiplier from MS bracket (mirrors JS r96)
+        ms_bracket_id = ms_range if ms_range else self._ms_bracket_id(ms)
+        if ms_bracket_id and ms_bracket_id.endswith("-bs"):
+            divisor = 1_000_000_000
+        elif ms_bracket_id and ms_bracket_id.endswith("-ks"):
+            divisor = 1_000
+        else:
+            divisor = 1_000_000
+
+        attrs = []
+        for a in self._game_cache.get("attrs", []):
+            if a["type"] == "Numeric":
+                val = None
+                if "ms" in a["id"]:
+                    # Use raw value divided by divisor (mirrors JS line 379-383)
+                    if raw > 0:
+                        val = round(raw / divisor, 2)
+                if val is None:
+                    val = 0
+                # Clamp
+                if isinstance(a.get("maxValue"), (int, float)) and val > a["maxValue"]:
+                    val = a["maxValue"]
+                if isinstance(a.get("minValue"), (int, float)) and val < a["minValue"]:
+                    val = a["minValue"]
+                attrs.append({"id": a["id"], "type": "Numeric", "value": val})
+            else:
+                # Select type
+                if a["id"] == "steal-a-brainrot-ms":
+                    attrs.append({"id": a["id"], "type": "Select", "value": ms_bracket_id or "0"})
+                elif a["id"] == "steal-a-brainrot-mutations":
+                    _mut = mutation.lower() if mutation else "none"
+                    attrs.append({"id": a["id"], "type": "Select", "value": _mut})
+                # any other Select attrs could be added here if needed
+        return attrs
+
+    def _ms_bracket_id(self, ms):
+        """Find matching MS bracket ID (Select value) for a given M/s."""
+        raw = ms * 1_000_000
         ms_attr = None
         for a in self._game_cache.get("attrs", []):
             if a["id"] == "steal-a-brainrot-ms":
                 ms_attr = a
                 break
-
         if ms_attr and ms_attr.get("values"):
-            # Use dynamic bracket matching
-            ms_bracket = ms_attr["values"][-1]["id"]  # fallback to last (largest)
             for val in ms_attr["values"]:
                 vid = val["id"]
-                # Parse bracket from ID (e.g. "25-4999-ms")
                 parsed = self._parse_bracket(vid)
-                if parsed and ms >= parsed[0] and ms < parsed[1]:
-                    ms_bracket = vid
-                    break
-        else:
-            ms_bracket = self._gen_to_ms_bracket(ms)
-
-        attrs = [{"id": "steal-a-brainrot-ms", "type": "Select", "value": ms_bracket}]
-
-        if mutation and mutation.lower() != "normal" and mutation.lower() != "none":
-            attrs.append({
-                "id": "steal-a-brainrot-mutations",
-                "type": "Select",
-                "value": mutation.lower(),
-            })
-        return attrs
+                if parsed and raw >= parsed[0] and raw < parsed[1]:
+                    return vid
+            return ms_attr["values"][-1]["id"]  # fallback > last bracket
+        return self._gen_to_ms_bracket(ms)
 
     @staticmethod
     def _parse_bracket(bracket_id):
-        """Parse a bracket ID like '25-4999-ms' or '1-499-bs' into (low, high)."""
+        """Parse a bracket ID like '1-24.99-ms' or '25-49.99-ms' or '750-99999-ms' into (low, high)."""
         import re
-        m = re.match(r"(\d+)-(\d+)-([kmbt]s?)$", bracket_id, re.I)
+        m = re.match(r"(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)-([kmbt]s?)$", bracket_id, re.I)
         if not m:
             return None
-        lo, hi, unit = int(m.group(1)), int(m.group(2)), m.group(3).lower()
+        lo = float(m.group(1))
+        hi = float(m.group(2))
+        unit = m.group(3).lower()
         multiplier = {"ks": 1_000, "ms": 1_000_000, "bs": 1_000_000_000}.get(unit, 1)
-        return lo * multiplier, (hi + 1) * multiplier
+        return int(lo * multiplier), int((hi + 0.01) * multiplier)
 
     # ── Title generation ─────────────────────────────────────────────────
 
@@ -694,20 +734,20 @@ class EldoradoClient:
     # ── Listing CRUD ─────────────────────────────────────────────────────
 
     def create_listing(self, title, description, price, ms, mutation="",
-                       namestock="", delivery_time="Minute20", image_data=None,
-                       quantity=1, game_id=GAME_ID, category=CATEGORY):
-        """Create a new listing. Returns API response dict."""
-        trade_env = self.find_env(namestock or "")
-        if not trade_env:
-            return {"error": f"No trade env match for '{namestock}'"}
+                       ms_range="", trade_env_id=None, delivery_time="Minute20",
+                       image_data=None, quantity=1, game_id=GAME_ID, category=CATEGORY):
+        """Create a new listing. Returns API response dict.
+        Matches eldorado-api.js createListing signature."""
+        if not trade_env_id:
+            return {"error": "Missing tradeEnvironmentId"}
 
-        offer_attrs = self.build_offer_attributes(ms, mutation)
+        offer_attrs = self.build_offer_attributes(ms, mutation, ms_range)
 
         payload = {
             "augmentedGame": {
                 "gameId": str(game_id),
                 "category": category,
-                "tradeEnvironmentId": trade_env["id"],
+                "tradeEnvironmentId": trade_env_id,
                 "offerAttributes": offer_attrs,
             },
             "details": {
@@ -732,18 +772,18 @@ class EldoradoClient:
 
     def get_all_listings(self, category=CATEGORY):
         all_results = []
-        for page in range(1, 21):
+        for page in range(1, 30):  # Tối đa 30 trang × 40 = 1200 listings
             r = self._req("GET", "/v1/item-management/me/offers/me/search",
                           params={"pageIndex": page, "pageSize": 40})
             if not isinstance(r, dict) or not r.get("results"):
-                # Fallback endpoint
                 r = self._req("GET", "/flexibleOffers/me/search",
                               params={"pageIndex": page, "pageSize": 40, "category": category})
             results = (r or {}).get("results", [])
+            total_pages = (r or {}).get("totalPages", 1)
             if not results:
                 break
             all_results.extend(results)
-            if page >= (r or {}).get("totalPages", 1):
+            if page >= total_pages:
                 break
         return {"results": all_results, "recordCount": len(all_results)}
 

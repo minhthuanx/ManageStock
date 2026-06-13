@@ -20,7 +20,9 @@ except Exception as _eldo_import_err:
 def init_eldorado_client():
     global eld_client
     if _HAS_ELDORADO:
-        if "eldorado_client" not in st.session_state:
+        _existing = st.session_state.get("eldorado_client")
+        if _existing is None or getattr(_existing, "CLIENT_VERSION", 0) != EldoradoClient.CLIENT_VERSION:
+            st.session_state.eld_game_loaded = False  # force game cache reload
             _eld_c = EldoradoClient(log_fn=lambda msg: None)
             st.session_state.eldorado_client = _eld_c
             if _eld_c._raw:

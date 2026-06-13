@@ -26,7 +26,7 @@ from _database import (
 from _eldorado_helpers import _HAS_ELDORADO
 
 try:
-    from eldorado_client import DELIVERY_MAP
+    from eldorado_client import DELIVERY_MAP, OTHER_TRADE_ENV_ID
 except ImportError:
     DELIVERY_MAP = {}
 
@@ -440,7 +440,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                         _pet_rarity = _pcfg.get("Rarity", "")
                                         _pet_ms_range = _pcfg.get("ms_range", "")
                                         _env = eld_client.find_env(_pet_name, rarity=_pet_rarity, index=_pet_idx)
-                                        _tid = _env["id"] if _env else None
+                                        _tid = _env["id"] if _env else OTHER_TRADE_ENV_ID
                                         _resp = eld_client.create_listing(
                                             title=_pcfg.get("_title", ""),
                                             description=_def_desc,

@@ -63,7 +63,7 @@ from tab_lopack import render_tab_lopack
 
 tab_kho, tab_pack, tab_chart, tab_ton, tab_eldo, tab_settings = st.tabs([
     "📦 Kho Lẻ", "🗃️ Lô Pack", "📊 Thống Kê", "⏳ Tồn Lâu", "🎮 Eldorado", "⚙️ Cài Đặt",
-])
+], key="main_tabs")
 
 with tab_kho:
     render_tab_kho(df, bulk_df, bulk_history, pet_db, ns_db, trait_db, eld_client)

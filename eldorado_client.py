@@ -772,18 +772,18 @@ class EldoradoClient:
 
     def get_all_listings(self, category=CATEGORY):
         all_results = []
-        for page in range(1, 30):  # Tối đa 30 trang × 40 = 1200 listings
+        for page in range(1, 21):
             r = self._req("GET", "/v1/item-management/me/offers/me/search",
                           params={"pageIndex": page, "pageSize": 40})
             if not isinstance(r, dict) or not r.get("results"):
+                # Fallback endpoint
                 r = self._req("GET", "/flexibleOffers/me/search",
                               params={"pageIndex": page, "pageSize": 40, "category": category})
             results = (r or {}).get("results", [])
-            total_pages = (r or {}).get("totalPages", 1)
             if not results:
                 break
             all_results.extend(results)
-            if page >= total_pages:
+            if page >= (r or {}).get("totalPages", 1):
                 break
         return {"results": all_results, "recordCount": len(all_results)}
 

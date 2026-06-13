@@ -191,9 +191,7 @@ def render_inventory_table(df):
                     df = st.session_state.df
                     # Bump version key để reset widget state, tránh vòng lặp lưu vô hạn
                     st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
-                    st.toast("✅ Đã lưu thay đổi.", icon="💾")
                     _clear_searches()
-                    st.rerun()
             else:
                 st.info("Không có dữ liệu để hiển thị.")
 

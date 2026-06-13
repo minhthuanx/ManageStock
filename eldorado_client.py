@@ -21,6 +21,7 @@ CATEGORY = "CustomItem"
 
 COOKIE_FILE = ".eldorado_cookies.enc"
 VAULT_KEY_FILE = ".eldorado_key"
+OTHER_TRADE_ENV_ID = "0-6-36"  # Fallback "Other" khi Eldorado chưa có pet
 
 DELIVERY_MAP = {
     "5 min": "Minute5",
@@ -138,7 +139,7 @@ class Vault:
 # ─── EldoradoClient ──────────────────────────────────────────────────────────
 
 class EldoradoClient:
-    CLIENT_VERSION = 4  # bump khi class thay đổi method signature
+    CLIENT_VERSION = 6  # bump khi class thay đổi method signature
 
     def __init__(self, log_fn=None):
         self._vault = Vault()
@@ -573,6 +574,18 @@ class EldoradoClient:
 
         return None
 
+    def find_other_env(self):
+        """Find the 'Other' trade environment — fallback khi Eldorado chưa có pet."""
+        if not self._game_cache["loaded"]:
+            return None
+        def norm(s):
+            return re.sub(r"[^a-z0-9\s]", "", (s or "").lower().replace("&", "and")).strip()
+        for env in self._game_cache["envs"]:
+            for part in env["parts"]:
+                if norm(part) == "other":
+                    return env
+        return None
+
     # ── Offer attributes ─────────────────────────────────────────────────
 
     def _gen_to_ms_bracket(self, ms_value):
@@ -772,18 +785,18 @@ class EldoradoClient:
 
     def get_all_listings(self, category=CATEGORY):
         all_results = []
-        for page in range(1, 21):
+        for page in range(1, 30):  # Tối đa 30 trang × 40 = 1200 listings
             r = self._req("GET", "/v1/item-management/me/offers/me/search",
                           params={"pageIndex": page, "pageSize": 40})
             if not isinstance(r, dict) or not r.get("results"):
-                # Fallback endpoint
                 r = self._req("GET", "/flexibleOffers/me/search",
                               params={"pageIndex": page, "pageSize": 40, "category": category})
             results = (r or {}).get("results", [])
+            total_pages = (r or {}).get("totalPages", 1)
             if not results:
                 break
             all_results.extend(results)
-            if page >= (r or {}).get("totalPages", 1):
+            if page >= total_pages:
                 break
         return {"results": all_results, "recordCount": len(all_results)}
 

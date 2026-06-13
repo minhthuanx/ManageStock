@@ -12,7 +12,8 @@ from _timezone import now_vn, now_str, now_iso
 from _helpers import (
     parse_vnd, parse_usd, fmt_vnd, get_name_options, append_row,
     generate_auto_title, parse_json_import, _clear_searches, _sv,
-    apply_ngay_ton, next_id,
+    apply_ngay_ton, next_id, _load_json_history, _save_json_history,
+    _pet_key, _compare_json_batches,
 )
 from _config import (
     MAIN_SCHEMA, LIST_SCHEMA, MUTATION_OPTIONS, EXCHANGE_RATE, PET_LIST_FILE,
@@ -120,11 +121,20 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
             edited_rows = []
             all_valid = True
 
+            # ── Hiển thị thống kê diff ──
+            _new_count = sum(1 for r in json_results if r.get("_is_new", True))
+            _old_count = len(json_results) - _new_count
+            if _old_count > 0:
+                st.info(f"🔄 **{_old_count}** pet đã tồn tại (bị lược bỏ) · **{_new_count}** pet mới")
+
             for i, res in enumerate(json_results):
+                if not res.get("_is_new", True):
+                    continue  # bỏ qua pet đã có
+
                 pet_name = res.get("Tên Pet", f"Item {i+1}")
                 mutation = res.get("Mutation", "Normal")
 
-                _expander_label = f"✅ {pet_name} · {mutation}"
+                _expander_label = f"🆕 {pet_name} · {mutation}"
 
                 with st.expander(_expander_label, expanded=True):
                     # Top row: Delete checkbox + basic info
@@ -386,6 +396,16 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                 current_df = apply_ngay_ton(current_df)
                                 st.session_state.df = current_df
                             save_csv(st.session_state.df, DB_FILE)
+                            # ── Merge JSON history: old + new per owner ──
+                            _merged_owners = {}
+                            for _orig in saved_original_json:
+                                _o = str(_orig.get("owner", "")).strip().lower()
+                                if _o:
+                                    if _o not in _merged_owners:
+                                        _merged_owners[_o] = _load_json_history(_o)
+                                    _merged_owners[_o].append(_orig)
+                            for _o, _new_list in _merged_owners.items():
+                                _save_json_history(_o, _new_list)
                             st.session_state.json_show_dialog = False
                             st.session_state.json_batch_results = []
                             st.session_state.json_import_expander = False

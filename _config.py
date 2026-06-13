@@ -45,6 +45,7 @@ NS_LIST_FILE  = "namestock_list.csv"
 TRAIT_LIST    = "traits_list.csv"
 OWNER_NS_FILE = "owner_namestock.txt"
 BACKUP_DIR    = "backups"
+JSON_HISTORY_DIR = "json_history"
 
 EXCHANGE_RATE = 20400
 
@@ -96,7 +97,7 @@ HISTORY_SCHEMA = {
 LIST_SCHEMA = {"Name": ""}
 
 MUTATION_OPTIONS = [
-    "Normal", "Gold", "Diamond", "Bloodrot", "Candy",
+    "None", "Normal", "Gold", "Diamond", "Bloodrot", "Candy",
     "Divine", "Lava", "Galaxy", "Yin-Yang", "Radioactive",
     "Cursed", "Rainbow", "Cyber",
 ]

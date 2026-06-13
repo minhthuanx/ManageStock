@@ -26,70 +26,25 @@ def render_tab_eldorado(eld_client):
             st.markdown('<div class="sec-heading">🎮 Eldorado.gg</div>', unsafe_allow_html=True)
 
             if eld_client and eld_client.logged_in:
-                # Profile card — download avatar + hiển thị
-                if not st.session_state.get("_eldo_avatar_b64"):
-                    _av_url = eld_client.avatar or ""
-                    if _av_url:
-                        try:
-                            # Thử nhiều URL patterns
-                            _patterns = [
-                                f"https://eldorado.gg{_av_url}" if _av_url.startswith("/") else _av_url,
-                                f"https://eldorado.gg{_av_url}" if not _av_url.startswith("http") else _av_url,
-                            ]
-                            for _av_full in _patterns:
-                                try:
-                                    _av_resp = eld_client._session.get(_av_full, timeout=8,
-                                        headers={"User-Agent": "Mozilla/5.0", "Referer": "https://eldorado.gg/"})
-                                    if _av_resp.ok and _av_resp.headers.get("content-type", "").startswith("image/"):
-                                        import base64 as _b64
-                                        st.session_state["_eldo_avatar_b64"] = _b64.b64encode(_av_resp.content).decode()
-                                        st.session_state["_eldo_avatar_ct"] = _av_resp.headers["content-type"]
-                                        break
-                                except Exception:
-                                    continue
-                        except Exception:
-                            pass
+                # Profile card — centered, no avatar
+                _initial = (eld_client.username or "?")[0].upper()
+                st.markdown(f'''
+                <div style="text-align:center;padding:1.2rem 0 0.8rem;">
+                    <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#c084fc,#e879f9);
+                    display:inline-flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;
+                    color:#fff;border:3px solid #c084fc;box-shadow:0 4px 20px rgba(192,132,252,0.35);">{_initial}</div>
+                    <div style="font-size:1.6rem;font-weight:700;color:#f0e6ff;margin-top:10px;">{eld_client.username}</div>
+                    <div style="font-size:1rem;color:#9d8fbf;margin-top:6px;">
+                        👍 {eld_client.pos} &nbsp;&nbsp; 👎 {eld_client.neg} &nbsp;&nbsp; | &nbsp;&nbsp; {eld_client.pos + eld_client.neg} giao dịch
+                    </div>
+                </div>
+                ''', unsafe_allow_html=True)
 
-                _av_b64 = st.session_state.get("_eldo_avatar_b64", "")
-                _av_ct = st.session_state.get("_eldo_avatar_ct", "image/png")
-
-                # Centered profile card
-                st.markdown('<div style="display:flex;justify-content:center;">', unsafe_allow_html=True)
-                _pf_col1, _pf_col2, _pf_col3 = st.columns([1, 3, 1])
-                with _pf_col2:
-                    if _av_b64:
-                        st.markdown(
-                            f'<div style="text-align:center;">'
-                            f'<img src="data:{_av_ct};base64,{_av_b64}" width="96" height="96" '
-                            f'style="border-radius:50%;object-fit:cover;border:3px solid #c084fc;">'
-                            f'</div>',
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        _initial = (eld_client.username or "?")[0].upper()
-                        st.markdown(
-                            f'<div style="text-align:center;">'
-                            f'<div style="width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#c084fc,#e879f9);'
-                            f'display:inline-flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;'
-                            f'color:#fff;border:3px solid #c084fc;">{_initial}</div>'
-                            f'</div>',
-                            unsafe_allow_html=True,
-                        )
-                    st.markdown(
-                        f'<div style="text-align:center;margin-top:8px;">'
-                        f'<div style="font-size:1.3rem;font-weight:700;color:#f0e6ff;">{eld_client.username}</div>'
-                        f'<div style="font-size:0.85rem;color:#9d8fbf;margin-top:4px;">'
-                        f'ID: <code>{eld_client.userId[:12]}...</code> &nbsp;|&nbsp; '
-                        f'👍 {eld_client.pos} &nbsp; 👎 {eld_client.neg}</div>'
-                        f'</div>',
-                        unsafe_allow_html=True,
-                    )
-                    if st.button("🔌 Logout", key="eldo_logout_top", use_container_width=True):
-                        eld_client.disconnect()
-                        _clear_eld_cookie_from_sb()
-                        st.toast("Đã đăng xuất Eldorado")
-                        st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+                if st.button("🔌 Logout", key="eldo_logout_top", use_container_width=True):
+                    eld_client.disconnect()
+                    _clear_eld_cookie_from_sb()
+                    st.toast("Đã đăng xuất Eldorado")
+                    st.rerun()
             else:
                 with st.form("form_eldo_login", clear_on_submit=False):
                     st.caption("F12 → Application → Cookies → eldorado.gg → Copy all as string")
@@ -269,15 +224,13 @@ def render_tab_eldorado(eld_client):
                             else:
                                 st.info("Đã ở giá tối thiểu.")
 
-                    # ── Danh sách listings (Active only trong scroll container) ──
+                    # ── Danh sách listings (Active only) ──
                     _active_listings = [x for x in _flt if x.get("offerState") == "Active"]
                     st.caption(f"**{len(_active_listings)}** Active / {len(_flt)} tổng")
 
                     if not _active_listings:
                         st.info("Không có listing Active nào.")
                     else:
-                        # Cards trong scroll container
-                        _scroll_cards = '<div style="max-height:600px;overflow-y:auto;border:1px solid rgba(192,132,252,0.15);border-radius:10px;padding:8px;">'
                         for _o in _active_listings:
                             _oid = _o.get("id", "")
                             _otitle = (_o.get("offerTitle", "") or "")[:65]
@@ -286,54 +239,53 @@ def render_tab_eldorado(eld_client):
                             if _oimg:
                                 if not _oimg.startswith("http"):
                                     _oimg = f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
-                                _img_tag = f'<img src="{_oimg}" width="52" height="52" style="border-radius:8px;object-fit:cover;">'
+                                _img_tag = f'<img src="{_oimg}" width="48" height="48" style="border-radius:8px;object-fit:cover;">'
                             else:
-                                _img_tag = '<div style="width:52px;height:52px;border-radius:8px;background:#1a1528;display:flex;align-items:center;justify-content:center;font-size:22px;">📦</div>'
-                            _scroll_cards += f'''
-                            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:6px;border:1px solid rgba(192,132,252,0.2);border-radius:10px;background:rgba(17,15,26,0.6);">
-                                {_img_tag}
-                                <div style="flex:1;min-width:0;">
-                                    <div style="font-size:0.92rem;font-weight:600;color:#f0e6ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{_otitle}</div>
-                                    <div style="font-size:0.82rem;color:#9d8fbf;margin-top:2px;">${_oprice:.2f}</div>
-                                </div>
-                            </div>'''
-                        _scroll_cards += '</div>'
-                        st.markdown(_scroll_cards, unsafe_allow_html=True)
+                                _img_tag = '<div style="width:48px;height:48px;border-radius:8px;background:#1a1528;display:flex;align-items:center;justify-content:center;font-size:20px;">📦</div>'
 
-                    # Action panel cho listing đã chọn (popup dialog)
-                    _sel_o = st.session_state.get("_eldo_selected")
-                    if _sel_o and _sel_o.get("offerState") == "Active":
-                        @st.dialog("Chỉnh sửa Listing", width="medium")
-                        def _edit_listing_dialog():
+                            _c1, _c2 = st.columns([5, 1])
+                            with _c1:
+                                st.markdown(f'{_img_tag} <span style="margin-left:8px;font-size:0.88rem;font-weight:600;color:#f0e6ff;">{_otitle}</span> <span style="font-size:0.82rem;color:#9d8fbf;margin-left:8px;">${_oprice:.2f}</span>', unsafe_allow_html=True)
+                            with _c2:
+                                if st.button("✏️", key=f"eld_sel_{_oid}", help="Chỉnh sửa listing này"):
+                                    st.session_state["_eldo_selected"] = _o
+
+                        # Action panel cho listing đã chọn
+                        _sel_o = st.session_state.get("_eldo_selected")
+                        if _sel_o:
                             _oid = _sel_o.get("id", "")
                             _otitle = (_sel_o.get("offerTitle", "") or "")
                             _oprice = float(_sel_o.get("pricePerUnit", {}).get("amount", 0))
                             _oimg = (_sel_o.get("mainOfferImage") or {}).get("smallImage", "")
 
-                            st.markdown(f"**{_otitle}**")
-                            if _oimg:
-                                if not _oimg.startswith("http"):
-                                    _oimg = f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
-                                st.image(_oimg, width=200)
+                            with st.container(border=True):
+                                st.markdown(f"**✏️ {_otitle}** · ${_oprice:.2f}")
+                                if _oimg:
+                                    if not _oimg.startswith("http"):
+                                        _oimg = f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
+                                    st.image(_oimg, width=120)
 
-                            ac1, ac2 = st.columns(2)
-                            _np_val = ac1.number_input("Giá mới ($)", 0.01, 9999.0, _oprice, 0.05, format="%.2f")
-                            ac2.markdown(f"**{st.session_state.get('_eldo_selected', {}).get('offerState', '?')}**")
-
-                            bc1, bc2, bc3 = st.columns(3)
-                            if bc1.button("💰 Đổi giá", type="primary", use_container_width=True):
-                                _r = eld_client.change_price(_oid, _np_val)
-                                if _r and not _r.get("error"):
-                                    st.toast("Đã đổi giá")
+                                ac1, ac2, ac3 = st.columns([1, 1, 1])
+                                _np_val = ac1.number_input("Giá mới ($)", 0.01, 9999.0, _oprice, 0.05, format="%.2f", key="eldo_new_price")
+                                if ac2.button("💰 Đổi giá", type="primary", use_container_width=True, key="btn_change_price"):
+                                    _r = eld_client.change_price(_oid, _np_val)
+                                    if _r and not _r.get("error"):
+                                        st.toast("Đã đổi giá")
+                                        st.session_state._eldo_all = []
+                                        st.session_state.pop("_eldo_selected", None)
+                                        st.rerun()
+                                if ac3.button("⏸️ Pause", use_container_width=True, key="btn_pause"):
+                                    eld_client.change_state(_oid, "Paused")
                                     st.session_state._eldo_all = []
+                                    st.session_state.pop("_eldo_selected", None)
                                     st.rerun()
-                            if bc2.button("⏸️ Pause", use_container_width=True):
-                                eld_client.change_state(_oid, "Paused")
-                                st.session_state._eldo_all = []
-                                st.rerun()
-                            if bc3.button("🗑️ Xoá", type="primary", use_container_width=True):
-                                eld_client.delete_listing(_oid)
-                                st.session_state._eldo_all = []
-                                st.rerun()
 
-                        _edit_listing_dialog()
+                                bc1, bc2 = st.columns(2)
+                                if bc1.button("🗑️ Xoá", type="primary", use_container_width=True, key="btn_delete_sel"):
+                                    eld_client.delete_listing(_oid)
+                                    st.session_state._eldo_all = []
+                                    st.session_state.pop("_eldo_selected", None)
+                                    st.rerun()
+                                if bc2.button("❌ Đóng", use_container_width=True, key="btn_close_panel"):
+                                    st.session_state.pop("_eldo_selected", None)
+                                    st.rerun()

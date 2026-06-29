@@ -144,7 +144,11 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
 
                     with _info_col:
                         ms_val = res.get('M/s')
-                        st.caption(f"M/s: {f'{ms_val:g}' if ms_val else '?'} | Traits: {res.get('Số Trait')}")
+                        if ms_val and ms_val >= 1000:
+                            ms_str = f"{ms_val / 1000:.1f}B/s"
+                        else:
+                            ms_str = f"{ms_val:g}M/s" if ms_val else "?"
+                        st.caption(f"M/s: {ms_str} | Traits: {res.get('Số Trait')}")
 
                     # Main form columns
                     c1d, c2d, c3d = st.columns(3)
@@ -165,7 +169,10 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
 
                     # M/s
                     val_ms = res.get("M/s")
-                    str_ms = f"{val_ms:g}" if val_ms else ""
+                    if val_ms and val_ms >= 1000:
+                        str_ms = f"{val_ms / 1000:.1f}B/s"
+                    else:
+                        str_ms = f"{val_ms:g}" if val_ms else ""
                     r_ms_raw = c3d.text_input(f"M/s", value=str_ms, key=f"dlg_json_ms_{i}", label_visibility="collapsed")
 
                     c4d, c5d, c6d = st.columns([1, 1, 1])

@@ -307,8 +307,10 @@ def parse_json_import(json_str: str) -> list:
             gen_val = item.get("gen_value")
             if gen_val is not None:
                 try:
-                    ms_val = float(gen_val) / 1000000.0
-                    if ms_val >= 1000:
+                    _gen_f = float(gen_val)
+                    if _gen_f >= 1_000_000_000:
+                        ms_val = _gen_f / 1_000_000
+                    else:
                         ms_val = parse_gen_text(item.get("gen_text", ""))
                 except Exception:
                     ms_val = parse_gen_text(item.get("gen_text", ""))

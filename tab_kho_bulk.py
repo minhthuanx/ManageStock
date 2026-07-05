@@ -60,15 +60,15 @@ def render_bulk_sell(df):
                     _br_trait  = str(_br.get("Số Trait", "") or "").strip()
                     _br_ton    = int(float(_br.get("Ngày Tồn", 0) or 0))
                     _br_ms_str = f" · <b>{_br_ms}M/s</b>" if _br_ms else ""
-                    _br_ns_str = f" · <span style='color:#7c6fa0'>{_br_ns}</span>" if _br_ns else ""
+                    _br_ns_str = f" · <span style='color:#6a6a70'>{_br_ns}</span>" if _br_ns else ""
                     _br_trait_str = f" · Trait:{_br_trait}" if _br_trait and _br_trait.lower() != "none" else ""
                     _br_ton_str = f" · <span style='color:#f87171'>tồn {_br_ton}d</span>" if _br_ton > 0 else ""
                     _rc1.markdown(
                         f'<div style="font-size:0.82rem;padding:2px 0;">'
-                        f'<b style="color:#c084fc">#{int(_br["STT"])}</b> · '
-                        f'<b>{_br["Tên Pet"]}</b> · <span style="color:#a78bfa">{_br["Mutation"]}</span>'
+                        f'<b style="color:#ff8533">#{int(_br["STT"])}</b> · '
+                        f'<b>{_br["Tên Pet"]}</b> · <span style="color:#ff8533">{_br["Mutation"]}</span>'
                         f'{_br_ms_str}{_br_ns_str}{_br_trait_str}'
-                        f' · <span style="color:#9d8fbf">{fmt_vnd(float(_br["Giá Nhập"]))}</span>'
+                        f' · <span style="color:#9a8a7a">{fmt_vnd(float(_br["Giá Nhập"]))}</span>'
                         f'{_br_ton_str}'
                         f'</div>',
                         unsafe_allow_html=True,
@@ -214,19 +214,19 @@ def render_resell(df):
         # ════════════════════════════════════════════════════
         st.markdown(
             '<div style="display:inline-flex;align-items:center;gap:6px;'
-            'background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);'
+            'background:rgba(255,106,0,0.08);border:1px solid rgba(255,106,0,0.25);'
             'border-radius:6px;padding:4px 10px;margin-bottom:8px;">'
             '<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
-            'color:#a855f7;font-weight:600;">📌 Danh sách Pin</span>'
-            '<span style="font-size:0.72rem;color:#9d8fbf;">— nhấn Re-sell khi chắc chắn khách không lấy</span>'
+            'color:#ff6a00;font-weight:600;">📌 Danh sách Pin</span>'
+            '<span style="font-size:0.72rem;color:#9a8a7a;">— nhấn Re-sell khi chắc chắn khách không lấy</span>'
             '</div>',
             unsafe_allow_html=True,
         )
 
         if not st.session_state.pinned_resell and not st.session_state.resell_cart:
             st.markdown(
-                '<div style="text-align:center;padding:16px 8px;color:#4b3f6b;'
-                'font-size:0.82rem;border:1px dashed rgba(168,85,247,0.2);border-radius:8px;">'
+                '<div style="text-align:center;padding:16px 8px;color:#5a5a60;'
+                'font-size:0.82rem;border:1px dashed rgba(255,106,0,0.2);border-radius:8px;">'
                 '📌 Chưa có pet nào được pin<br>'
                 '<span style="font-size:0.75rem;">Dùng ô tìm kiếm bên dưới để thêm</span>'
                 '</div>',
@@ -249,13 +249,13 @@ def render_resell(df):
                 _pv_mut   = str(_pv.get("Mutation", "") or "")
                 _pv_ban   = str(_pv.get("Ngày Bán", "") or "").strip()
                 _pv_ms_str  = f" · <b>{_pv_ms}M/s</b>" if _pv_ms else ""
-                _pv_ns_str  = f" · <span style='color:#7c6fa0'>{_pv_ns}</span>" if _pv_ns else ""
+                _pv_ns_str  = f" · <span style='color:#6a6a70'>{_pv_ns}</span>" if _pv_ns else ""
                 _pv_ban_str = f" · <span style='color:#f87171'>{_pv_ban}</span>" if _pv_ban and _pv_ban != "-" else ""
                 _rs_badge   = " · <span style='color:#00ff88;font-weight:600;'>✅ Re-sell</span>" if _already_in_rcart else ""
                 st.markdown(
                     f'<div style="font-size:0.82rem;padding:4px 0 2px 0;">'
                     f'<b style="color:#f97316">#{int(float(_pv.get("STT", 0) or 0))}</b> · '
-                    f'<b>{_pv.get("Tên Pet", "")}</b> · <span style="color:#a78bfa">{_pv_mut}</span>'
+                    f'<b>{_pv.get("Tên Pet", "")}</b> · <span style="color:#ff8533">{_pv_mut}</span>'
                     f'{_pv_ms_str}{_pv_ns_str}{_pv_ban_str}{_rs_badge}'
                     f'</div>',
                     unsafe_allow_html=True,
@@ -274,7 +274,7 @@ def render_resell(df):
                     st.session_state.resell_cart.pop(_pid, None)
                     _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
                     st.rerun()
-                st.markdown('<div style="border-top:1px solid rgba(45,37,64,0.5);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
+                st.markdown('<div style="border-top:1px solid rgba(255,106,0,0.12);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
 
         # ════════════════════════════════════════════════════
         # PHẦN 2: TÌM & THÊM PIN (sub-expander, nằm dưới)
@@ -313,7 +313,7 @@ def render_resell(df):
                         _rr_ns      = str(_rr.get("NameStock", "") or "").strip()
                         _rr_ngayban = str(_rr.get("Ngày Bán", "") or "").strip()
                         _rr_ms_str  = f" · <b>{_rr_ms}M/s</b>" if _rr_ms else ""
-                        _rr_ns_str  = f" · <span style='color:#7c6fa0'>{_rr_ns}</span>" if _rr_ns else ""
+                        _rr_ns_str  = f" · <span style='color:#6a6a70'>{_rr_ns}</span>" if _rr_ns else ""
                         _rr_ban_str = f" · <span style='color:#f87171'>Bán: {_rr_ngayban}</span>" if _rr_ngayban and _rr_ngayban != "-" else ""
                         if _is_in_rcart:
                             _status_badge = " · <span style='color:#00ff88;font-weight:600;'>✅ Re-sell</span>"
@@ -324,7 +324,7 @@ def render_resell(df):
                         st.markdown(
                             f'<div style="font-size:0.82rem;padding:4px 0 2px 0;">'
                             f'<b style="color:#f97316">#{int(_rr["STT"])}</b> · '
-                            f'<b>{_rr["Tên Pet"]}</b> · <span style="color:#a78bfa">{_rr["Mutation"]}</span>'
+                            f'<b>{_rr["Tên Pet"]}</b> · <span style="color:#ff8533">{_rr["Mutation"]}</span>'
                             f'{_rr_ms_str}{_rr_ns_str}{_rr_ban_str}{_status_badge}'
                             f'</div>',
                             unsafe_allow_html=True,
@@ -340,7 +340,7 @@ def render_resell(df):
                                 st.session_state.pinned_resell[_rrid] = _rr.to_dict()
                                 _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
                                 st.rerun()
-                        st.markdown('<div style="border-top:1px solid rgba(45,37,64,0.5);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
+                        st.markdown('<div style="border-top:1px solid rgba(255,106,0,0.12);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
                     if len(_rs_df) > 15:
                         st.caption(f"Đang hiển thị 15 / {len(_rs_df)} kết quả — thu hẹp tìm kiếm để xem thêm.")
 
@@ -349,11 +349,11 @@ def render_resell(df):
             st.markdown("---")
             st.markdown(
                 '<div style="display:inline-flex;align-items:center;gap:6px;'
-                'background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);'
+                'background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);'
                 'border-radius:6px;padding:4px 10px;margin-bottom:6px;">'
                 '<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
                 'color:#00ff88;font-weight:600;">③ Xác nhận Re-sell</span>'
-                '<span style="font-size:0.72rem;color:#9d8fbf;">— tạo bản ghi kho mới, giá nhập 1₫</span>'
+                '<span style="font-size:0.72rem;color:#9a8a7a;">— tạo bản ghi kho mới, giá nhập 1₫</span>'
                 '</div>',
                 unsafe_allow_html=True,
             )

@@ -61,7 +61,7 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                     tickfont=dict(color="#a8a8b8", size=10),
                     tickformat=",.0f",
                     zeroline=True,
-                    zerolinecolor="#2d2040",
+                    zerolinecolor="#222230",
                 ),
                 margin=dict(l=10, r=10, t=45, b=10),
                 height=260,

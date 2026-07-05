@@ -41,7 +41,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
 
             _wf_labels = ["Tổng Doanh Thu", "Tổng Vốn", "Lợi Nhuận Ròng"]
             _wf_vals   = [total_rev, total_cost, abs(net_profit)]
-            _wf_colors = ["#00ff88", "#f87171", "#a78bfa" if net_profit >= 0 else "#f87171"]
+            _wf_colors = ["#00ff88", "#f87171", "#ff6a00" if net_profit >= 0 else "#f87171"]
 
             _fig_wf = go.Figure(go.Bar(
                 x=_wf_labels,
@@ -272,7 +272,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                 yaxis=dict(
                     title="Tích lũy (₫)", gridcolor="#1a1a24",
                     tickfont=dict(color="#a8a8b8", size=10), tickformat=",.0f",
-                    zeroline=True, zerolinecolor="#2d2040",
+                    zeroline=True, zerolinecolor="#222230",
                 ),
                 yaxis2=dict(
                     title="LN ngày (₫)", overlaying="y", side="right",

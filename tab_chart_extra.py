@@ -36,8 +36,8 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_stock); _sk_val.append(_v_stock)
 
         if _sk_src:
-            _mut_palette = ["#ff6a00","#00ff88","#f472b6","#a78bfa","#e879f9",
-                            "#d8b4fe","#c4b5fd","#a5b4fc","#f0abfc","#ddd6fe"]
+            _mut_palette = ["#ff6a00","#00ff88","#f472b6","#ff8533","#fbbf24",
+                            "#f87171","#38bdf8","#ff8533","#fb923c","#f9a8d4"]
             _sk_node_colors = (
                 ["#c2410c"]
                 + [_mut_palette[i % len(_mut_palette)] for i in range(len(_sk_muts))]
@@ -248,7 +248,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     xaxis=dict(tickfont=dict(color="#f0f0f5", size=10), gridcolor="#1a1a24"),
                     yaxis=dict(title="Lợi nhuận (₫)", gridcolor="#1a1a24",
                                tickfont=dict(color="#a8a8b8", size=10), tickformat=",.0f",
-                               zeroline=True, zerolinecolor="#2d2040"),
+                               zeroline=True, zerolinecolor="#222230"),
                     yaxis2=dict(title="Số con", overlaying="y", side="right",
                                 tickfont=dict(color="#ff6a00", size=10), zeroline=False, showgrid=False),
                     legend=dict(orientation="h", x=0, y=1.1, font=dict(color="#a8a8b8", size=10)),
@@ -297,7 +297,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             with _trc1:
                 _tr_colors = ["#94a3b8" if t == "None" else
                               "#00ff88" if i % 3 == 1 else
-                              "#a78bfa" if i % 3 == 2 else "#f472b6"
+                              "#ff8533" if i % 3 == 2 else "#f472b6"
                               for i, t in enumerate(_tr_grp["_trait"])]
                 _fig_tr = go.Figure(go.Bar(
                     x=_tr_grp["_trait"], y=_tr_grp["LN_mean"],
@@ -320,7 +320,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     font=dict(family="Inter", color="#a8a8b8", size=11),
                     xaxis=dict(gridcolor="#1a1a24", tickfont=dict(color="#f0f0f5", size=10)),
                     yaxis=dict(gridcolor="#1a1a24", tickfont=dict(color="#a8a8b8", size=10),
-                               tickformat=",.0f", zeroline=True, zerolinecolor="#2d2040"),
+                               tickformat=",.0f", zeroline=True, zerolinecolor="#222230"),
                     margin=dict(l=10, r=10, t=45, b=10), height=400, showlegend=False,
                 )
                 st.plotly_chart(_fig_tr, use_container_width=True)
@@ -398,7 +398,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             delta={"reference": 80, "suffix": "%", "increasing": {"color": "#00ff88"}, "decreasing": {"color": "#f87171"}},
             number={"suffix": "%", "font": {"size": 42, "color": "#f0f0f5", "family": "Inter"}},
             gauge={
-                "axis": {"range": [0, 100], "tickcolor": "#2d2040",
+                "axis": {"range": [0, 100], "tickcolor": "#222230",
                          "tickfont": {"color": "#a8a8b8", "size": 12}},
                 "bar":  {"color": "#ff6a00", "thickness": 0.25},
                 "bgcolor": "#0a0a0f",

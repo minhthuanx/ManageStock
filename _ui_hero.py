@@ -38,7 +38,7 @@ def render_hero_banner(df, bulk_df, bulk_history):
       </div>
       <div style="display:flex;gap:0.55rem;flex-wrap:wrap;align-items:center;">
         <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#22c55e;flex-shrink:0;box-shadow:0 0 8px rgba(34,197,94,0.5);"></div>
+          <div style="width:9px;height:9px;border-radius:50%;background:#00ff88;flex-shrink:0;box-shadow:0 0 8px rgba(0,255,136,0.5);"></div>
           <div>
             <div style="font-size:1.15rem;font-weight:700;color:#f0f0f5;line-height:1.2;">{_hb_con_hang_count}</div>
             <div style="font-size:0.65rem;color:#6b6b80;letter-spacing:0.05em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Còn hàng</div>

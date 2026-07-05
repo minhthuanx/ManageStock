@@ -108,12 +108,12 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 # Color palette per mutation (distinct vivid colors)
                 _MUT_PALETTE = {
                     "Normal":"#94a3b8","Gold":"#fbbf24","Diamond":"#67e8f9",
-                    "Bloodrot":"#f87171","Candy":"#f9a8d4","Divine":"#c084fc",
+                    "Bloodrot":"#f87171","Candy":"#f9a8d4","Divine":"#ff6a00",
                     "Lava":"#fb923c","Galaxy":"#818cf8","Yin-Yang":"#e2e8f0",
                     "Radioactive":"#86efac","Cursed":"#4ade80","Rainbow":"#f472b6",
                     "Không rõ":"#6b7280",
                 }
-                _dot_colors = [_MUT_PALETTE.get(m, "#a78bfa") for m in _tm_grp["_mut"]]
+                _dot_colors = [_MUT_PALETTE.get(m, "#ff8533") for m in _tm_grp["_mut"]]
 
                 _fig_bub = go.Figure()
 
@@ -124,8 +124,8 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                                    fillcolor="rgba(248,113,113,0.04)", line_width=0)
 
                 # Quadrant lines
-                _fig_bub.add_hline(y=_med_y, line=dict(color="#2d2040", width=1, dash="dot"))
-                _fig_bub.add_vline(x=_med_x, line=dict(color="#2d2040", width=1, dash="dot"))
+                _fig_bub.add_hline(y=_med_y, line=dict(color="#222230", width=1, dash="dot"))
+                _fig_bub.add_vline(x=_med_x, line=dict(color="#222230", width=1, dash="dot"))
 
                 # Quadrant labels
                 for _ql_x, _ql_y, _ql_txt in [
@@ -142,7 +142,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
                 # Bubbles
                 for _, _row in _tm_grp.iterrows():
-                    _col = _MUT_PALETTE.get(str(_row["_mut"]), "#a78bfa")
+                    _col = _MUT_PALETTE.get(str(_row["_mut"]), "#ff8533")
                     _sz  = max(24, min(90, _row["DT"] / (_tm_grp["DT"].max() or 1) * 80 + 14))
                     _fig_bub.add_trace(go.Scatter(
                         x=[_row["Count"]],
@@ -181,7 +181,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     yaxis=dict(
                         title="LN trung bình / con (₫)",
                         gridcolor="#1a1a24", tickfont=dict(color="#a8a8b8", size=10),
-                        tickformat=",.0f", zeroline=True, zerolinecolor="#2d2040",
+                        tickformat=",.0f", zeroline=True, zerolinecolor="#222230",
                     ),
                     margin=dict(l=10, r=10, t=25, b=10),
                     height=480,
@@ -216,8 +216,8 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 _med_py = float(_pp_grp["AvgLN"].median())
 
                 _fig_pp = go.Figure()
-                _fig_pp.add_hline(y=_med_py, line=dict(color="#2d2040", width=1, dash="dot"))
-                _fig_pp.add_vline(x=_med_px, line=dict(color="#2d2040", width=1, dash="dot"))
+                _fig_pp.add_hline(y=_med_py, line=dict(color="#222230", width=1, dash="dot"))
+                _fig_pp.add_vline(x=_med_px, line=dict(color="#222230", width=1, dash="dot"))
 
                 _pp_xmax = float(_pp_grp["AvgCost"].max())
                 _pp_ymax = float(_pp_grp["AvgLN"].max())
@@ -233,10 +233,10 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     )
 
                 _PP_PALETTE = [
-                    "#a78bfa","#00ff88","#f472b6","#fbbf24","#38bdf8",
-                    "#fb923c","#4ade80","#e879f9","#67e8f9","#f87171",
-                    "#c084fc","#86efac","#fdba74","#a5b4fc","#f9a8d4",
-                    "#6ee7b7","#fde68a","#bae6fd","#ddd6fe","#bbf7d0",
+                    "#ff6a00","#00ff88","#f472b6","#fbbf24","#38bdf8",
+                    "#fb923c","#4ade80","#ff8533","#67e8f9","#f87171",
+                    "#39d353","#86efac","#fdba74","#34d399","#f9a8d4",
+                    "#6ee7b7","#fde68a","#bae6fd","#fecdd3","#bbf7d0",
                 ]
                 for _pi, (_, _pr) in enumerate(_pp_grp.iterrows()):
                     _sz2 = max(16, min(68, _pr["Count"] / max(float(_pp_grp["Count"].max()), 1) * 52 + 16))
@@ -266,7 +266,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                                tickfont=dict(color="#a8a8b8", size=10), tickformat=",.0f", zeroline=False),
                     yaxis=dict(title="LN TB / con (₫)", gridcolor="#1a1a24",
                                tickfont=dict(color="#a8a8b8", size=10), tickformat=",.0f",
-                               zeroline=True, zerolinecolor="#2d2040"),
+                               zeroline=True, zerolinecolor="#222230"),
                     legend=dict(
                         orientation="v", x=1.01, y=1,
                         font=dict(color="#a8a8b8", size=9),

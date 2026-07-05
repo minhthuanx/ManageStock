@@ -12,12 +12,12 @@ def render_tab_chart(df, bulk_df, bulk_history):
     # ── Ngay bat dau badge ──
     st.markdown(
         '<div style="display:inline-flex;align-items:center;gap:8px;'
-        'background:linear-gradient(135deg,rgba(192,132,252,0.12),rgba(232,121,249,0.08));'
-        'border:1px solid rgba(192,132,252,0.35);border-radius:8px;'
+        'background:linear-gradient(135deg,rgba(255,106,0,0.12),rgba(255,133,51,0.08));'
+        'border:1px solid rgba(255,106,0,0.35);border-radius:8px;'
         'padding:6px 14px;margin-bottom:12px;">'
         '<span style="font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;'
-        'color:#9d8fbf;font-weight:500;">Ngày bắt đầu</span>'
-        '<span style="font-size:0.88rem;font-weight:600;color:#c084fc;letter-spacing:0.02em;">13/04/2026</span>'
+        'color:#9a8a7a;font-weight:500;">Ngày bắt đầu</span>'
+        '<span style="font-size:0.88rem;font-weight:600;color:#ff8533;letter-spacing:0.02em;">13/04/2026</span>'
         '</div>',
         unsafe_allow_html=True,
     )

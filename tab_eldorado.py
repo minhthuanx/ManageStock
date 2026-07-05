@@ -30,11 +30,11 @@ def render_tab_eldorado(eld_client):
                 _initial = (eld_client.username or "?")[0].upper()
                 st.markdown(f'''
                 <div style="text-align:center;padding:1.2rem 0 0.8rem;">
-                    <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#c084fc,#e879f9);
+                    <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#ff6a00,#ff8533);
                     display:inline-flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;
-                    color:#fff;border:3px solid #c084fc;box-shadow:0 4px 20px rgba(192,132,252,0.35);">{_initial}</div>
-                    <div style="font-size:1.6rem;font-weight:700;color:#f0e6ff;margin-top:10px;">{eld_client.username}</div>
-                    <div style="font-size:1rem;color:#9d8fbf;margin-top:6px;">
+                    color:#fff;border:3px solid #ff6a00;box-shadow:0 4px 20px rgba(255,106,0,0.35);">{_initial}</div>
+                    <div style="font-size:1.6rem;font-weight:700;color:#f0f0f5;margin-top:10px;">{eld_client.username}</div>
+                    <div style="font-size:1rem;color:#9a8a7a;margin-top:6px;">
                         👍 {eld_client.pos} &nbsp;&nbsp; 👎 {eld_client.neg} &nbsp;&nbsp; | &nbsp;&nbsp; {eld_client.pos + eld_client.neg} giao dịch
                     </div>
                 </div>
@@ -246,7 +246,7 @@ def render_tab_eldorado(eld_client):
                                         _oimg = f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
                                     st.markdown(f'<img src="{_oimg}" width="42" height="42" style="border-radius:8px;object-fit:cover;">', unsafe_allow_html=True)
                                 else:
-                                    st.markdown(f'<div style="width:42px;height:42px;border-radius:8px;background:#1a1528;display:flex;align-items:center;justify-content:center;font-size:18px;">📦</div>', unsafe_allow_html=True)
+                                    st.markdown(f'<div style="width:42px;height:42px;border-radius:8px;background:#1a1a22;display:flex;align-items:center;justify-content:center;font-size:18px;">📦</div>', unsafe_allow_html=True)
                             with rc2:
                                 st.markdown(f"**{_otitle}**")
                                 st.caption(f"**${_oprice:.2f}**")

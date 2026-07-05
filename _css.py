@@ -16,8 +16,8 @@ CSS_STRING = """<style>
   --accent:    #ff6a00;
   --accent-h:  #ff8533;
   --accent-bg: rgba(255,106,0,0.06);
-  --green:     #22c55e;
-  --green-bg:  rgba(34,197,94,0.06);
+  --green:     #00ff88;
+  --green-bg:  rgba(0,255,136,0.06);
   --red:       #ef4444;
   --red-bg:    rgba(239,68,68,0.06);
   --yellow:    #eab308;

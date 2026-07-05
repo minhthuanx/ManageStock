@@ -155,6 +155,7 @@ def render_advanced(sold_df, pbd, has_data):
         st.markdown('<div class="sec-heading">Thành Tích & Kỷ Lục</div>', unsafe_allow_html=True)
 
         _all_sold_ch = sold_df.copy()
+        _ln_col_ch = pd.to_numeric(_all_sold_ch.get("Lợi Nhuận", pd.Series(dtype=float)), errors="coerce").fillna(0) if not _all_sold_ch.empty else pd.Series(dtype=float)
 
         def _parse_ban_date_ch(ts_str):
             if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
@@ -181,16 +182,27 @@ def render_advanced(sold_df, pbd, has_data):
                     break
 
         _total_sold_ch = len(pbd) if has_data else len(_all_sold_ch)
-        _SELL_MILESTONES = [
-            (500, "🏆 Legend Trader"),
-            (200, "💎 Diamond Seller"),
-            (100, "🥇 Century Club"),
-            (50,  "🥈 Half Century"),
-            (20,  "🥉 Getting Started"),
-            (1,   "🌱 First Sale"),
+
+        # ── Dynamic achievement levels based on actual total ──
+        _ACH_BASES = [
+            (1,    "🌱 First Sale"),
+            (10,   "🥉 Starter"),
+            (50,   "🥈 Half Century"),
+            (100,  "🥇 Century Club"),
+            (250,  "💎 Quarter K"),
+            (500,  "🏆 Legend"),
+            (1000, "👑 Master"),
+            (2500, "⚡ Elite"),
+            (5000, "🌟 Grandmaster"),
+            (10000,"🔥 Immortal"),
         ]
-        _badge_ch = next((b for n, b in _SELL_MILESTONES if _total_sold_ch >= n), None)
-        _next_sell_ms = next(((n, b) for n, b in reversed(_SELL_MILESTONES) if _total_sold_ch < n), None)
+        # Pick the 4 levels surrounding current count (2 passed, current, 1 next)
+        _ach_passed  = [(n, b) for n, b in _ACH_BASES if _total_sold_ch >= n]
+        _ach_pending = [(n, b) for n, b in _ACH_BASES if _total_sold_ch < n]
+        _badge_ch    = _ach_passed[-1][1] if _ach_passed else None
+        _next_sell_ms = _ach_pending[0] if _ach_pending else None
+        # Show 2 levels above current for context
+        _ach_display = _ach_passed[-2:] + _ach_pending[:2] if len(_ach_passed) >= 2 else _ach_passed + _ach_pending[:3]
         _streak_icon_ch = "🔥" if _streak_ch >= 3 else ("✨" if _streak_ch >= 1 else "💤")
 
         _ach_c1, _ach_c2, _ach_c3 = st.columns(3)
@@ -198,12 +210,28 @@ def render_advanced(sold_df, pbd, has_data):
         _ach_c2.metric("Tổng giao dịch", f"{_total_sold_ch}")
         _ach_c3.metric("Cấp độ", _badge_ch or "—")
         if _next_sell_ms:
-            st.caption(f"Cột mốc tiếp theo · **{_next_sell_ms[1]}**: còn **{_next_sell_ms[0] - _total_sold_ch}** giao dịch")
+            _prev_ms = _ach_passed[-1][0] if _ach_passed else 0
+            _range_total = _next_sell_ms[0] - _prev_ms
+            _progress = (_total_sold_ch - _prev_ms) / _range_total if _range_total > 0 else 1.0
+            st.progress(min(_progress, 1.0),
+                        text=f"→ {_next_sell_ms[1]}: {_total_sold_ch} / {_next_sell_ms[0]} giao dịch ({_progress*100:.0f}%)")
+        # Achievement level track
+        _ach_track_cols = st.columns(len(_ach_display) if _ach_display else 1)
+        for _ai, (_an, _ab) in enumerate(_ach_display):
+            _done = _total_sold_ch >= _an
+            _ach_track_cols[_ai].markdown(
+                f"<div style='text-align:center;padding:6px 2px;border-radius:6px;"
+                f"background:{'rgba(34,211,238,0.12)' if _done else 'rgba(255,255,255,0.03)'};"
+                f"border:1px solid {'rgba(34,211,238,0.3)' if _done else 'rgba(255,255,255,0.06)'};'>"
+                f"<div style='font-size:1.1rem;'>{'✅' if _done else '⬜'}</div>"
+                f"<div style='font-size:0.65rem;color:{'#22d3ee' if _done else '#737373'};font-weight:600;'>{_ab}</div>"
+                f"<div style='font-size:0.6rem;color:#52525b;'>{_an}</div></div>",
+                unsafe_allow_html=True,
+            )
 
         # ── AK: Personal Records ──
         st.markdown("**Kỷ Lục**")
         if not _all_sold_ch.empty:
-            _ln_col_ch = pd.to_numeric(_all_sold_ch["Lợi Nhuận"], errors="coerce").fillna(0)
             _ton_col_ch = pd.to_numeric(_all_sold_ch["Ngày Tồn"], errors="coerce").fillna(999)
 
             _best_ln_row_ch = _all_sold_ch.loc[_ln_col_ch.idxmax()]
@@ -229,25 +257,58 @@ def render_advanced(sold_df, pbd, has_data):
         else:
             st.info("Chưa có dữ liệu bán.")
 
-        # ── Mốc lợi nhuận tích lũy ──
+        # ── Mốc lợi nhuận tích lũy (dynamic) ──
         st.markdown("**Cột Mốc Lợi Nhuận**")
         # Dùng pbd (lẻ + lô) để tính tổng lợi nhuận chính xác
         _total_ln_ch = float(pbd["Lợi Nhuận"].sum()) if has_data and not pbd.empty else (float(_ln_col_ch.sum()) if not _all_sold_ch.empty else 0.0)
         _ln_m_ch = _total_ln_ch / 1_000_000
-        _LN_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+
+        # Dynamic milestones: generate steps that bracket current value
+        def _gen_profit_milestones(current_m):
+            if current_m <= 0:
+                return [0.5, 1, 2, 3, 5, 10]
+            import math
+            mag = 10 ** math.floor(math.log10(max(current_m, 0.1)))
+            if current_m < mag * 1.5:
+                base_steps = [0.5, 1, 2, 3, 5]
+            elif current_m < mag * 3:
+                base_steps = [1, 2, 3, 5, 10]
+            elif current_m < mag * 7:
+                base_steps = [1, 2, 5, 10, 20]
+            else:
+                base_steps = [1, 2, 5, 10, 20, 50]
+            candidates = sorted(set(s * mag for s in base_steps))
+            return [c for c in candidates if c > 0]
+
+        _LN_MS = _gen_profit_milestones(_ln_m_ch)
         _nxt_ln_ms = next((m for m in _LN_MS if _ln_m_ch < m), None)
         _lst_ln_ms = next((m for m in reversed(_LN_MS) if _ln_m_ch >= m), None)
+
         st.caption(f"Lợi nhuận tích lũy: **{fmt_vnd(_total_ln_ch)}**")
         if _nxt_ln_ms:
-            _tgt_ch = _nxt_ln_ms * 1_000_000
-            _pct_ch = min(_total_ln_ch / _tgt_ch, 1.0) if _tgt_ch > 0 else 1.0
-            st.progress(max(_pct_ch, 0.0),
-                        text=f"Mốc {_nxt_ln_ms}M: {fmt_vnd(_total_ln_ch)} / {fmt_vnd(_tgt_ch)} ({_pct_ch*100:.0f}%)")
+            _prev_ms_val = _lst_ln_ms if _lst_ln_ms else 0
+            _range_ln    = _nxt_ln_ms - _prev_ms_val
+            _pct_ln      = (_ln_m_ch - _prev_ms_val) / _range_ln if _range_ln > 0 else 1.0
+            _pct_ln      = max(0.0, min(_pct_ln, 1.0))
+            st.progress(_pct_ln,
+                        text=f"Mốc {_nxt_ln_ms}M: {fmt_vnd(_total_ln_ch)} / {fmt_vnd(_nxt_ln_ms * 1_000_000)} ({_pct_ln*100:.0f}%)")
         else:
-            st.progress(1.0, text="🏆 Đã vượt 100M tích lũy!")
-        _ms_row1, _ms_row2 = st.columns(5), st.columns(5)
-        for _ci, _ms in enumerate(_LN_MS):
-            _done = _ln_m_ch >= _ms
-            (_ms_row1 if _ci < 5 else _ms_row2)[_ci % 5].markdown(
-                f"{'✅' if _done else '⬜'} **{_ms}M**"
-            )
+            _top = _LN_MS[-1] if _LN_MS else 100
+            st.progress(1.0, text=f"🏆 Đã vượt {_top}M tích lũy!")
+        # Milestone grid — show all, highlight next target
+        _n_cols = min(len(_LN_MS), 5)
+        _ms_rows = [_LN_MS[i:i+_n_cols] for i in range(0, len(_LN_MS), _n_cols)]
+        for _ms_row in _ms_rows:
+            _row_cols = st.columns(_n_cols)
+            for _ci, _ms in enumerate(_ms_row):
+                _done = _ln_m_ch >= _ms
+                _is_next = (_nxt_ln_ms is not None and _ms == _nxt_ln_ms)
+                _row_cols[_ci].markdown(
+                    f"<div style='text-align:center;padding:5px 2px;border-radius:6px;"
+                    f"background:{'rgba(34,211,238,0.12)' if _done else ('rgba(249,115,22,0.10)' if _is_next else 'rgba(255,255,255,0.03)')};"
+                    f"border:1px solid {'rgba(34,211,238,0.3)' if _done else ('rgba(249,115,22,0.3)' if _is_next else 'rgba(255,255,255,0.06)')};"
+                    f"{'font-weight:700;' if _is_next else ''}'>"
+                    f"<div style='font-size:0.75rem;color:{'#22d3ee' if _done else ('#f97316' if _is_next else '#737373')};'>"
+                    f"{'✅' if _done else ('🎯' if _is_next else '⬜')} {_ms}M</div></div>",
+                    unsafe_allow_html=True,
+                )

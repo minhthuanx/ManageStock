@@ -349,7 +349,7 @@ def render_tab_eldorado(eld_client):
                         _game = _o.get("augmentedGame", {})
                         _pet = (_game.get("offerAttributes") or [{}])[0].get("value", "") if _game.get("offerAttributes") else ""
 
-                        _state_colors = {"Pending": ("#f59e0b", "⏳ Pending"), "Active": ("#22c55e", "🔄 Active"), "Delivered": ("#3b82f6", "✅ Delivered"), "Cancelled": ("#ef4444", "❌ Cancelled")}
+                        _state_colors = {"Pending": ("#f59e0b", "⏳ Pending"), "Active": ("#00ff88", "🔄 Active"), "Delivered": ("#3b82f6", "✅ Delivered"), "Cancelled": ("#ef4444", "❌ Cancelled")}
                         _sc, _sl = _state_colors.get(_ostate, ("#6b7280", _ostate))
 
                         with st.container(border=True):

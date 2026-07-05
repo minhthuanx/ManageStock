@@ -251,7 +251,7 @@ def render_resell(df):
                 _pv_ms_str  = f" · <b>{_pv_ms}M/s</b>" if _pv_ms else ""
                 _pv_ns_str  = f" · <span style='color:#7c6fa0'>{_pv_ns}</span>" if _pv_ns else ""
                 _pv_ban_str = f" · <span style='color:#f87171'>{_pv_ban}</span>" if _pv_ban and _pv_ban != "-" else ""
-                _rs_badge   = " · <span style='color:#22c55e;font-weight:600;'>✅ Re-sell</span>" if _already_in_rcart else ""
+                _rs_badge   = " · <span style='color:#00ff88;font-weight:600;'>✅ Re-sell</span>" if _already_in_rcart else ""
                 st.markdown(
                     f'<div style="font-size:0.82rem;padding:4px 0 2px 0;">'
                     f'<b style="color:#f97316">#{int(float(_pv.get("STT", 0) or 0))}</b> · '
@@ -316,7 +316,7 @@ def render_resell(df):
                         _rr_ns_str  = f" · <span style='color:#7c6fa0'>{_rr_ns}</span>" if _rr_ns else ""
                         _rr_ban_str = f" · <span style='color:#f87171'>Bán: {_rr_ngayban}</span>" if _rr_ngayban and _rr_ngayban != "-" else ""
                         if _is_in_rcart:
-                            _status_badge = " · <span style='color:#22c55e;font-weight:600;'>✅ Re-sell</span>"
+                            _status_badge = " · <span style='color:#00ff88;font-weight:600;'>✅ Re-sell</span>"
                         elif _is_pinned:
                             _status_badge = " · <span style='color:#fb923c;font-weight:600;'>📌 Đã pin</span>"
                         else:
@@ -352,7 +352,7 @@ def render_resell(df):
                 'background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);'
                 'border-radius:6px;padding:4px 10px;margin-bottom:6px;">'
                 '<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
-                'color:#22c55e;font-weight:600;">③ Xác nhận Re-sell</span>'
+                'color:#00ff88;font-weight:600;">③ Xác nhận Re-sell</span>'
                 '<span style="font-size:0.72rem;color:#9d8fbf;">— tạo bản ghi kho mới, giá nhập 1₫</span>'
                 '</div>',
                 unsafe_allow_html=True,

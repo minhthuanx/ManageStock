@@ -29,7 +29,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             fig_cmp = go.Figure(go.Bar(
                 x=_compare_df["Hạng mục"],
                 y=_compare_df["Giá trị"],
-                marker_color=["#ff6a00", "#22c55e"],
+                marker_color=["#ff6a00", "#00ff88"],
                 text=_compare_df["Giá trị"].apply(fmt_short),
                 textposition="outside",
                 textfont=dict(color="#f0f0f5", size=11),
@@ -233,7 +233,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     )
 
                 _PP_PALETTE = [
-                    "#a78bfa","#34d399","#f472b6","#fbbf24","#38bdf8",
+                    "#a78bfa","#00ff88","#f472b6","#fbbf24","#38bdf8",
                     "#fb923c","#4ade80","#e879f9","#67e8f9","#f87171",
                     "#c084fc","#86efac","#fdba74","#a5b4fc","#f9a8d4",
                     "#6ee7b7","#fde68a","#bae6fd","#ddd6fe","#bbf7d0",

@@ -36,12 +36,12 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_stock); _sk_val.append(_v_stock)
 
         if _sk_src:
-            _mut_palette = ["#ff6a00","#22c55e","#f472b6","#a78bfa","#e879f9",
+            _mut_palette = ["#ff6a00","#00ff88","#f472b6","#a78bfa","#e879f9",
                             "#d8b4fe","#c4b5fd","#a5b4fc","#f0abfc","#ddd6fe"]
             _sk_node_colors = (
                 ["#c2410c"]
                 + [_mut_palette[i % len(_mut_palette)] for i in range(len(_sk_muts))]
-                + ["#ff6a00", "#22c55e"]
+                + ["#ff6a00", "#00ff88"]
             )
             fig_sk = go.Figure(go.Sankey(
                 arrangement="snap",
@@ -215,10 +215,10 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 except (np.linalg.LinAlgError, ValueError):
                     _m_coef, _b_coef = 0.0, float(_y.mean()) if len(_y) else 0.0
                 _trend_y = _m_coef * _x + _b_coef
-                _trend_color = "#34d399" if _m_coef >= 0 else "#f87171"
+                _trend_color = "#00ff88" if _m_coef >= 0 else "#f87171"
                 _trend_label = f"Xu hướng {'↑ tăng' if _m_coef >= 0 else '↓ giảm'} {abs(_m_coef / max(abs(_y.mean()), 1) * 100):.1f}%/tuần"
 
-                _bar_colors = ["#34d399" if v >= 0 else "#f87171" for v in _wk_merged["Lợi Nhuận"]]
+                _bar_colors = ["#00ff88" if v >= 0 else "#f87171" for v in _wk_merged["Lợi Nhuận"]]
                 _fig_wk = go.Figure()
                 _fig_wk.add_trace(go.Bar(
                     x=_wk_merged["_label"], y=_wk_merged["Lợi Nhuận"],
@@ -296,7 +296,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             _trc1, _trc2 = st.columns(2)
             with _trc1:
                 _tr_colors = ["#94a3b8" if t == "None" else
-                              "#34d399" if i % 3 == 1 else
+                              "#00ff88" if i % 3 == 1 else
                               "#a78bfa" if i % 3 == 2 else "#f472b6"
                               for i, t in enumerate(_tr_grp["_trait"])]
                 _fig_tr = go.Figure(go.Bar(
@@ -395,7 +395,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
         _fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number+delta",
             value=_recovery_pct,
-            delta={"reference": 80, "suffix": "%", "increasing": {"color": "#34d399"}, "decreasing": {"color": "#f87171"}},
+            delta={"reference": 80, "suffix": "%", "increasing": {"color": "#00ff88"}, "decreasing": {"color": "#f87171"}},
             number={"suffix": "%", "font": {"size": 42, "color": "#f0f0f5", "family": "Inter"}},
             gauge={
                 "axis": {"range": [0, 100], "tickcolor": "#2d2040",

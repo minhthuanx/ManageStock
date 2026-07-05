@@ -41,7 +41,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
 
             _wf_labels = ["Tổng Doanh Thu", "Tổng Vốn", "Lợi Nhuận Ròng"]
             _wf_vals   = [total_rev, total_cost, abs(net_profit)]
-            _wf_colors = ["#34d399", "#f87171", "#a78bfa" if net_profit >= 0 else "#f87171"]
+            _wf_colors = ["#00ff88", "#f87171", "#a78bfa" if net_profit >= 0 else "#f87171"]
 
             _fig_wf = go.Figure(go.Bar(
                 x=_wf_labels,
@@ -244,7 +244,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                         ax=0, ay=-32,
                     ))
 
-            _bar_colors = ["#34d399" if v >= 0 else "#f87171" for v in _cum_daily["Lợi Nhuận"]]
+            _bar_colors = ["#00ff88" if v >= 0 else "#f87171" for v in _cum_daily["Lợi Nhuận"]]
 
             _fig_cum = go.Figure()
             _fig_cum.add_trace(go.Bar(

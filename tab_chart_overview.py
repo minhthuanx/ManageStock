@@ -44,27 +44,27 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                     for v, c in zip(_mo_df["_ln"], _mo_df["_cnt"])
                 ],
                 textposition="outside",
-                textfont=dict(color="#f0f0f5", size=13),
+                textfont=dict(color="#f0f0f5", size=11),
                 hovertemplate="<b>%{x}</b><br>Lợi nhuận: %{y:,.0f}₫<extra></extra>",
             ))
             _fig_mo.update_layout(
-                paper_bgcolor="#0f0f15",
-                plot_bgcolor="#0f0f15",
-                font=dict(family="Inter", color="#a8a8b8", size=13),
+                paper_bgcolor="#0a0a0f",
+                plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#a8a8b8", size=11),
                 xaxis=dict(
-                    gridcolor="#1c1c28",
-                    tickfont=dict(color="#f0f0f5", size=13),
+                    gridcolor="#1a1a24",
+                    tickfont=dict(color="#f0f0f5", size=10),
                     tickangle=0,
                 ),
                 yaxis=dict(
-                    gridcolor="#1c1c28",
-                    tickfont=dict(color="#a8a8b8", size=12),
+                    gridcolor="#1a1a24",
+                    tickfont=dict(color="#a8a8b8", size=10),
                     tickformat=",.0f",
                     zeroline=True,
                     zerolinecolor="#2d2040",
                 ),
                 margin=dict(l=10, r=10, t=45, b=10),
-                height=370,
+                height=260,
                 showlegend=False,
                 bargap=0.35,
             )

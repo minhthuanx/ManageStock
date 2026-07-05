@@ -33,29 +33,29 @@ def render_hero_banner(df, bulk_df, bulk_history):
         <div class="logo">👻</div>
         <div>
           <h1 style="margin:0;">ManageStock{_badge_html}</h1>
-          <p style="margin:0;">MINHTHUAN · 2026</p>
+          <p style="margin:0;color:#6b6b80;font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;">MINHTHUAN · 2026</p>
         </div>
       </div>
       <div style="display:flex;gap:0.55rem;flex-wrap:wrap;align-items:center;">
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#34d399;flex-shrink:0;box-shadow:0 0 8px rgba(52,211,153,0.5);"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.5rem 1rem;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#22c55e;flex-shrink:0;box-shadow:0 0 8px rgba(34,197,94,0.5);"></div>
           <div>
             <div style="font-size:1.15rem;font-weight:700;color:#f0f0f5;line-height:1.2;">{_hb_con_hang_count}</div>
-            <div style="font-size:0.65rem;color:#6b6b80;letter-spacing:0.05em;text-transform:uppercase;font-weight:600;">Còn hàng</div>
+            <div style="font-size:0.65rem;color:#6b6b80;letter-spacing:0.05em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Còn hàng</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 1rem;">
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.5rem 1rem;">
           <div style="width:9px;height:9px;border-radius:50%;background:#6b6b80;flex-shrink:0;"></div>
           <div>
             <div style="font-size:1.15rem;font-weight:700;color:#f0f0f5;line-height:1.2;">{_hb_da_ban}</div>
-            <div style="font-size:0.65rem;color:#6b6b80;letter-spacing:0.05em;text-transform:uppercase;font-weight:600;">Đã bán</div>
+            <div style="font-size:0.65rem;color:#6b6b80;letter-spacing:0.05em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Đã bán</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#7c5cfc;flex-shrink:0;box-shadow:0 0 8px rgba(124,92,252,0.5);"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.5rem 1rem;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#ff6a00;flex-shrink:0;box-shadow:0 0 8px rgba(255,106,0,0.5);"></div>
           <div>
             <div style="font-size:1.15rem;font-weight:700;color:#34d399;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
-            <div style="font-size:0.65rem;color:#6b6b80;letter-spacing:0.05em;text-transform:uppercase;font-weight:600;">Hôm nay</div>
+            <div style="font-size:0.65rem;color:#6b6b80;letter-spacing:0.05em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Hôm nay</div>
           </div>
         </div>
       </div>

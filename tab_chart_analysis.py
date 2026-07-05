@@ -29,21 +29,21 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             fig_cmp = go.Figure(go.Bar(
                 x=_compare_df["Hạng mục"],
                 y=_compare_df["Giá trị"],
-                marker_color=["#c084fc", "#e879f9"],
+                marker_color=["#ff6a00", "#22c55e"],
                 text=_compare_df["Giá trị"].apply(fmt_short),
                 textposition="outside",
-                textfont=dict(color="#f0f0f5", size=13),
+                textfont=dict(color="#f0f0f5", size=11),
             ))
             fig_cmp.update_layout(
-                paper_bgcolor="#0f0f15",
-                plot_bgcolor="#0f0f15",
-                font=dict(family="Inter", color="#a8a8b8", size=13),
-                title=dict(text="Doanh thu - Vốn tồn", font=dict(size=15, color="#f0f0f5")),
+                paper_bgcolor="#0a0a0f",
+                plot_bgcolor="#0a0a0f",
+                font=dict(family="Inter", color="#a8a8b8", size=11),
+                title=dict(text="Doanh thu - Vốn tồn", font=dict(size=12, color="#f0f0f5")),
                 margin=dict(l=10, r=10, t=55, b=10),
                 height=400,
                 yaxis_title="VNĐ",
-                xaxis=dict(tickfont=dict(color="#f0f0f5", size=13)),
-                yaxis=dict(tickfont=dict(color="#a8a8b8", size=12), gridcolor="#1c1c28"),
+                xaxis=dict(tickfont=dict(color="#f0f0f5", size=10)),
+                yaxis=dict(tickfont=dict(color="#a8a8b8", size=10), gridcolor="#1a1a24"),
             )
             if _dt_sold_total > 0 or _von_ton_total > 0:
                 st.plotly_chart(fig_cmp, use_container_width=True)
@@ -63,18 +63,18 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=top_pets["Lợi Nhuận"],
                     y=top_pets["Tên Pet"],
                     orientation="h",
-                    marker=dict(color="#c084fc"),
+                    marker=dict(color="#ff6a00"),
                     text=top_pets["Lợi Nhuận"].apply(fmt_short),
                     textposition="outside",
-                    textfont=dict(color="#f0f0f5", size=12),
+                    textfont=dict(color="#f0f0f5", size=11),
                 ))
                 fig_bar.update_layout(
-                    paper_bgcolor="#0f0f15",
-                    plot_bgcolor="#0f0f15",
-                    font=dict(family="Inter", color="#a8a8b8", size=13),
-                    title=dict(text="Top 10 Pet Lợi nhuận cao", font=dict(size=15, color="#f0f0f5")),
-                    xaxis=dict(gridcolor="#1c1c28", tickformat=",.0f", tickfont=dict(color="#a8a8b8", size=12)),
-                    yaxis=dict(gridcolor="#1c1c28", tickfont=dict(color="#f0f0f5", size=12)),
+                    paper_bgcolor="#0a0a0f",
+                    plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#a8a8b8", size=11),
+                    title=dict(text="Top 10 Pet Lợi nhuận cao", font=dict(size=12, color="#f0f0f5")),
+                    xaxis=dict(gridcolor="#1a1a24", tickformat=",.0f", tickfont=dict(color="#a8a8b8", size=10)),
+                    yaxis=dict(gridcolor="#1a1a24", tickfont=dict(color="#f0f0f5", size=10)),
                     margin=dict(l=10, r=10, t=55, b=10),
                     height=400,
                     showlegend=False,
@@ -153,12 +153,11 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                             size=_sz,
                             color=_col,
                             opacity=0.85,
-                            line=dict(color="#0f0f15", width=1.5),
+                            line=dict(color="#0a0a0f", width=1.5),
                         ),
                         text=[str(_row["_mut"])],
                         textposition="top center",
-                        textfont=dict(color="#f0f0f5", size=12),
-                        hovertemplate=(
+                        textfont=dict(color="#f0f0f5", size=10),
                             f"<b>{_row['_mut']}</b><br>"
                             f"Số con: {int(_row['Count'])}<br>"
                             f"LN TB/con: {_row['LN_per_unit']:,.0f}₫<br>"
@@ -171,16 +170,16 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     ))
 
                 _fig_bub.update_layout(
-                    paper_bgcolor="#0f0f15", plot_bgcolor="#0f0f15",
-                    font=dict(family="Inter", color="#a8a8b8", size=13),
+                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#a8a8b8", size=11),
                     xaxis=dict(
                         title="Số con đã bán (volume)",
-                        gridcolor="#1c1c28", tickfont=dict(color="#a8a8b8", size=12),
+                        gridcolor="#1a1a24", tickfont=dict(color="#a8a8b8", size=10),
                         zeroline=False,
                     ),
                     yaxis=dict(
                         title="LN trung bình / con (₫)",
-                        gridcolor="#1c1c28", tickfont=dict(color="#a8a8b8", size=12),
+                        gridcolor="#1a1a24", tickfont=dict(color="#a8a8b8", size=10),
                         tickformat=",.0f", zeroline=True, zerolinecolor="#2d2040",
                     ),
                     margin=dict(l=10, r=10, t=25, b=10),
@@ -247,7 +246,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                         mode="markers",
                         name=str(_pr["_pet"]),
                         marker=dict(size=_sz2, color=_c2, opacity=0.88,
-                                    line=dict(color="#0f0f15", width=1.5)),
+                                    line=dict(color="#0a0a0f", width=1.5)),
                         hovertemplate=(
                             f"<b>{_pr['_pet']}</b><br>"
                             f"Giá nhập TB: {_pr['AvgCost']:,.0f}₫<br>"
@@ -260,18 +259,18 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     ))
 
                 _fig_pp.update_layout(
-                    paper_bgcolor="#0f0f15", plot_bgcolor="#0f0f15",
-                    font=dict(family="Inter", color="#a8a8b8", size=13),
-                    xaxis=dict(title="Giá nhập TB (₫)", gridcolor="#1c1c28",
-                               tickfont=dict(color="#a8a8b8", size=12), tickformat=",.0f", zeroline=False),
-                    yaxis=dict(title="LN TB / con (₫)", gridcolor="#1c1c28",
-                               tickfont=dict(color="#a8a8b8", size=12), tickformat=",.0f",
+                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#a8a8b8", size=11),
+                    xaxis=dict(title="Giá nhập TB (₫)", gridcolor="#1a1a24",
+                               tickfont=dict(color="#a8a8b8", size=10), tickformat=",.0f", zeroline=False),
+                    yaxis=dict(title="LN TB / con (₫)", gridcolor="#1a1a24",
+                               tickfont=dict(color="#a8a8b8", size=10), tickformat=",.0f",
                                zeroline=True, zerolinecolor="#2d2040"),
                     legend=dict(
                         orientation="v", x=1.01, y=1,
-                        font=dict(color="#a8a8b8", size=11),
-                        bgcolor="rgba(15,15,21,0.8)",
-                        bordercolor="#1c1c28", borderwidth=1,
+                        font=dict(color="#a8a8b8", size=9),
+                        bgcolor="rgba(10,10,15,0.8)",
+                        bordercolor="#1a1a24", borderwidth=1,
                     ),
                     margin=dict(l=10, r=180, t=25, b=10),
                     height=490,
@@ -314,14 +313,14 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     marker=dict(color="#f472b6"),
                     text=_spd_by_pet["Ngày Tồn"].apply(lambda v: f"{int(round(v))}d"),
                     textposition="outside",
-                    textfont=dict(color="#f0f0f5", size=12),
+                    textfont=dict(color="#f0f0f5", size=10),
                 ))
                 fig_spd.update_layout(
-                    paper_bgcolor="#0f0f15", plot_bgcolor="#0f0f15",
-                    font=dict(family="Inter", color="#a8a8b8", size=13),
-                    title=dict(text="Top 10 Pet bán chậm nhất (ngày TB)", font=dict(size=14, color="#f0f0f5")),
-                    xaxis=dict(gridcolor="#1c1c28", tickfont=dict(color="#a8a8b8", size=12)),
-                    yaxis=dict(gridcolor="#1c1c28", tickfont=dict(color="#f0f0f5", size=12)),
+                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#a8a8b8", size=11),
+                    title=dict(text="Top 10 Pet bán chậm nhất (ngày TB)", font=dict(size=12, color="#f0f0f5")),
+                    xaxis=dict(gridcolor="#1a1a24", tickfont=dict(color="#a8a8b8", size=10)),
+                    yaxis=dict(gridcolor="#1a1a24", tickfont=dict(color="#f0f0f5", size=10)),
                     margin=dict(l=10, r=25, t=50, b=10),
                     height=400, showlegend=False,
                 )
@@ -343,19 +342,19 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=_mut_perf["LN_mean"],
                     y=_mut_perf["Mutation"],
                     orientation="h",
-                    marker=dict(color="#a78bfa"),
+                    marker=dict(color="#ff6a00"),
                     text=_mut_perf["LN_mean"].apply(fmt_short),
                     textposition="outside",
-                    textfont=dict(color="#f0f0f5", size=12),
+                    textfont=dict(color="#f0f0f5", size=10),
                     customdata=_mut_perf[["LN_total","Count"]].values,
                     hovertemplate="<b>%{y}</b><br>TB/con: %{x:,.0f}₫<br>Tổng: %{customdata[0]:,.0f}₫<br>Số con: %{customdata[1]}<extra></extra>",
                 ))
                 fig_mut.update_layout(
-                    paper_bgcolor="#0f0f15", plot_bgcolor="#0f0f15",
-                    font=dict(family="Inter", color="#a8a8b8", size=13),
-                    title=dict(text="Lợi nhuận TB theo Mutation", font=dict(size=14, color="#f0f0f5")),
-                    xaxis=dict(gridcolor="#1c1c28", tickformat=",.0f", tickfont=dict(color="#a8a8b8", size=12)),
-                    yaxis=dict(gridcolor="#1c1c28", tickfont=dict(color="#f0f0f5", size=12)),
+                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
+                    font=dict(family="Inter", color="#a8a8b8", size=11),
+                    title=dict(text="Lợi nhuận TB theo Mutation", font=dict(size=12, color="#f0f0f5")),
+                    xaxis=dict(gridcolor="#1a1a24", tickformat=",.0f", tickfont=dict(color="#a8a8b8", size=10)),
+                    yaxis=dict(gridcolor="#1a1a24", tickfont=dict(color="#f0f0f5", size=10)),
                     margin=dict(l=10, r=25, t=50, b=10),
                     height=400, showlegend=False,
                 )

@@ -46,7 +46,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             fig_sk = go.Figure(go.Sankey(
                 arrangement="snap",
                 node=dict(
-                    pad=15, thickness=18,
+                    pad=18, thickness=22,
                     label=_sk_labels,
                     color=_sk_node_colors,
                     hovertemplate="%{label}: %{value:,.0f}₫<extra></extra>",
@@ -55,14 +55,14 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     source=_sk_src,
                     target=_sk_tgt,
                     value=_sk_val,
-                    color="rgba(100,120,220,0.18)",
+                    color="rgba(124,92,252,0.18)",
                 ),
             ))
             fig_sk.update_layout(
-                paper_bgcolor="#0a0a0f",
-                font=dict(family="Inter", color="#e2e8f0", size=11),
-                margin=dict(l=10, r=10, t=20, b=10),
-                height=420,
+                paper_bgcolor="#0f0f15",
+                font=dict(family="Inter", color="#f0f0f5", size=13),
+                margin=dict(l=10, r=10, t=25, b=10),
+                height=480,
             )
             st.plotly_chart(fig_sk, use_container_width=True)
             st.caption("Chiều rộng luồng = giá trị vốn nhập (₫)")
@@ -127,27 +127,27 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 zmin=0,
                 zmax=_zmax_cal,
                 showscale=True,
-                colorbar=dict(thickness=10, len=0.8, tickfont=dict(size=9, color="#9d8fbf")),
-                xgap=2, ygap=2,
+                colorbar=dict(thickness=12, len=0.8, tickfont=dict(size=11, color="#a8a8b8")),
+                xgap=3, ygap=3,
             ))
             fig_cal.update_layout(
-                paper_bgcolor="#0a0a0f",
-                plot_bgcolor="#0a0a0f",
-                font=dict(family="Inter", color="#9d8fbf", size=10),
+                paper_bgcolor="#0f0f15",
+                plot_bgcolor="#0f0f15",
+                font=dict(family="Inter", color="#a8a8b8", size=12),
                 xaxis=dict(
                     tickmode="array",
                     tickvals=list(range(0, _n_weeks_cal, 4)),
                     ticktext=[_week_x_labels[i] for i in range(0, _n_weeks_cal, 4)],
-                    tickfont=dict(size=9, color="#9d8fbf"),
+                    tickfont=dict(size=11, color="#a8a8b8"),
                     showgrid=False, zeroline=False,
                 ),
                 yaxis=dict(
-                    tickfont=dict(size=10, color="#9d8fbf"),
+                    tickfont=dict(size=12, color="#a8a8b8"),
                     showgrid=False, zeroline=False,
                     autorange="reversed",
                 ),
-                margin=dict(l=40, r=20, t=15, b=40),
-                height=210,
+                margin=dict(l=45, r=25, t=18, b=45),
+                height=250,
             )
             st.plotly_chart(fig_cal, use_container_width=True)
 
@@ -224,36 +224,36 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=_wk_merged["_label"], y=_wk_merged["Lợi Nhuận"],
                     name="LN/tuần", marker_color=_bar_colors, opacity=0.7,
                     text=_wk_merged["Lợi Nhuận"].apply(fmt_short),
-                    textposition="outside", textfont=dict(color="#e2e8f0", size=9),
+                    textposition="outside", textfont=dict(color="#f0f0f5", size=11),
                     hovertemplate="<b>%{x}</b><br>Lợi nhuận: %{y:,.0f}₫<extra></extra>",
                     yaxis="y1",
                 ))
                 _fig_wk.add_trace(go.Scatter(
                     x=_wk_merged["_label"], y=_wk_merged["Số con"],
                     name="Số con bán", mode="lines+markers",
-                    line=dict(color="#c084fc", width=2),
-                    marker=dict(size=6, color="#c084fc"),
+                    line=dict(color="#c084fc", width=2.5),
+                    marker=dict(size=7, color="#c084fc"),
                     hovertemplate="<b>%{x}</b><br>Số con: %{y:,.0f}<extra></extra>",
                     yaxis="y2",
                 ))
                 _fig_wk.add_trace(go.Scatter(
                     x=_wk_merged["_label"], y=_trend_y.tolist(),
                     name=_trend_label, mode="lines",
-                    line=dict(color=_trend_color, width=2, dash="dash"),
+                    line=dict(color=_trend_color, width=2.5, dash="dash"),
                     hoverinfo="skip", yaxis="y1",
                 ))
                 _fig_wk.update_layout(
-                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
-                    font=dict(family="Inter", color="#9d8fbf"),
-                    xaxis=dict(tickfont=dict(color="#e2e8f0", size=10), gridcolor="#1a1528"),
-                    yaxis=dict(title="Lợi nhuận (₫)", gridcolor="#1a1528",
-                               tickfont=dict(color="#9d8fbf"), tickformat=",.0f",
-                               zeroline=True, zerolinecolor="#4a3f6b"),
+                    paper_bgcolor="#0f0f15", plot_bgcolor="#0f0f15",
+                    font=dict(family="Inter", color="#a8a8b8", size=13),
+                    xaxis=dict(tickfont=dict(color="#f0f0f5", size=12), gridcolor="#1c1c28"),
+                    yaxis=dict(title="Lợi nhuận (₫)", gridcolor="#1c1c28",
+                               tickfont=dict(color="#a8a8b8", size=12), tickformat=",.0f",
+                               zeroline=True, zerolinecolor="#2d2040"),
                     yaxis2=dict(title="Số con", overlaying="y", side="right",
-                                tickfont=dict(color="#c084fc"), zeroline=False, showgrid=False),
-                    legend=dict(orientation="h", x=0, y=1.08, font=dict(color="#9d8fbf")),
-                    margin=dict(l=10, r=50, t=40, b=10),
-                    height=360, barmode="overlay",
+                                tickfont=dict(color="#c084fc", size=12), zeroline=False, showgrid=False),
+                    legend=dict(orientation="h", x=0, y=1.1, font=dict(color="#a8a8b8", size=12)),
+                    margin=dict(l=10, r=55, t=45, b=10),
+                    height=430, barmode="overlay",
                 )
                 st.plotly_chart(_fig_wk, use_container_width=True)
 
@@ -303,7 +303,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=_tr_grp["_trait"], y=_tr_grp["LN_mean"],
                     marker_color=_tr_colors, opacity=0.85,
                     text=_tr_grp["LN_mean"].apply(fmt_short),
-                    textposition="outside", textfont=dict(color="#e2e8f0", size=10),
+                    textposition="outside", textfont=dict(color="#f0f0f5", size=12),
                     customdata=_tr_grp[["LN_total","Count","Margin"]].values,
                     hovertemplate=(
                         "<b>Trait: %{x}</b><br>"
@@ -315,13 +315,13 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     ),
                 ))
                 _fig_tr.update_layout(
-                    title=dict(text="Lợi Nhuận TB / Con theo Trait", font=dict(size=12, color="#e2e8f0")),
-                    paper_bgcolor="#0a0a0f", plot_bgcolor="#0a0a0f",
-                    font=dict(family="Inter", color="#9d8fbf"),
-                    xaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#e2e8f0")),
-                    yaxis=dict(gridcolor="#1a1528", tickfont=dict(color="#9d8fbf"),
-                               tickformat=",.0f", zeroline=True, zerolinecolor="#4a3f6b"),
-                    margin=dict(l=10, r=10, t=40, b=10), height=300, showlegend=False,
+                    title=dict(text="Lợi Nhuận TB / Con theo Trait", font=dict(size=14, color="#f0f0f5")),
+                    paper_bgcolor="#0f0f15", plot_bgcolor="#0f0f15",
+                    font=dict(family="Inter", color="#a8a8b8", size=13),
+                    xaxis=dict(gridcolor="#1c1c28", tickfont=dict(color="#f0f0f5", size=12)),
+                    yaxis=dict(gridcolor="#1c1c28", tickfont=dict(color="#a8a8b8", size=12),
+                               tickformat=",.0f", zeroline=True, zerolinecolor="#2d2040"),
+                    margin=dict(l=10, r=10, t=45, b=10), height=400, showlegend=False,
                 )
                 st.plotly_chart(_fig_tr, use_container_width=True)
 
@@ -396,30 +396,30 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             mode="gauge+number+delta",
             value=_recovery_pct,
             delta={"reference": 80, "suffix": "%", "increasing": {"color": "#34d399"}, "decreasing": {"color": "#f87171"}},
-            number={"suffix": "%", "font": {"size": 36, "color": "#e2e8f0", "family": "Inter"}},
+            number={"suffix": "%", "font": {"size": 42, "color": "#f0f0f5", "family": "Inter"}},
             gauge={
-                "axis": {"range": [0, 100], "tickcolor": "#4a3f6b",
-                         "tickfont": {"color": "#9d8fbf", "size": 10}},
-                "bar":  {"color": "#a78bfa", "thickness": 0.25},
-                "bgcolor": "#0a0a0f",
-                "bordercolor": "#2d2040",
+                "axis": {"range": [0, 100], "tickcolor": "#2d2040",
+                         "tickfont": {"color": "#a8a8b8", "size": 12}},
+                "bar":  {"color": "#c084fc", "thickness": 0.25},
+                "bgcolor": "#0f0f15",
+                "bordercolor": "#1c1c28",
                 "steps": [
                     {"range": [0,  40], "color": "rgba(248,113,113,0.12)"},
                     {"range": [40, 70], "color": "rgba(251,191,36,0.10)"},
                     {"range": [70,100], "color": "rgba(52,211,153,0.10)"},
                 ],
                 "threshold": {
-                    "line": {"color": "#fbbf24", "width": 2},
-                    "thickness": 0.8, "value": 80,
+                    "line": {"color": "#fbbf24", "width": 2.5},
+                    "thickness": 0.85, "value": 80,
                 },
             },
-            title={"text": "% Vốn Đã Thu Hồi", "font": {"size": 13, "color": "#9d8fbf", "family": "Inter"}},
+            title={"text": "% Vốn Đã Thu Hồi", "font": {"size": 15, "color": "#a8a8b8", "family": "Inter"}},
         ))
         _fig_gauge.update_layout(
-            paper_bgcolor="#0a0a0f",
-            font=dict(family="Inter", color="#9d8fbf"),
-            margin=dict(l=20, r=20, t=30, b=10),
-            height=260,
+            paper_bgcolor="#0f0f15",
+            font=dict(family="Inter", color="#a8a8b8", size=13),
+            margin=dict(l=20, r=20, t=35, b=10),
+            height=310,
         )
 
         _gc1, _gc2 = st.columns([1.1, 1])

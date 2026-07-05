@@ -69,16 +69,18 @@ def render_advanced(sold_df, pbd, has_data):
                     marker_color=_colors,
                     text=_hour_count["Đơn"].apply(lambda v: str(v) if v > 0 else ""),
                     textposition="outside",
+                    textfont=dict(size=12, color="#f0f0f5"),
                 ))
                 fig_hour.update_layout(
                     xaxis_title="Khung giờ (giờ VN)",
                     yaxis_title="Số đơn bán",
-                    margin=dict(t=30, b=40),
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    font_color="#e2e8f0",
-                    xaxis=dict(tickangle=-45),
-                    height=340,
+                    margin=dict(t=35, b=45),
+                    plot_bgcolor="#0f0f15",
+                    paper_bgcolor="#0f0f15",
+                    font=dict(family="Inter", color="#a8a8b8", size=13),
+                    xaxis=dict(tickangle=-45, tickfont=dict(size=12, color="#a8a8b8")),
+                    yaxis=dict(tickfont=dict(size=12, color="#a8a8b8"), gridcolor="#1c1c28"),
+                    height=430,
                 )
                 st.plotly_chart(fig_hour, use_container_width=True)
                 st.caption(f"Cao điểm: **{_peak_hour:02d}:00 – {_peak_hour:02d}:59** · {int(_hour_count.loc[_hour_count['Giờ']==_peak_hour,'Đơn'].values[0])} giao dịch")
@@ -134,12 +136,13 @@ def render_advanced(sold_df, pbd, has_data):
                 fig_hmap.update_layout(
                     xaxis_title="Giờ (giờ VN)",
                     yaxis_title="Thứ",
-                    margin=dict(t=30, b=50),
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    font_color="#e2e8f0",
-                    height=310,
-                    xaxis=dict(tickangle=-45),
+                    margin=dict(t=35, b=55),
+                    plot_bgcolor="#0f0f15",
+                    paper_bgcolor="#0f0f15",
+                    font=dict(family="Inter", color="#a8a8b8", size=13),
+                    height=380,
+                    xaxis=dict(tickangle=-45, tickfont=dict(size=11, color="#a8a8b8")),
+                    yaxis=dict(tickfont=dict(size=12, color="#a8a8b8")),
                 )
                 st.plotly_chart(fig_hmap, use_container_width=True)
             else:

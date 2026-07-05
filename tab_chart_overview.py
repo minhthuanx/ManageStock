@@ -40,31 +40,31 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                 marker_color=_mo_colors,
                 marker_line_width=0,
                 text=[
-                    f"{fmt_short(v)}<br><span style='font-size:10px;color:#9d8fbf'>{c} GD</span>"
+                    f"{fmt_short(v)}<br><span style='font-size:11px;color:#a8a8b8'>{c} GD</span>"
                     for v, c in zip(_mo_df["_ln"], _mo_df["_cnt"])
                 ],
                 textposition="outside",
-                textfont=dict(color="#e2e8f0", size=11),
+                textfont=dict(color="#f0f0f5", size=13),
                 hovertemplate="<b>%{x}</b><br>Lợi nhuận: %{y:,.0f}₫<extra></extra>",
             ))
             _fig_mo.update_layout(
-                paper_bgcolor="#0a0a0f",
-                plot_bgcolor="#0a0a0f",
-                font=dict(family="Inter", color="#9d8fbf"),
+                paper_bgcolor="#0f0f15",
+                plot_bgcolor="#0f0f15",
+                font=dict(family="Inter", color="#a8a8b8", size=13),
                 xaxis=dict(
-                    gridcolor="#1a1528",
-                    tickfont=dict(color="#e2e8f0", size=12),
+                    gridcolor="#1c1c28",
+                    tickfont=dict(color="#f0f0f5", size=13),
                     tickangle=0,
                 ),
                 yaxis=dict(
-                    gridcolor="#1a1528",
-                    tickfont=dict(color="#9d8fbf"),
+                    gridcolor="#1c1c28",
+                    tickfont=dict(color="#a8a8b8", size=12),
                     tickformat=",.0f",
                     zeroline=True,
-                    zerolinecolor="#4a3f6b",
+                    zerolinecolor="#2d2040",
                 ),
-                margin=dict(l=10, r=10, t=40, b=10),
-                height=260,
+                margin=dict(l=10, r=10, t=45, b=10),
+                height=370,
                 showlegend=False,
                 bargap=0.35,
             )

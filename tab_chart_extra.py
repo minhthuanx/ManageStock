@@ -36,12 +36,12 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_stock); _sk_val.append(_v_stock)
 
         if _sk_src:
-            _mut_palette = ["#ff6a00","#00ff88","#f472b6","#ff8533","#fbbf24",
-                            "#f87171","#38bdf8","#ff8533","#fb923c","#f9a8d4"]
+            _mut_palette = ["#f97316","#22d3ee","#f472b6","#fb923c","#fbbf24",
+                            "#f87171","#38bdf8","#fb923c","#fb923c","#f9a8d4"]
             _sk_node_colors = (
                 ["#c2410c"]
                 + [_mut_palette[i % len(_mut_palette)] for i in range(len(_sk_muts))]
-                + ["#ff6a00", "#00ff88"]
+                + ["#f97316", "#22d3ee"]
             )
             fig_sk = go.Figure(go.Sankey(
                 arrangement="snap",
@@ -55,7 +55,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     source=_sk_src,
                     target=_sk_tgt,
                     value=_sk_val,
-                    color="rgba(255,106,0,0.18)",
+                    color="rgba(249,115,22,0.18)",
                 ),
             ))
             fig_sk.update_layout(
@@ -215,10 +215,10 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 except (np.linalg.LinAlgError, ValueError):
                     _m_coef, _b_coef = 0.0, float(_y.mean()) if len(_y) else 0.0
                 _trend_y = _m_coef * _x + _b_coef
-                _trend_color = "#00ff88" if _m_coef >= 0 else "#f87171"
+                _trend_color = "#22d3ee" if _m_coef >= 0 else "#f87171"
                 _trend_label = f"Xu hướng {'↑ tăng' if _m_coef >= 0 else '↓ giảm'} {abs(_m_coef / max(abs(_y.mean()), 1) * 100):.1f}%/tuần"
 
-                _bar_colors = ["#00ff88" if v >= 0 else "#f87171" for v in _wk_merged["Lợi Nhuận"]]
+                _bar_colors = ["#22d3ee" if v >= 0 else "#f87171" for v in _wk_merged["Lợi Nhuận"]]
                 _fig_wk = go.Figure()
                 _fig_wk.add_trace(go.Bar(
                     x=_wk_merged["_label"], y=_wk_merged["Lợi Nhuận"],
@@ -231,8 +231,8 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 _fig_wk.add_trace(go.Scatter(
                     x=_wk_merged["_label"], y=_wk_merged["Số con"],
                     name="Số con bán", mode="lines+markers",
-                    line=dict(color="#ff6a00", width=2.5),
-                    marker=dict(size=7, color="#ff6a00"),
+                    line=dict(color="#f97316", width=2.5),
+                    marker=dict(size=7, color="#f97316"),
                     hovertemplate="<b>%{x}</b><br>Số con: %{y:,.0f}<extra></extra>",
                     yaxis="y2",
                 ))
@@ -250,7 +250,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                                tickfont=dict(color="#a8a8b8", size=10), tickformat=",.0f",
                                zeroline=True, zerolinecolor="#222230"),
                     yaxis2=dict(title="Số con", overlaying="y", side="right",
-                                tickfont=dict(color="#ff6a00", size=10), zeroline=False, showgrid=False),
+                                tickfont=dict(color="#f97316", size=10), zeroline=False, showgrid=False),
                     legend=dict(orientation="h", x=0, y=1.1, font=dict(color="#a8a8b8", size=10)),
                     margin=dict(l=10, r=55, t=45, b=10),
                     height=430, barmode="overlay",
@@ -296,8 +296,8 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             _trc1, _trc2 = st.columns(2)
             with _trc1:
                 _tr_colors = ["#94a3b8" if t == "None" else
-                              "#00ff88" if i % 3 == 1 else
-                              "#ff8533" if i % 3 == 2 else "#f472b6"
+                              "#22d3ee" if i % 3 == 1 else
+                              "#fb923c" if i % 3 == 2 else "#f472b6"
                               for i, t in enumerate(_tr_grp["_trait"])]
                 _fig_tr = go.Figure(go.Bar(
                     x=_tr_grp["_trait"], y=_tr_grp["LN_mean"],
@@ -395,12 +395,12 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
         _fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number+delta",
             value=_recovery_pct,
-            delta={"reference": 80, "suffix": "%", "increasing": {"color": "#00ff88"}, "decreasing": {"color": "#f87171"}},
+            delta={"reference": 80, "suffix": "%", "increasing": {"color": "#22d3ee"}, "decreasing": {"color": "#f87171"}},
             number={"suffix": "%", "font": {"size": 42, "color": "#f0f0f5", "family": "Inter"}},
             gauge={
                 "axis": {"range": [0, 100], "tickcolor": "#222230",
                          "tickfont": {"color": "#a8a8b8", "size": 12}},
-                "bar":  {"color": "#ff6a00", "thickness": 0.25},
+                "bar":  {"color": "#f97316", "thickness": 0.25},
                 "bgcolor": "#0a0a0f",
                 "bordercolor": "#1a1a24",
                 "steps": [

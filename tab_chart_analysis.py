@@ -29,7 +29,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             fig_cmp = go.Figure(go.Bar(
                 x=_compare_df["Hạng mục"],
                 y=_compare_df["Giá trị"],
-                marker_color=["#ff6a00", "#00ff88"],
+                marker_color=["#f97316", "#22d3ee"],
                 text=_compare_df["Giá trị"].apply(fmt_short),
                 textposition="outside",
                 textfont=dict(color="#f0f0f5", size=11),
@@ -63,7 +63,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=top_pets["Lợi Nhuận"],
                     y=top_pets["Tên Pet"],
                     orientation="h",
-                    marker=dict(color="#ff6a00"),
+                    marker=dict(color="#f97316"),
                     text=top_pets["Lợi Nhuận"].apply(fmt_short),
                     textposition="outside",
                     textfont=dict(color="#f0f0f5", size=11),
@@ -108,12 +108,12 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 # Color palette per mutation (distinct vivid colors)
                 _MUT_PALETTE = {
                     "Normal":"#94a3b8","Gold":"#fbbf24","Diamond":"#67e8f9",
-                    "Bloodrot":"#f87171","Candy":"#f9a8d4","Divine":"#ff6a00",
+                    "Bloodrot":"#f87171","Candy":"#f9a8d4","Divine":"#f97316",
                     "Lava":"#fb923c","Galaxy":"#818cf8","Yin-Yang":"#e2e8f0",
                     "Radioactive":"#86efac","Cursed":"#4ade80","Rainbow":"#f472b6",
                     "Không rõ":"#6b7280",
                 }
-                _dot_colors = [_MUT_PALETTE.get(m, "#ff8533") for m in _tm_grp["_mut"]]
+                _dot_colors = [_MUT_PALETTE.get(m, "#fb923c") for m in _tm_grp["_mut"]]
 
                 _fig_bub = go.Figure()
 
@@ -142,7 +142,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
                 # Bubbles
                 for _, _row in _tm_grp.iterrows():
-                    _col = _MUT_PALETTE.get(str(_row["_mut"]), "#ff8533")
+                    _col = _MUT_PALETTE.get(str(_row["_mut"]), "#fb923c")
                     _sz  = max(24, min(90, _row["DT"] / (_tm_grp["DT"].max() or 1) * 80 + 14))
                     _fig_bub.add_trace(go.Scatter(
                         x=[_row["Count"]],
@@ -233,8 +233,8 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     )
 
                 _PP_PALETTE = [
-                    "#ff6a00","#00ff88","#f472b6","#fbbf24","#38bdf8",
-                    "#fb923c","#4ade80","#ff8533","#67e8f9","#f87171",
+                    "#f97316","#22d3ee","#f472b6","#fbbf24","#38bdf8",
+                    "#fb923c","#4ade80","#fb923c","#67e8f9","#f87171",
                     "#39d353","#86efac","#fdba74","#34d399","#f9a8d4",
                     "#6ee7b7","#fde68a","#bae6fd","#fecdd3","#bbf7d0",
                 ]
@@ -343,7 +343,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=_mut_perf["LN_mean"],
                     y=_mut_perf["Mutation"],
                     orientation="h",
-                    marker=dict(color="#ff6a00"),
+                    marker=dict(color="#f97316"),
                     text=_mut_perf["LN_mean"].apply(fmt_short),
                     textposition="outside",
                     textfont=dict(color="#f0f0f5", size=10),

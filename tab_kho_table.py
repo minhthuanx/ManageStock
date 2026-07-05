@@ -283,9 +283,9 @@ def render_inventory_table(df):
                             _crow.get("NameStock", ""),
                         )
                         st.markdown(
-                            f'<div style="font-size:0.78rem;color:#9a8a7a;margin-top:0.5rem;">'
-                            f'STT <b style="color:#ff8533">{int(_crow["STT"])}</b> · '
-                            f'{_crow["Tên Pet"]} · <span style="color:#ff8533">{_crow["Mutation"]}</span>'
+                            f'<div style="font-size:0.78rem;color:#737373;margin-top:0.5rem;">'
+                            f'STT <b style="color:#fb923c">{int(_crow["STT"])}</b> · '
+                            f'{_crow["Tên Pet"]} · <span style="color:#fb923c">{_crow["Mutation"]}</span>'
                             f'</div>',
                             unsafe_allow_html=True,
                         )
@@ -297,7 +297,7 @@ def render_inventory_table(df):
                                 _bid = "cpShop" + str(_ci)
                                 _cmp.html(
                                     '<button id="' + _bid + '" style="width:100%;padding:8px 4px;border:none;'
-                                    'border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#ff6a00,#ff8533);'
+                                    'border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#f97316,#fb923c);'
                                     'color:#0a0a0f;font-weight:600;font-size:11px;">&#x1F47B; M&#xF4; t&#x1EA3;</button>'
                                     '<script>(function(){'
                                     'var btn=document.getElementById("' + _bid + '");'

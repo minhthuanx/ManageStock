@@ -31,7 +31,7 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                 .sort_values("_sk")
             )
             _mo_colors = [
-                "#00ff88" if v >= 0 else "#f87171"
+                "#22d3ee" if v >= 0 else "#f87171"
                 for v in _mo_df["_ln"]
             ]
             _fig_mo = go.Figure(go.Bar(
@@ -70,25 +70,28 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
             )
             st.plotly_chart(_fig_mo, use_container_width=True)
             # KPI tóm tắt
-            _mo_best_idx = _mo_df["_ln"].idxmax()
-            _mo_best_mo  = _mo_df.loc[_mo_best_idx, "_mo"]
-            _mo_best_ln  = float(_mo_df.loc[_mo_best_idx, "_ln"])
-            _mo_best_cnt = int(_mo_df.loc[_mo_best_idx, "_cnt"])
-            # Lọc đúng tháng hiện tại (không dùng iloc[-1] để tránh hiển thị tháng cũ)
-            _cur_mo_sk   = now_vn().strftime("%Y-%m")
-            _mo_cur_rows = _mo_df[_mo_df["_sk"] == _cur_mo_sk]
-            _mo_last_ln  = float(_mo_cur_rows["_ln"].iloc[0]) if not _mo_cur_rows.empty else 0.0
-            _mo_last_cnt = int(_mo_cur_rows["_cnt"].iloc[0]) if not _mo_cur_rows.empty else 0
-            _mc1, _mc2, _mc3 = st.columns(3)
-            _mc1.metric("📅 Tháng hiện tại",
-                        fmt_vnd(_mo_last_ln),
-                        delta=f"{_mo_last_cnt} giao dịch", delta_color="off")
-            _mc2.metric("🏆 Tháng tốt nhất",
-                        f"{_mo_best_mo}",
-                        delta=fmt_vnd(_mo_best_ln), delta_color="off")
-            _mc3.metric("📊 TB / tháng",
-                        fmt_vnd(float(_mo_df["_ln"].mean())),
-                        delta=f"{int(_mo_df['_cnt'].mean())} GD/tháng", delta_color="off")
+            if _mo_df.empty:
+                st.info("Không đủ dữ liệu để hiển thị thống kê theo tháng.")
+            else:
+                _mo_best_idx = _mo_df["_ln"].idxmax()
+                _mo_best_mo  = _mo_df.loc[_mo_best_idx, "_mo"]
+                _mo_best_ln  = float(_mo_df.loc[_mo_best_idx, "_ln"])
+                _mo_best_cnt = int(_mo_df.loc[_mo_best_idx, "_cnt"])
+                # Lọc đúng tháng hiện tại (không dùng iloc[-1] để tránh hiển thị tháng cũ)
+                _cur_mo_sk   = now_vn().strftime("%Y-%m")
+                _mo_cur_rows = _mo_df[_mo_df["_sk"] == _cur_mo_sk]
+                _mo_last_ln  = float(_mo_cur_rows["_ln"].iloc[0]) if not _mo_cur_rows.empty else 0.0
+                _mo_last_cnt = int(_mo_cur_rows["_cnt"].iloc[0]) if not _mo_cur_rows.empty else 0
+                _mc1, _mc2, _mc3 = st.columns(3)
+                _mc1.metric("📅 Tháng hiện tại",
+                            fmt_vnd(_mo_last_ln),
+                            delta=f"{_mo_last_cnt} giao dịch", delta_color="off")
+                _mc2.metric("🏆 Tháng tốt nhất",
+                            f"{_mo_best_mo}",
+                            delta=fmt_vnd(_mo_best_ln), delta_color="off")
+                _mc3.metric("📊 TB / tháng",
+                            fmt_vnd(float(_mo_df["_ln"].mean())),
+                            delta=f"{int(_mo_df['_cnt'].mean())} GD/tháng", delta_color="off")
 
     # ── Thống kê theo ngày — hôm nay ──
     with st.container(border=True):

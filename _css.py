@@ -13,18 +13,18 @@ CSS_STRING = """<style>
   --surface3:  #1a1a22;
   --border:    rgba(255,255,255,0.06);
   --border-h:  rgba(255,255,255,0.10);
-  --accent:    #ff6a00;
-  --accent-h:  #ff8533;
-  --accent-bg: rgba(255,106,0,0.06);
-  --green:     #00ff88;
-  --green-bg:  rgba(0,255,136,0.06);
+  --accent:    #f97316;
+  --accent-h:  #fb923c;
+  --accent-bg: rgba(249,115,22,0.06);
+  --green:     #22d3ee;
+  --green-bg:  rgba(34,211,238,0.06);
   --red:       #ef4444;
   --red-bg:    rgba(239,68,68,0.06);
   --yellow:    #eab308;
   --yellow-bg: rgba(234,179,8,0.06);
   --text:      #e8e8e8;
   --text2:     #999999;
-  --text3:     #555555;
+  --text3:     #737373;
   --radius:    8px;
   --radius-sm: 6px;
   --mono:      'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
@@ -54,6 +54,8 @@ html, body, [data-testid="stAppViewContainer"] {
 .block-container {
   padding: 1.2rem 2rem 3rem !important;
   max-width: 1440px;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 /* ── Grid pattern overlay ── */
@@ -118,7 +120,7 @@ div[data-testid="stMetricLabel"] {
   color: #ffffff !important;
   border: none !important;
   border-radius: 999px !important;
-  box-shadow: 0 0 20px rgba(255,106,0,0.2), 0 0 40px rgba(255,106,0,0.06) !important;
+  box-shadow: 0 0 20px rgba(249,115,22,0.2), 0 0 40px rgba(249,115,22,0.06) !important;
   font-weight: 700 !important;
   letter-spacing: 0.02em !important;
   text-transform: uppercase !important;
@@ -126,7 +128,7 @@ div[data-testid="stMetricLabel"] {
 }
 .stButton > button[kind="primary"]:hover {
   background: var(--accent-h) !important;
-  box-shadow: 0 0 24px rgba(255,106,0,0.3), 0 0 48px rgba(255,106,0,0.1) !important;
+  box-shadow: 0 0 24px rgba(249,115,22,0.3), 0 0 48px rgba(249,115,22,0.1) !important;
 }
 .stButton > button[kind="secondary"] {
   background: transparent !important;
@@ -212,26 +214,26 @@ div[data-testid="stMetricLabel"] {
 }
 .stTextInput input:focus, .stNumberInput input:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(255,106,0,0.08) !important;
+  box-shadow: 0 0 0 3px rgba(249,115,22,0.08) !important;
 }
 
 /* ── Containers — clean dark cards, orange glow on hover ── */
 [data-testid="stVerticalBlockBorderWrapper"] {
-  border-color: rgba(255,106,0,0.12) !important;
+  border-color: rgba(249,115,22,0.12) !important;
   background: var(--surface) !important;
   border-radius: var(--radius) !important;
   box-shadow: 0 1px 2px rgba(0,0,0,0.3) !important;
   transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"] > div {
-  border-color: rgba(255,106,0,0.12) !important;
+  border-color: rgba(249,115,22,0.12) !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"] > [data-testid="stVerticalBlock"] {
   background: transparent !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"]:hover {
-  border-color: rgba(255,106,0,0.35) !important;
-  box-shadow: 0 0 16px rgba(255,106,0,0.06), 0 1px 4px rgba(0,0,0,0.3) !important;
+  border-color: rgba(249,115,22,0.35) !important;
+  box-shadow: 0 0 16px rgba(249,115,22,0.06), 0 1px 4px rgba(0,0,0,0.3) !important;
 }
 
 /* ── Tab content — minimal panel ── */
@@ -266,14 +268,14 @@ div[data-testid="stMetricLabel"] {
 /* ── Hero banner — TinyFish style ── */
 .hero-banner {
   background: var(--surface);
-  border: 1px solid rgba(255,106,0,0.2);
+  border: 1px solid rgba(249,115,22,0.2);
   border-radius: var(--radius);
   padding: 1.15rem 1.4rem;
   margin-bottom: 1rem;
   display: flex;
   align-items: center;
   gap: 1rem;
-  box-shadow: 0 0 24px rgba(255,106,0,0.04), 0 1px 3px rgba(0,0,0,0.3);
+  box-shadow: 0 0 24px rgba(249,115,22,0.04), 0 1px 3px rgba(0,0,0,0.3);
   position: relative;
 }
 .hero-banner .logo { font-size: 1.6rem; opacity: 0.9; }
@@ -302,8 +304,8 @@ div[data-testid="stMetricLabel"] {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .stat-card:hover {
-  border-color: rgba(255,106,0,0.25);
-  box-shadow: 0 0 12px rgba(255,106,0,0.05);
+  border-color: rgba(249,115,22,0.25);
+  box-shadow: 0 0 12px rgba(249,115,22,0.05);
 }
 .stat-card .val { font-size: 1.1rem; font-weight: 700; color: var(--text); }
 .stat-card .lbl {
@@ -330,7 +332,7 @@ div[data-testid="stMetricLabel"] {
   margin: 1.5rem 0 0.75rem !important;
   padding: 0;
   width: 100%;
-  border-bottom: 1px solid rgba(255,106,0,0.12);
+  border-bottom: 1px solid rgba(249,115,22,0.12);
   padding-bottom: 0.5rem;
 }
 .sec-heading::before {
@@ -346,7 +348,7 @@ div[data-testid="stMetricLabel"] {
   content: '';
   flex: 1;
   height: 1px;
-  background: rgba(255,106,0,0.08);
+  background: rgba(249,115,22,0.08);
   margin-left: 0.5rem;
 }
 
@@ -360,7 +362,7 @@ div[data-testid="stMetricLabel"] {
   transition: border-color 0.15s ease;
 }
 .stat-panel:hover {
-  border-color: rgba(255,106,0,0.25);
+  border-color: rgba(249,115,22,0.25);
 }
 
 /* ── Metric cards — minimal with orange left accent ── */
@@ -373,9 +375,9 @@ div[data-testid="stMetric"] {
   transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
 }
 div[data-testid="stMetric"]:hover {
-  border-color: rgba(255,106,0,0.25) !important;
+  border-color: rgba(249,115,22,0.25) !important;
   border-left-color: var(--accent-h) !important;
-  box-shadow: 0 0 14px rgba(255,106,0,0.05) !important;
+  box-shadow: 0 0 14px rgba(249,115,22,0.05) !important;
 }
 
 /* ── Expanders ── */
@@ -387,7 +389,7 @@ div[data-testid="stMetric"]:hover {
   transition: border-color 0.15s ease !important;
 }
 [data-testid="stExpander"]:hover {
-  border-color: rgba(255,106,0,0.2) !important;
+  border-color: rgba(249,115,22,0.2) !important;
 }
 [data-testid="stExpander"] summary {
   padding: 0.65rem 0.9rem !important;
@@ -403,7 +405,7 @@ div[data-testid="stMetric"]:hover {
 [data-testid="stProgressBar"] > div > div {
   background: var(--accent) !important;
   border-radius: 4px !important;
-  box-shadow: 0 0 8px rgba(255,106,0,0.2);
+  box-shadow: 0 0 8px rgba(249,115,22,0.2);
 }
 [data-testid="stProgressBar"] > div {
   background: var(--surface3) !important;
@@ -414,7 +416,7 @@ div[data-testid="stMetric"]:hover {
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-h); border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,106,0,0.3); }
+::-webkit-scrollbar-thumb:hover { background: rgba(249,115,22,0.3); }
 
 /* ── Form container ── */
 [data-testid="stForm"] {
@@ -433,7 +435,7 @@ div[data-testid="stMetric"]:hover {
 }
 [data-baseweb="select"] > div:first-child:focus-within {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(255,106,0,0.08) !important;
+  box-shadow: 0 0 0 3px rgba(249,115,22,0.08) !important;
 }
 [data-baseweb="popover"] [data-baseweb="menu"] {
   background: var(--surface2) !important;
@@ -444,7 +446,7 @@ div[data-testid="stMetric"]:hover {
   background: var(--surface3) !important;
 }
 [data-baseweb="tag"] {
-  background: rgba(255,106,0,0.1) !important;
+  background: rgba(249,115,22,0.1) !important;
   color: var(--accent) !important;
   border: none !important;
   border-radius: 4px !important;
@@ -473,7 +475,7 @@ hr {
   text-transform: uppercase;
   color: var(--accent);
   padding: 0.4rem 0 0.25rem;
-  border-bottom: 1px solid rgba(255,106,0,0.12);
+  border-bottom: 1px solid rgba(249,115,22,0.12);
   margin-bottom: 0.35rem;
   display: block;
 }
@@ -494,8 +496,8 @@ hr {
   white-space: nowrap !important;
 }
 [data-testid="stRadio"] label:has(input:checked) {
-  background: rgba(255,106,0,0.1) !important;
-  border-color: rgba(255,106,0,0.35) !important;
+  background: rgba(249,115,22,0.1) !important;
+  border-color: rgba(249,115,22,0.35) !important;
   color: var(--accent) !important;
   font-weight: 600 !important;
 }
@@ -508,9 +510,9 @@ hr {
 
 /* ── Ton lau badge ── */
 .badge-warn {
-  background: rgba(255,106,0,0.1);
+  background: rgba(249,115,22,0.1);
   color: var(--accent);
-  border: 1px solid rgba(255,106,0,0.25);
+  border: 1px solid rgba(249,115,22,0.25);
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 0.7rem;
@@ -529,13 +531,13 @@ hr {
   padding: 0.6rem 0.85rem !important;
 }
 [data-testid="stAlert"][kind="info"], div[data-testid="stInfo"] > div {
-  background: rgba(255,106,0,0.04) !important;
-  border-color: rgba(255,106,0,0.15) !important;
+  background: rgba(249,115,22,0.04) !important;
+  border-color: rgba(249,115,22,0.15) !important;
   color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="success"], div[data-testid="stSuccess"] > div {
   background: var(--green-bg) !important;
-  border-color: rgba(34,197,94,0.2) !important;
+  border-color: rgba(34,211,238,0.2) !important;
   color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="warning"], div[data-testid="stWarning"] > div {
@@ -563,7 +565,7 @@ hr {
   border: none !important;
   border-radius: 999px !important;
   font-weight: 600 !important;
-  box-shadow: 0 0 14px rgba(255,106,0,0.18) !important;
+  box-shadow: 0 0 14px rgba(249,115,22,0.18) !important;
 }
 .copy-desc-btn:hover { background: var(--accent-h) !important; }
 
@@ -572,7 +574,7 @@ hr {
   font-size: 0.84rem !important;
   border-radius: var(--radius) !important;
   background: var(--surface2) !important;
-  border: 1px solid rgba(255,106,0,0.15) !important;
+  border: 1px solid rgba(249,115,22,0.15) !important;
   box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
   color: var(--text) !important;
 }
@@ -609,7 +611,8 @@ hr {
   div[data-testid="stMetricLabel"] { font-size: 0.65rem !important; }
   .stat-card .val { font-size: 0.95rem; }
   [data-testid="stTab"] { padding: 0.35rem 0.6rem !important; font-size: 0.72rem !important; }
-  .hero-banner { padding: 0.7rem 0.85rem; gap: 0.5rem; }
+  .hero-banner { padding: 0.7rem 0.85rem; gap: 0.5rem; flex-direction: column !important; align-items: flex-start !important; }
+  .hero-banner > div:first-child { min-width: 0 !important; }
   .hero-banner .logo { font-size: 1.2rem; }
   .hero-banner h1 { font-size: 0.95rem !important; }
   .hero-banner p { font-size: 0.7rem; }

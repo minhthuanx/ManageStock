@@ -10,14 +10,20 @@ def render_tab_chart(df, bulk_df, bulk_history):
     """Tab 2 (Thong Ke) orchestrator: badge, data aggregation, sub-chart calls."""
 
     # ── Ngay bat dau badge ──
+    _all_dates = []
+    if not df.empty and "Ngày Nhập" in df.columns:
+        _all_dates.extend(pd.to_datetime(df["Ngày Nhập"], dayfirst=True, errors="coerce").dropna().tolist())
+    if not bulk_history.empty and "Ngày Bán" in bulk_history.columns:
+        _all_dates.extend(pd.to_datetime(bulk_history["Ngày Bán"], dayfirst=True, errors="coerce").dropna().tolist())
+    _start_date_str = min(_all_dates).strftime("%d/%m/%Y") if _all_dates else "—"
     st.markdown(
-        '<div style="display:inline-flex;align-items:center;gap:8px;'
-        'background:linear-gradient(135deg,rgba(255,106,0,0.12),rgba(255,133,51,0.08));'
-        'border:1px solid rgba(255,106,0,0.35);border-radius:8px;'
+        f'<div style="display:inline-flex;align-items:center;gap:8px;'
+        'background:linear-gradient(135deg,rgba(249,115,22,0.12),rgba(255,133,51,0.08));'
+        'border:1px solid rgba(249,115,22,0.35);border-radius:8px;'
         'padding:6px 14px;margin-bottom:12px;">'
         '<span style="font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;'
-        'color:#9a8a7a;font-weight:500;">Ngày bắt đầu</span>'
-        '<span style="font-size:0.88rem;font-weight:600;color:#ff8533;letter-spacing:0.02em;">13/04/2026</span>'
+        'color:#737373;font-weight:500;">Ngày bắt đầu</span>'
+        f'<span style="font-size:0.88rem;font-weight:600;color:#fb923c;letter-spacing:0.02em;">{_start_date_str}</span>'
         '</div>',
         unsafe_allow_html=True,
     )

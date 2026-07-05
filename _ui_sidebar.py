@@ -85,22 +85,8 @@ Secure. Professional. Super Fast. 👻⚡"""
         st.session_state["_shop_desc"] = _SHOP_DESC
         st.markdown("---")
 
-        if st.button("Đồng Bộ Dữ Liệu", use_container_width=True):
-            st.cache_data.clear()
-            del st.session_state["initialized"]
+        if st.button("Đồng Bộ Dữ Liệu", use_container_width=True, type="primary"):
+            with st.spinner("Đang đồng bộ..."):
+                st.cache_data.clear()
+                del st.session_state["initialized"]
             st.rerun()
-
-        # ── Auto-refresh ──
-        _cmp_ar.html(
-            '<script>'
-            '(function(){'
-            '  setTimeout(function(){'
-            '    var btns = window.parent.document.querySelectorAll("button[kind=\'secondary\']");'
-            '    var found = Array.from(btns).find(function(b){return b.innerText.includes("Dữ Liệu");});'
-            '    if(found){found.click();} else {window.parent.location.reload();}'
-            '  }, 300000);'
-            '})();'
-            '</script>',
-            height=0,
-        )
-        st.caption("Tự động đồng bộ · mỗi 5 phút")

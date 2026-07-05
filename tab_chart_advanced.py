@@ -61,7 +61,7 @@ def render_advanced(sold_df, pbd, has_data):
                 _hour_count["Đơn"] = _hour_count["Đơn"].astype(int)
 
                 _peak_hour = int(_hour_count.loc[_hour_count["Đơn"].idxmax(), "Giờ"])
-                _colors = ["#ff6a00" if h == _peak_hour else "#c2410c" for h in _hour_count["Giờ"]]
+                _colors = ["#f97316" if h == _peak_hour else "#c2410c" for h in _hour_count["Giờ"]]
 
                 fig_hour = go.Figure(go.Bar(
                     x=[f"{h:02d}:00" for h in _hour_count["Giờ"]],

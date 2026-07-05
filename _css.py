@@ -1,112 +1,140 @@
 """
-Global CSS string constant — Linear-style minimal dark theme.
-Flat surfaces, subtle borders, muted palette, no gradients/glassmorphism.
+Global CSS string — TinyFish-inspired dark theme.
+Dark bg + grid lines, floating cards with bright colored borders, orange accent.
 """
 CSS_STRING = """<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-/* --- Root variables — Linear-inspired --- */
+/* ── Root — TinyFish-inspired ── */
 :root {
-  --bg:        #0f0f0f;
-  --surface:   #171717;
-  --surface2:  #1e1e1e;
-  --surface3:  #252525;
-  --border:    #262626;
-  --border-h:  #333333;
-  --accent:    #8b5cf6;
-  --accent-h:  #a78bfa;
+  --bg:        #050505;
+  --surface:   #0c0c0c;
+  --surface2:  #111111;
+  --surface3:  #1a1a1a;
+  --border:    rgba(255,255,255,0.07);
+  --border-h:  rgba(255,255,255,0.13);
+  --accent:    #ff6a00;
+  --accent-h:  #ff8533;
+  --accent-bg: rgba(255,106,0,0.08);
   --green:     #22c55e;
   --green-bg:  rgba(34,197,94,0.08);
+  --green-dim: rgba(34,197,94,0.15);
   --red:       #ef4444;
   --red-bg:    rgba(239,68,68,0.08);
+  --red-dim:   rgba(239,68,68,0.15);
   --yellow:    #eab308;
   --yellow-bg: rgba(234,179,8,0.08);
-  --text:      #e5e5e5;
+  --text:      #f5f5f5;
   --text2:     #a3a3a3;
-  --text3:     #737373;
-  --radius:    8px;
+  --text3:     #666666;
+  --radius:    10px;
+  --radius-sm: 6px;
 }
 
-/* --- Base --- */
+/* ── Base ── */
 *, *::before, *::after { box-sizing: border-box; }
 html { scrollbar-gutter: stable; overflow-y: scroll; }
 body { overflow-anchor: none; }
 html, body, [data-testid="stAppViewContainer"] {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-  background: var(--bg) !important;
   color: var(--text) !important;
   font-feature-settings: "tnum" 1, "cv01" 1, "ss01" 1;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* ── Background ── */
+[data-testid="stAppViewContainer"] {
+  background: var(--bg) !important;
 }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] {
   background: var(--surface) !important;
   border-right: 1px solid var(--border) !important;
 }
-.block-container { padding: 1rem 1.5rem 3rem !important; max-width: 1400px; }
-
-/* --- Layout shift fix --- */
-[data-testid="stAppViewContainer"] > section.main { scrollbar-gutter: stable; position: relative; }
-[data-testid="stAppViewContainer"] > section.main > div.block-container { margin-left: 0 !important; margin-right: auto !important; }
-[data-testid="stTabContent"] { scrollbar-gutter: stable; }
-
-/* --- Main content area --- */
-[data-testid="stAppViewContainer"] > section.main > div.block-container {
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+.block-container {
+  padding: 1rem 1.5rem 3rem !important;
+  max-width: 1400px;
 }
 
-/* --- Metrics --- */
+/* ── Grid pattern overlay on main content ── */
+[data-testid="stAppViewContainer"] > section.main {
+  position: relative;
+}
+[data-testid="stAppViewContainer"] > section.main > div.block-container {
+  background:
+    linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.028) 1px, transparent 1px) !important;
+  background-size: 40px 40px !important;
+  background-position: -1px -1px !important;
+}
+
+/* ── Layout fix ── */
+[data-testid="stAppViewContainer"] > section.main > div.block-container {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+[data-testid="stTabContent"] { scrollbar-gutter: stable; }
+[data-testid="stAppViewContainer"] > section.main {
+  scrollbar-gutter: stable;
+}
+
+/* ── Metrics ── */
 div[data-testid="stMetricValue"] {
   font-size: clamp(1rem, 2.5vw, 1.3rem) !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   color: var(--text) !important;
-  letter-spacing: -0.01em !important;
+  letter-spacing: -0.02em !important;
 }
 div[data-testid="stMetricLabel"] {
   font-size: 0.7rem !important;
   color: var(--text3) !important;
-  letter-spacing: 0.04em !important;
+  letter-spacing: 0.05em !important;
   text-transform: uppercase !important;
   font-weight: 500 !important;
 }
 
-/* --- Buttons --- */
+/* ── Buttons — TinyFish pill style ── */
 .stButton > button {
   border-radius: var(--radius) !important;
   font-size: 0.82rem !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   letter-spacing: 0.005em !important;
-  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease !important;
+  transition: all 0.15s ease !important;
   width: 100%;
   border: 1px solid var(--border) !important;
   background: var(--surface2) !important;
   color: var(--text) !important;
+  padding: 0.55rem 1rem !important;
 }
 .stButton > button:hover {
   background: var(--surface3) !important;
   border-color: var(--border-h) !important;
 }
-.stButton > button:active { background: var(--border) !important; }
-
+.stButton > button:active {
+  background: var(--border) !important;
+  transform: scale(0.985);
+}
 .stButton > button[kind="primary"] {
   background: var(--accent) !important;
   color: #ffffff !important;
-  border: 1px solid var(--accent) !important;
+  border: none !important;
+  border-radius: 999px !important;
+  box-shadow: 0 0 20px rgba(255,106,0,0.25), 0 0 40px rgba(255,106,0,0.08) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+  font-size: 0.8rem !important;
 }
 .stButton > button[kind="primary"]:hover {
   background: var(--accent-h) !important;
-  border-color: var(--accent-h) !important;
+  box-shadow: 0 0 24px rgba(255,106,0,0.35), 0 0 48px rgba(255,106,0,0.12) !important;
 }
-
-/* --- Secondary / tertiary buttons --- */
 .stButton > button[kind="secondary"] {
   background: transparent !important;
   color: var(--text2) !important;
   border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
 }
 .stButton > button[kind="secondary"]:hover {
   background: var(--surface2) !important;
@@ -124,7 +152,7 @@ div[data-testid="stMetricLabel"] {
   box-shadow: none !important;
 }
 
-/* --- Tabs --- */
+/* ── Tabs — clean with orange accent ── */
 [data-testid="stTabs"] > div:first-child {
   gap: 0 !important;
   border-bottom: 1px solid var(--border) !important;
@@ -135,14 +163,14 @@ div[data-testid="stMetricLabel"] {
 [data-testid="stTabs"] [data-baseweb="tab-highlight"] { display: none !important; }
 [data-testid="stTab"] {
   border-radius: 0 !important;
-  padding: 0.6rem 1rem !important;
+  padding: 0.65rem 1.1rem !important;
   font-weight: 500 !important;
   font-size: 0.78rem !important;
   letter-spacing: 0.02em !important;
   color: var(--text3) !important;
   border: none !important;
   background: transparent !important;
-  transition: color 0.12s ease !important;
+  transition: color 0.15s ease !important;
   position: relative !important;
   outline: none !important;
   text-transform: none !important;
@@ -175,52 +203,54 @@ div[data-testid="stMetricLabel"] {
   background: transparent !important;
 }
 
-/* --- Inputs --- */
+/* ── Inputs ── */
 .stTextInput input, .stNumberInput input, .stSelectbox select {
   background: var(--surface2) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
   color: var(--text) !important;
-  transition: border-color 0.12s ease !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
 }
 .stTextInput input:focus, .stNumberInput input:focus {
   border-color: var(--accent) !important;
-  box-shadow: none !important;
+  box-shadow: 0 0 0 3px rgba(255,106,0,0.12) !important;
 }
 
-/* --- Containers / borders --- */
+/* ── Containers — floating cards with orange borders ── */
 [data-testid="stVerticalBlockBorderWrapper"] {
-  --border-color-default: var(--border) !important;
-  border-color: var(--border) !important;
+  border-color: rgba(255,106,0,0.18) !important;
   background: var(--surface) !important;
   border-radius: var(--radius) !important;
-  box-shadow: none !important;
+  box-shadow: 0 0 16px rgba(255,106,0,0.04), 0 1px 3px rgba(0,0,0,0.3) !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"] > div {
-  --border-color-default: var(--border) !important;
-  border-color: var(--border) !important;
+  border-color: rgba(255,106,0,0.18) !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"] > [data-testid="stVerticalBlock"] {
   background: transparent !important;
-  box-shadow: none !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:hover {
+  border-color: rgba(255,106,0,0.3) !important;
+  box-shadow: 0 0 24px rgba(255,106,0,0.07), 0 2px 6px rgba(0,0,0,0.35) !important;
 }
 
-/* --- Tab content --- */
+/* ── Tab content — floating panel ── */
 [data-testid="stTabContent"] {
-  background: transparent !important;
-  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  border: 1px solid rgba(255,106,0,0.15) !important;
   border-top: none !important;
   border-radius: 0 0 var(--radius) var(--radius) !important;
   padding: 1.25rem !important;
+  box-shadow: 0 0 20px rgba(255,106,0,0.03) !important;
 }
 
-/* --- DataFrames --- */
+/* ── DataFrames ── */
 .stDataFrame {
   border-radius: var(--radius) !important;
   overflow: hidden !important;
   border: 1px solid var(--border) !important;
-  box-shadow: none !important;
   background: var(--surface) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25) !important;
 }
 [data-testid="stElementToolbar"] {
   background: var(--surface2) !important;
@@ -230,30 +260,38 @@ div[data-testid="stMetricLabel"] {
 [data-testid="stElementToolbarButton"] svg { color: var(--text3) !important; }
 [data-testid="stElementToolbarButton"]:hover svg { color: var(--text) !important; }
 
-/* --- Status badges --- */
+/* ── Status badges ── */
 .badge-sold  { color: var(--green); font-weight: 600; }
 .badge-stock { color: var(--accent); font-weight: 600; }
 
-/* --- Hero banner — flat, minimal --- */
+/* ── Hero banner — TinyFish floating card ── */
 .hero-banner {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255,106,0,0.22);
   border-radius: var(--radius);
-  padding: 1rem 1.25rem;
+  padding: 1.15rem 1.4rem;
   margin-bottom: 1rem;
   display: flex;
   align-items: center;
   gap: 1rem;
+  box-shadow: 0 0 24px rgba(255,106,0,0.06), 0 2px 6px rgba(0,0,0,0.3);
+  position: relative;
 }
-.hero-banner .logo { font-size: 1.6rem; opacity: 0.85; }
-.hero-banner h1 { margin: 0; font-size: clamp(1rem, 2.5vw, 1.3rem); font-weight: 600; letter-spacing: -0.01em; }
-.hero-banner p  { margin: 0; color: var(--text3); font-size: 0.78rem; }
+.hero-banner .logo { font-size: 1.6rem; opacity: 0.9; }
+.hero-banner h1 {
+  margin: 0;
+  font-size: clamp(1.05rem, 2.5vw, 1.35rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+.hero-banner p  { margin: 0; color: var(--text3); font-size: 0.78rem; letter-spacing: 0.04em; }
 
-/* --- Stat cards — flat pills --- */
+/* ── Stat cards — TinyFish item style ── */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 0.5rem;
+  gap: 0.55rem;
   margin-bottom: 0.8rem;
 }
 .stat-card {
@@ -262,66 +300,99 @@ div[data-testid="stMetricLabel"] {
   border-radius: var(--radius);
   padding: 0.75rem 0.9rem;
   text-align: center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.stat-card:hover { border-color: var(--border-h); }
-.stat-card .val { font-size: 1.1rem; font-weight: 600; color: var(--text); }
-.stat-card .lbl { font-size: 0.68rem; color: var(--text3); margin-top: 0.15rem; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 500; }
+.stat-card:hover {
+  border-color: rgba(255,106,0,0.25);
+  box-shadow: 0 0 14px rgba(255,106,0,0.06);
+}
+.stat-card .val { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.stat-card .lbl {
+  font-size: 0.66rem;
+  color: var(--text3);
+  margin-top: 0.2rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
 
-/* --- Section headings — simple, clean --- */
+/* ── Section headings — TinyFish style ── */
 .sec-heading {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-weight: 700;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--text3);
+  color: var(--text2);
   margin: 1.5rem 0 0.75rem !important;
   padding: 0;
   width: 100%;
+  border-bottom: 1px solid rgba(255,106,0,0.15);
+  padding-bottom: 0.5rem;
+}
+.sec-heading::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--accent);
+  flex-shrink: 0;
 }
 .sec-heading::after {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border);
+  background: rgba(255,106,0,0.12);
   margin-left: 0.5rem;
 }
 
-/* --- Stat panels — flat --- */
+/* ── Stat panels — floating card ── */
 .stat-panel {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255,106,0,0.15);
   border-radius: var(--radius);
   padding: 1rem 1.1rem 0.75rem;
   margin-bottom: 0.75rem;
+  box-shadow: 0 0 14px rgba(255,106,0,0.03);
+  transition: border-color 0.15s ease;
+}
+.stat-panel:hover {
+  border-color: rgba(255,106,0,0.25);
 }
 
-/* --- Metric cards — flat with subtle left accent --- */
+/* ── Metric cards — floating with orange left accent ── */
 div[data-testid="stMetric"] {
   background: var(--surface) !important;
-  border: 1px solid var(--border) !important;
-  border-left: 2px solid var(--accent) !important;
+  border: 1px solid rgba(255,106,0,0.15) !important;
+  border-left: 3px solid var(--accent) !important;
   border-radius: var(--radius) !important;
-  padding: 0.6rem 0.8rem !important;
-  transition: border-color 0.15s ease !important;
+  padding: 0.65rem 0.85rem !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  box-shadow: 0 0 12px rgba(255,106,0,0.03) !important;
 }
 div[data-testid="stMetric"]:hover {
-  border-color: var(--border-h) !important;
-  border-left-color: var(--accent) !important;
+  border-color: rgba(255,106,0,0.3) !important;
+  border-left-color: var(--accent-h) !important;
+  box-shadow: 0 0 20px rgba(255,106,0,0.06) !important;
 }
 
-/* --- Expanders — flat --- */
+/* ── Expanders — floating panel ── */
 [data-testid="stExpander"] {
-  border: 1px solid var(--border) !important;
+  border: 1px solid rgba(255,106,0,0.15) !important;
   border-radius: var(--radius) !important;
   background: var(--surface) !important;
   overflow: hidden !important;
-  box-shadow: none !important;
+  box-shadow: 0 0 12px rgba(255,106,0,0.03) !important;
+  transition: border-color 0.15s ease !important;
+}
+[data-testid="stExpander"]:hover {
+  border-color: rgba(255,106,0,0.25) !important;
 }
 [data-testid="stExpander"] summary {
-  padding: 0.6rem 0.85rem !important;
+  padding: 0.65rem 0.9rem !important;
   font-weight: 500 !important;
   font-size: 0.84rem !important;
   color: var(--text) !important;
@@ -330,71 +401,126 @@ div[data-testid="stMetric"]:hover {
 }
 [data-testid="stExpander"] summary:hover { color: var(--accent) !important; }
 
-/* --- Progress bar — flat --- */
+/* ── Progress bar ── */
 [data-testid="stProgressBar"] > div > div {
   background: var(--accent) !important;
   border-radius: 4px !important;
+  box-shadow: 0 0 10px rgba(255,106,0,0.2);
 }
 [data-testid="stProgressBar"] > div {
   background: var(--surface3) !important;
   border-radius: 4px !important;
 }
 
-/* --- Scrollbar --- */
+/* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-h); }
+::-webkit-scrollbar-thumb { background: var(--border-h); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,106,0,0.3); }
 
-/* --- Mobile responsive --- */
-@media (max-width: 768px) {
-  .block-container { padding: 0.5rem 0.75rem 3rem !important; }
-  div[data-testid="stMetricValue"] { font-size: 0.95rem !important; }
-  div[data-testid="stMetricLabel"] { font-size: 0.65rem !important; }
-  .stat-card .val { font-size: 0.95rem; }
-  [data-testid="stTab"] { padding: 0.35rem 0.6rem !important; font-size: 0.72rem !important; }
-  .hero-banner { padding: 0.6rem 0.8rem; gap: 0.5rem; }
-  .hero-banner .logo { font-size: 1.2rem; }
-  .hero-banner h1 { font-size: 0.95rem !important; }
-  .hero-banner p { font-size: 0.7rem; }
-  .sec-heading { font-size: 0.68rem; margin: 0.75rem 0 0.4rem; }
-  [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 0.3rem !important; }
-  [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { min-width: 100% !important; flex: 1 1 100% !important; }
-  .stForm { padding: 0.5rem !important; }
-  .stButton > button { padding: 0.45rem 0.75rem !important; font-size: 0.8rem !important; }
-  .stDataFrame { max-height: 350px !important; }
-  [data-testid="stDataFrameResizable"] { font-size: 0.75rem !important; }
-  [data-testid="stExpander"] summary { font-size: 0.82rem !important; padding: 0.4rem 0.6rem !important; }
-  .stTextInput input, .stNumberInput input { font-size: 0.85rem !important; padding: 0.4rem 0.6rem !important; }
-  .stSelectbox [data-baseweb="select"] { font-size: 0.85rem !important; }
-  [data-testid="stRadio"] > div { flex-wrap: wrap !important; gap: 0.2rem !important; }
-  [data-testid="stRadio"] label { font-size: 0.75rem !important; padding: 0.25rem 0.5rem !important; }
-  [data-testid="stSidebar"] { min-width: 260px !important; }
-  .js-plotly-plot { min-height: 250px !important; }
+/* ── Form container — floating ── */
+[data-testid="stForm"] {
+  background: var(--surface) !important;
+  border: 1px solid rgba(255,106,0,0.15) !important;
+  border-radius: var(--radius) !important;
+  padding: 1rem !important;
+  box-shadow: 0 0 14px rgba(255,106,0,0.03) !important;
 }
 
-/* --- Copy description button --- */
-.copy-desc-btn {
-  background: var(--accent) !important;
-  color: #ffffff !important;
-  border: none !important;
-  border-radius: var(--radius) !important;
-  font-weight: 500 !important;
-}
-.copy-desc-btn:hover { background: var(--accent-h) !important; }
-
-/* --- Toast --- */
-[data-testid="stToast"] {
-  font-size: 0.84rem !important;
-  border-radius: var(--radius) !important;
+/* ── Selectbox / multiselect ── */
+[data-baseweb="select"] > div:first-child {
   background: var(--surface2) !important;
   border: 1px solid var(--border) !important;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+  border-radius: var(--radius) !important;
   color: var(--text) !important;
 }
-[data-testid="stToastContainer"] { bottom: 2rem !important; right: 1.5rem !important; }
+[data-baseweb="select"] > div:first-child:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(255,106,0,0.12) !important;
+}
+[data-baseweb="popover"] [data-baseweb="menu"] {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+}
+[data-baseweb="popover"] [role="option"]:hover {
+  background: var(--surface3) !important;
+}
+[data-baseweb="tag"] {
+  background: rgba(255,106,0,0.1) !important;
+  color: var(--accent) !important;
+  border: none !important;
+  border-radius: 4px !important;
+}
 
-/* --- Alerts --- */
+/* ── Caption ── */
+[data-testid="stCaptionContainer"] p {
+  color: var(--text3) !important;
+  font-size: 0.74rem !important;
+}
+
+/* ── Divider ── */
+hr {
+  border: none !important;
+  border-top: 1px solid var(--border) !important;
+  margin: 0.75rem 0 !important;
+}
+
+/* ── Sidebar section headings ── */
+[data-testid="stSidebar"] .sidebar-heading {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text3);
+  padding: 0.4rem 0 0.25rem;
+  border-bottom: 1px solid rgba(255,106,0,0.12);
+  margin-bottom: 0.35rem;
+  display: block;
+}
+
+/* ── Radio pill chips ── */
+[data-testid="stRadio"] > div { gap: 0.25rem !important; flex-wrap: wrap !important; }
+[data-testid="stRadio"] label {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 999px !important;
+  padding: 0.25rem 0.75rem !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  color: var(--text3) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  white-space: nowrap !important;
+}
+[data-testid="stRadio"] label:has(input:checked) {
+  background: rgba(255,106,0,0.1) !important;
+  border-color: rgba(255,106,0,0.35) !important;
+  color: var(--accent) !important;
+  font-weight: 600 !important;
+}
+[data-testid="stRadio"] label:hover {
+  border-color: var(--border-h) !important;
+  color: var(--text) !important;
+}
+[data-testid="stRadio"] label input[type="radio"] { display: none !important; }
+[data-testid="stRadio"] label > div:first-child { display: none !important; }
+
+/* ── Ton lau badge ── */
+.badge-warn {
+  background: rgba(255,106,0,0.1);
+  color: var(--accent);
+  border: 1px solid rgba(255,106,0,0.25);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-left: 8px;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+/* ── Alerts ── */
 [data-testid="stAlert"] {
   border-radius: var(--radius) !important;
   border-width: 1px !important;
@@ -402,8 +528,8 @@ div[data-testid="stMetric"]:hover {
   padding: 0.6rem 0.85rem !important;
 }
 [data-testid="stAlert"][kind="info"], div[data-testid="stInfo"] > div {
-  background: rgba(139,92,246,0.06) !important;
-  border-color: rgba(139,92,246,0.2) !important;
+  background: rgba(255,106,0,0.04) !important;
+  border-color: rgba(255,106,0,0.18) !important;
   color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="success"], div[data-testid="stSuccess"] > div {
@@ -422,110 +548,37 @@ div[data-testid="stMetric"]:hover {
   color: var(--text) !important;
 }
 
-/* --- Form container --- */
-[data-testid="stForm"] {
-  background: var(--surface) !important;
+/* ── Plotly chart containers ── */
+.js-plotly-plot {
   border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
-  padding: 1rem !important;
+  overflow: hidden !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2) !important;
 }
 
-/* --- Selectbox / multiselect --- */
-[data-baseweb="select"] > div:first-child {
-  background: var(--surface2) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  color: var(--text) !important;
-}
-[data-baseweb="select"] > div:first-child:focus-within {
-  border-color: var(--accent) !important;
-  box-shadow: none !important;
-}
-[data-baseweb="popover"] [data-baseweb="menu"] {
-  background: var(--surface2) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-}
-[data-baseweb="popover"] [role="option"]:hover {
-  background: var(--surface3) !important;
-}
-[data-baseweb="tag"] {
-  background: rgba(139,92,246,0.12) !important;
-  color: var(--accent) !important;
+/* ── Copy description button ── */
+.copy-desc-btn {
+  background: var(--accent) !important;
+  color: #ffffff !important;
   border: none !important;
-  border-radius: 4px !important;
-}
-
-/* --- Caption --- */
-[data-testid="stCaptionContainer"] p {
-  color: var(--text3) !important;
-  font-size: 0.74rem !important;
-}
-
-/* --- Divider --- */
-hr {
-  border: none !important;
-  border-top: 1px solid var(--border) !important;
-  margin: 0.75rem 0 !important;
-}
-
-/* --- Sidebar section headings --- */
-[data-testid="stSidebar"] .sidebar-heading {
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text3);
-  padding: 0.4rem 0 0.25rem;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 0.35rem;
-  display: block;
-}
-
-/* --- Radio pill chips — minimal --- */
-[data-testid="stRadio"] > div { gap: 0.25rem !important; flex-wrap: wrap !important; }
-[data-testid="stRadio"] label {
-  background: var(--surface) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 6px !important;
-  padding: 0.25rem 0.7rem !important;
-  font-size: 0.75rem !important;
-  font-weight: 500 !important;
-  color: var(--text3) !important;
-  cursor: pointer !important;
-  transition: all 0.12s ease !important;
-  white-space: nowrap !important;
-}
-[data-testid="stRadio"] label:has(input:checked) {
-  background: rgba(139,92,246,0.1) !important;
-  border-color: rgba(139,92,246,0.3) !important;
-  color: var(--accent) !important;
+  border-radius: 999px !important;
   font-weight: 600 !important;
+  box-shadow: 0 0 16px rgba(255,106,0,0.2) !important;
 }
-[data-testid="stRadio"] label:hover {
-  border-color: var(--border-h) !important;
+.copy-desc-btn:hover { background: var(--accent-h) !important; }
+
+/* ── Toast ── */
+[data-testid="stToast"] {
+  font-size: 0.84rem !important;
+  border-radius: var(--radius) !important;
+  background: var(--surface2) !important;
+  border: 1px solid rgba(255,106,0,0.2) !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
   color: var(--text) !important;
 }
-[data-testid="stRadio"] label input[type="radio"] { display: none !important; }
-[data-testid="stRadio"] label > div:first-child { display: none !important; }
+[data-testid="stToastContainer"] { bottom: 2rem !important; right: 1.5rem !important; }
 
-/* --- Ton lau badge --- */
-.badge-warn {
-  background: rgba(234,179,8,0.1);
-  color: var(--yellow);
-  border: 1px solid rgba(234,179,8,0.2);
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  margin-left: 8px;
-  vertical-align: middle;
-}
-
-/* --- Hide Streamlit branding --- */
-#MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
-
-/* --- Empty state --- */
+/* ── Empty state ── */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -539,17 +592,40 @@ hr {
 .empty-state .es-title { font-size: 0.9rem; font-weight: 500; color: var(--text3); }
 .empty-state .es-sub { font-size: 0.76rem; color: var(--text3); opacity: 0.6; }
 
-/* --- Button loading spinner --- */
+/* ── Button loading spinner ── */
 .btn-busy {
   opacity: 0.5 !important;
   pointer-events: none !important;
   cursor: wait !important;
 }
 
-/* --- Plotly chart containers --- */
-.js-plotly-plot {
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  overflow: hidden !important;
+/* ── Hide Streamlit branding ── */
+#MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .block-container { padding: 0.5rem 0.75rem 3rem !important; }
+  div[data-testid="stMetricValue"] { font-size: 0.95rem !important; }
+  div[data-testid="stMetricLabel"] { font-size: 0.65rem !important; }
+  .stat-card .val { font-size: 0.95rem; }
+  [data-testid="stTab"] { padding: 0.35rem 0.6rem !important; font-size: 0.72rem !important; }
+  .hero-banner { padding: 0.7rem 0.85rem; gap: 0.5rem; }
+  .hero-banner .logo { font-size: 1.2rem; }
+  .hero-banner h1 { font-size: 0.95rem !important; }
+  .hero-banner p { font-size: 0.7rem; }
+  .sec-heading { font-size: 0.68rem; margin: 0.75rem 0 0.4rem; }
+  [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 0.3rem !important; }
+  [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { min-width: 100% !important; flex: 1 1 100% !important; }
+  .stForm { padding: 0.5rem !important; }
+  .stButton > button { padding: 0.45rem 0.75rem !important; font-size: 0.8rem !important; }
+  .stDataFrame { max-height: 350px !important; }
+  [data-testid="stDataFrameResizable"] { font-size: 0.75rem !important; }
+  [data-testid="stExpander"] summary { font-size: 0.82rem !important; padding: 0.4rem 0.6rem !important; }
+  .stTextInput input, .stNumberInput input { font-size: 0.85rem !important; padding: 0.4rem 0.6rem !important; }
+  .stSelectbox [data-baseweb="select"] { font-size: 0.85rem !important; }
+  [data-testid="stRadio"] > div { flex-wrap: wrap !important; gap: 0.2rem !important; }
+  [data-testid="stRadio"] label { font-size: 0.75rem !important; padding: 0.25rem 0.5rem !important; }
+  [data-testid="stSidebar"] { min-width: 260px !important; }
+  .js-plotly-plot { min-height: 250px !important; }
 }
 </style>"""

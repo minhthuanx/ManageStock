@@ -1,16 +1,15 @@
 """
-Hero banner — top stats bar, Linear-style minimal design.
+Hero banner — TinyFish-inspired floating card with stat dots.
 """
 import pandas as pd
 import streamlit as st
-from datetime import datetime
 
 from _timezone import VN_TZ, now_vn
 from _helpers import fmt_vnd, is_today_timestamp, is_today_bulk_date
 
 
 def render_hero_banner(df, bulk_df, bulk_history):
-    """Render a flat, minimal hero banner with inventory stats."""
+    """Render a TinyFish-style hero banner with floating stat items."""
     today = now_vn().date()
 
     _hb_con_hang = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
@@ -37,18 +36,27 @@ def render_hero_banner(df, bulk_df, bulk_history):
           <p style="margin:0;">MINHTHUAN · 2026</p>
         </div>
       </div>
-      <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.75rem;text-align:center;min-width:60px;">
-          <div style="font-size:1.1rem;font-weight:600;color:var(--text);line-height:1.2;">{_hb_con_hang_count}</div>
-          <div style="font-size:0.62rem;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;font-weight:500;">Còn hàng</div>
+      <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;">
+        <div style="display:flex;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.4rem 0.85rem;">
+          <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;box-shadow:0 0 6px rgba(34,197,94,0.4);"></div>
+          <div>
+            <div style="font-size:1.05rem;font-weight:700;color:#f5f5f5;line-height:1.2;">{_hb_con_hang_count}</div>
+            <div style="font-size:0.6rem;color:#666;letter-spacing:0.05em;text-transform:uppercase;font-weight:500;">Còn hàng</div>
+          </div>
         </div>
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.75rem;text-align:center;min-width:60px;">
-          <div style="font-size:1.1rem;font-weight:600;color:var(--text);line-height:1.2;">{_hb_da_ban}</div>
-          <div style="font-size:0.62rem;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;font-weight:500;">Đã bán</div>
+        <div style="display:flex;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.4rem 0.85rem;">
+          <div style="width:8px;height:8px;border-radius:50%;background:#666;flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:1.05rem;font-weight:700;color:#f5f5f5;line-height:1.2;">{_hb_da_ban}</div>
+            <div style="font-size:0.6rem;color:#666;letter-spacing:0.05em;text-transform:uppercase;font-weight:500;">Đã bán</div>
+          </div>
         </div>
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.75rem;text-align:center;min-width:60px;">
-          <div style="font-size:1.05rem;font-weight:600;color:var(--green);line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
-          <div style="font-size:0.62rem;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;font-weight:500;">Hôm nay</div>
+        <div style="display:flex;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.4rem 0.85rem;">
+          <div style="width:8px;height:8px;border-radius:50%;background:#ff6a00;flex-shrink:0;box-shadow:0 0 6px rgba(255,106,0,0.4);"></div>
+          <div>
+            <div style="font-size:1rem;font-weight:700;color:#22c55e;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
+            <div style="font-size:0.6rem;color:#666;letter-spacing:0.05em;text-transform:uppercase;font-weight:500;">Hôm nay</div>
+          </div>
         </div>
       </div>
     </div>

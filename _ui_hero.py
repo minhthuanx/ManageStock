@@ -1,5 +1,5 @@
 """
-Hero banner — top stats bar with glassmorphism design.
+Hero banner — top stats bar, Linear-style minimal design.
 """
 import pandas as pd
 import streamlit as st
@@ -10,7 +10,7 @@ from _helpers import fmt_vnd, is_today_timestamp, is_today_bulk_date
 
 
 def render_hero_banner(df, bulk_df, bulk_history):
-    """Render the hero banner with inventory stats and today's profit."""
+    """Render a flat, minimal hero banner with inventory stats."""
     today = now_vn().date()
 
     _hb_con_hang = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
@@ -26,28 +26,29 @@ def render_hero_banner(df, bulk_df, bulk_history):
     _hb_profit_bulk = float(pd.to_numeric(_hb_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if (not _hb_bulk_today.empty and "Lợi Nhuận Giao Dịch" in _hb_bulk_today.columns) else 0.0
     _hb_profit_today = _hb_profit_le + _hb_profit_bulk
 
-    _badge_html = f'<span class="badge-warn">&#9888; {_badge_count} tồn lâu</span>' if _badge_count > 0 else ""
+    _badge_html = f'<span class="badge-warn">{_badge_count} tồn lâu</span>' if _badge_count > 0 else ""
+
     st.markdown(f"""
-    <div class="hero-banner" style="flex-wrap:wrap;gap:0.9rem;">
+    <div class="hero-banner">
       <div style="display:flex;align-items:center;gap:0.75rem;flex:1;min-width:180px;">
         <div class="logo">👻</div>
         <div>
-          <h1 style="margin:0;">Management Dashboard{_badge_html}</h1>
-          <p style="margin:0;">Copyright &copy; 2026 MINHTHUAN. All rights reserved.</p>
+          <h1 style="margin:0;">ManageStock{_badge_html}</h1>
+          <p style="margin:0;">MINHTHUAN · 2026</p>
         </div>
       </div>
-      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-        <div style="background:rgba(134,239,172,0.08);border:1px solid rgba(134,239,172,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
-          <div style="font-size:1.15rem;font-weight:700;color:#86efac;line-height:1.2;">{_hb_con_hang_count}</div>
-          <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Còn hàng</div>
+      <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.75rem;text-align:center;min-width:60px;">
+          <div style="font-size:1.1rem;font-weight:600;color:var(--text);line-height:1.2;">{_hb_con_hang_count}</div>
+          <div style="font-size:0.62rem;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;font-weight:500;">Còn hàng</div>
         </div>
-        <div style="background:rgba(192,132,252,0.08);border:1px solid rgba(192,132,252,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
-          <div style="font-size:1.15rem;font-weight:700;color:#c084fc;line-height:1.2;">{_hb_da_ban}</div>
-          <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Đã bán</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.75rem;text-align:center;min-width:60px;">
+          <div style="font-size:1.1rem;font-weight:600;color:var(--text);line-height:1.2;">{_hb_da_ban}</div>
+          <div style="font-size:0.62rem;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;font-weight:500;">Đã bán</div>
         </div>
-        <div style="background:rgba(232,121,249,0.08);border:1px solid rgba(232,121,249,0.2);border-radius:9px;padding:0.3rem 0.8rem;text-align:center;min-width:64px;">
-          <div style="font-size:1.1rem;font-weight:700;color:#e879f9;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
-          <div style="font-size:0.62rem;color:#9d8fbf;letter-spacing:0.05em;text-transform:uppercase;">Hôm nay</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.75rem;text-align:center;min-width:60px;">
+          <div style="font-size:1.05rem;font-weight:600;color:var(--green);line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
+          <div style="font-size:0.62rem;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;font-weight:500;">Hôm nay</div>
         </div>
       </div>
     </div>

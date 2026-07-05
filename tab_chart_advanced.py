@@ -1,4 +1,4 @@
-import pandas as pd
+﻿import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from datetime import datetime, timedelta
@@ -10,7 +10,7 @@ from _helpers import fmt_vnd, fmt_short, fmt_ngay_ton
 def render_advanced(sold_df, pbd, has_data):
     # ── Phân tích theo NameStock ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🏷️ Phân Tích Theo NameStock</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Phân Tích Theo NameStock</div>', unsafe_allow_html=True)
 
         if not sold_df.empty and "NameStock" in sold_df.columns:
             _ns_grp = sold_df.copy()
@@ -31,7 +31,7 @@ def render_advanced(sold_df, pbd, has_data):
 
     # ── Phân tích khung giờ bán hàng ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🕐 Phân Tích Khung Giờ Bán Hàng</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Phân Tích Khung Giờ Bán Hàng</div>', unsafe_allow_html=True)
 
         if not sold_df.empty:
             def _extract_hour(ts_str):
@@ -89,7 +89,7 @@ def render_advanced(sold_df, pbd, has_data):
 
     # ── #27 Heatmap ngày × giờ ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🗓️ Heatmap: Thứ × Giờ</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Heatmap: Thứ × Giờ</div>', unsafe_allow_html=True)
 
         if not sold_df.empty:
             def _extract_dt_parts(ts_str):
@@ -149,7 +149,7 @@ def render_advanced(sold_df, pbd, has_data):
 
     # ── AJ: Streak & Thành tích ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🏆 Thành Tích & Kỷ Lục</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Thành Tích & Kỷ Lục</div>', unsafe_allow_html=True)
 
         _all_sold_ch = sold_df.copy()
 

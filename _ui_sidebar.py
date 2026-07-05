@@ -13,7 +13,7 @@ from _database import USE_SUPABASE, supabase_client
 def render_sidebar(df, bulk_df, bulk_history, use_supabase):
     with st.sidebar:
         st.markdown("---")
-        st.caption(f"🕐 {now_vn().strftime('%d/%m/%Y %H:%M')} (VN)")
+        st.caption(f"{now_vn().strftime('%d/%m/%Y %H:%M')} (VN)")
         if use_supabase:
             st.success("Kết nối · Supabase Cloud", icon="✅")
         else:

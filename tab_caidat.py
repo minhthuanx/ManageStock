@@ -1,4 +1,4 @@
-"""
+﻿"""
 Tab 6: Cài Đặt — Category management, Eldorado connection, system monitor.
 Extracted from app_backup.py lines 6151-6465.
 """
@@ -132,7 +132,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
         if _HAS_ELDORADO:
             st.markdown("---")
             with st.container(border=True):
-                st.markdown('<div class="sec-heading">🎮 Eldorado.gg Connection</div>', unsafe_allow_html=True)
+                st.markdown('<div class="sec-heading">Eldorado.gg Connection</div>', unsafe_allow_html=True)
 
                 if eld_client and eld_client.logged_in:
                     st.success(f"Connected as **{eld_client.username}** (+{eld_client.pos}/-{eld_client.neg})")
@@ -247,7 +247,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
         # ── Tai Nguyen He Thong ──
         st.markdown("---")
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🖥️ Tình Trạng Tài Nguyên</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Tình Trạng Tài Nguyên</div>', unsafe_allow_html=True)
 
         # Process metrics via psutil
         try:

@@ -1,4 +1,4 @@
-import numpy as np
+﻿import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -11,7 +11,7 @@ from _helpers import fmt_vnd, fmt_short
 def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
         # ── SANKEY: Dòng chảy vốn theo Mutation ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">💰 Sankey — Dòng Chạy Vốn Theo Mutation</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Sankey — Dòng Chạy Vốn Theo Mutation</div>', unsafe_allow_html=True)
 
         _sk_src, _sk_tgt, _sk_val, _sk_labels, _sk_muts = [], [], [], [], []
         if not df.empty and "Mutation" in df.columns:
@@ -71,7 +71,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
         # ── CALENDAR HEATMAP: GitHub-style lợi nhuận ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">📅 Lịch Lợi Nhuận — 1 Năm Gần Nhất</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Lịch Lợi Nhuận — 1 Năm Gần Nhất</div>', unsafe_allow_html=True)
 
         if has_data and not pbd.empty:
             _cal_today = now_vn().date()
@@ -162,7 +162,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
         # ── ⚡ Xu Hướng Bán Theo Tuần ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">⚡ Xu Hướng Bán Theo Tuần</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Xu Hướng Bán Theo Tuần</div>', unsafe_allow_html=True)
 
         if has_data and not pbd.empty:
             _wk_df = pbd.copy()
@@ -274,7 +274,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
         # ── 🧬 Phân Tích Trait ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🧬 Phân Tích Theo Trait</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Phân Tích Theo Trait</div>', unsafe_allow_html=True)
 
         if not sold_df.empty and "Số Trait" in sold_df.columns:
             _tr_df = sold_df.copy()
@@ -342,7 +342,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
         # ── 🏦 Hiệu Suất Vốn ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🏦 Hiệu Suất Vốn</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Hiệu Suất Vốn</div>', unsafe_allow_html=True)
 
         # Capital inputs
         _cap_invested_single = float(pd.to_numeric(df["Giá Nhập"], errors="coerce").fillna(0).sum()) if not df.empty else 0.0

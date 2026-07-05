@@ -62,7 +62,7 @@ from tab_tonlau import render_tab_tonlau
 from tab_lopack import render_tab_lopack
 
 tab_kho, tab_pack, tab_chart, tab_ton, tab_eldo, tab_settings = st.tabs([
-    "📦 Kho Lẻ", "🗃️ Lô Pack", "📊 Thống Kê", "⏳ Tồn Lâu", "🎮 Eldorado", "⚙️ Cài Đặt",
+    "Kho Lẻ", "Lô Pack", "Thống Kê", "Tồn Lâu", "Eldorado", "Cài Đặt",
 ], key="main_tabs")
 
 with tab_kho:

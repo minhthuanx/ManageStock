@@ -1,4 +1,4 @@
-from datetime import datetime
+﻿from datetime import datetime
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -12,7 +12,7 @@ from _config import EXCHANGE_RATE
 def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cost, total_rev, net_profit):
     # ── Waterfall: Dòng Chảy Tài Chính ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🌊 Dòng Chảy Tài Chính</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Dòng Chảy Tài Chính</div>', unsafe_allow_html=True)
 
         if total_rev > 0 or total_cost > 0:
             _margin_pct = net_profit / total_rev * 100 if total_rev > 0 else 0
@@ -79,7 +79,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
 
         # ── Period selector ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">📉 Biểu Đồ Lợi Nhuận</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Biểu Đồ Lợi Nhuận</div>', unsafe_allow_html=True)
         period_col, _ = st.columns([2, 3])
         period = period_col.radio(
             "Xem theo",
@@ -215,7 +215,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
 
         # ── Cumulative Profit Line ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">📈 Lợi Nhuận Tích Lũy</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Lợi Nhuận Tích Lũy</div>', unsafe_allow_html=True)
 
         if has_data and not pbd.empty:
             # Group by date → one data point per day

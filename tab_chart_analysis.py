@@ -1,4 +1,4 @@
-import pandas as pd
+﻿import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -15,7 +15,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
         # ── Revenue channel split ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🔀 Phân Tích Kênh & Sản Phẩm</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Phân Tích Kênh & Sản Phẩm</div>', unsafe_allow_html=True)
         c_left, c_right = st.columns(2)
 
         with c_left:
@@ -84,7 +84,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
         # ── Bubble Scatter: Volume vs Margin per Mutation ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🫧 Hiệu Quả Theo Mutation — Volume vs Margin</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Hiệu Quả Theo Mutation — Volume vs Margin</div>', unsafe_allow_html=True)
 
         if not sold_df.empty and "Mutation" in sold_df.columns:
             _tm_df = sold_df.copy()
@@ -195,7 +195,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
         # ── Pet Performance Scatter ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🔵 Hiệu Quả Theo Tên Pet — Giá vs Lợi Nhuận</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Hiệu Quả Theo Tên Pet — Giá vs Lợi Nhuận</div>', unsafe_allow_html=True)
 
         if not sold_df.empty:
             _pp_df = sold_df.copy()
@@ -285,7 +285,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
         # ── Avg days to sell + Top mutation ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">🚀 Hiệu Suất Bán Hàng</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Hiệu Suất Bán Hàng</div>', unsafe_allow_html=True)
         _perf_c1, _perf_c2 = st.columns(2)
 
         with _perf_c1:

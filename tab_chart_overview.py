@@ -1,4 +1,4 @@
-import pandas as pd
+﻿import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -10,7 +10,7 @@ from _config import EXCHANGE_RATE
 def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cost, total_rev, net_profit, total_stock):
     # ── KPI Row ──
     with st.container(border=True):
-        st.markdown('<div class="sec-heading">📊 Tổng Quan</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-heading">Tổng Quan</div>', unsafe_allow_html=True)
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("💰 Lợi nhuận ròng",   fmt_vnd(net_profit))
         k2.metric("📈 Tổng doanh thu",   fmt_vnd(total_rev))
@@ -20,7 +20,7 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
     # ── Thống kê theo tháng — biểu đồ ──
     if has_data and not pbd.empty:
         with st.container(border=True):
-            st.markdown('<div class="sec-heading">📋 Thống Kê Theo Tháng</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sec-heading">Thống Kê Theo Tháng</div>', unsafe_allow_html=True)
             _mo_df = (
                 pbd.assign(
                     _mo=pbd["Ngày DT"].dt.strftime("%m/%Y"),
@@ -94,7 +94,7 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
     with st.container(border=True):
         _dn_today = now_vn().date()
         _dn_label = _dn_today.strftime("%d/%m/%Y")
-        st.markdown(f'<div class="sec-heading">📅 Thống Kê Hôm Nay — {_dn_label}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="sec-heading">Thống Kê Hôm Nay — {_dn_label}</div>', unsafe_allow_html=True)
 
         _dn_sel = pd.Timestamp(_dn_today)
 

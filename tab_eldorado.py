@@ -1,4 +1,4 @@
-import base64
+﻿import base64
 import time as _time
 import pandas as pd
 import streamlit as st
@@ -23,7 +23,7 @@ def render_tab_eldorado(eld_client):
     else:
         # ── SECTION 1: LOGIN / PROFILE CARD ──
         with st.container(border=True):
-            st.markdown('<div class="sec-heading">🎮 Eldorado.gg</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sec-heading">Eldorado.gg</div>', unsafe_allow_html=True)
 
             if eld_client and eld_client.logged_in:
                 # Profile card — centered, no avatar
@@ -66,7 +66,7 @@ def render_tab_eldorado(eld_client):
         if eld_client and eld_client.logged_in:
             # ── SECTION 2: LISTINGS ──
             with st.container(border=True):
-                st.markdown('<div class="sec-heading">📦 Listing Của Tôi</div>', unsafe_allow_html=True)
+                st.markdown('<div class="sec-heading">Listing Của Tôi</div>', unsafe_allow_html=True)
 
                 # ── Load ALL listings ──
                 _eldo_reload = st.button("🔄 Tải lại", key="eldo_refresh_listings")
@@ -285,7 +285,7 @@ def render_tab_eldorado(eld_client):
             # ══════════════════════════════════════════════════════════════
         if eld_client and eld_client.logged_in:
             with st.container(border=True):
-                st.markdown('<div class="sec-heading">📋 Đơn Hàng</div>', unsafe_allow_html=True)
+                st.markdown('<div class="sec-heading">Đơn Hàng</div>', unsafe_allow_html=True)
 
                 _eldo_reload_orders = st.button("🔄 Tải đơn hàng", key="eldo_refresh_orders")
                 if _eldo_reload_orders:

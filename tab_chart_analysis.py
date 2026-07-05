@@ -158,6 +158,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                         text=[str(_row["_mut"])],
                         textposition="top center",
                         textfont=dict(color="#f0f0f5", size=10),
+                        hovertemplate=(
                             f"<b>{_row['_mut']}</b><br>"
                             f"Số con: {int(_row['Count'])}<br>"
                             f"LN TB/con: {_row['LN_per_unit']:,.0f}₫<br>"

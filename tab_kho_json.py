@@ -31,6 +31,29 @@ except ImportError:
     DELIVERY_MAP = {}
 
 
+class _FakeUploadedFile:
+    def __init__(self, data: bytes, name: str, mime: str):
+        self._data = data
+        self.name = name
+        self.type = mime
+        self._pos = 0
+
+    def read(self, size=-1):
+        if size == -1:
+            result = self._data[self._pos:]
+            self._pos = len(self._data)
+        else:
+            result = self._data[self._pos:self._pos + size]
+            self._pos += len(result)
+        return result
+
+    def seek(self, pos):
+        self._pos = pos
+
+    def getvalue(self):
+        return self._data
+
+
 def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
     """Render the JSON Import section: text area, parse, dialog preview, save, Eldorado push."""
 
@@ -145,7 +168,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                     with _info_col:
                         ms_val = res.get('M/s')
                         if ms_val and ms_val >= 1000:
-                            ms_str = f"{ms_val / 1000:.1f}B/s"
+                            ms_str = f"{int(ms_val / 100) / 10:.1f}B/s"
                         else:
                             ms_str = f"{ms_val:g}M/s" if ms_val else "?"
                         st.caption(f"M/s: {ms_str} | Traits: {res.get('Số Trait')}")
@@ -170,7 +193,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                     # M/s
                     val_ms = res.get("M/s")
                     if val_ms and val_ms >= 1000:
-                        str_ms = f"{val_ms / 1000:.1f}B/s"
+                        str_ms = f"{int(val_ms / 100) / 10:.1f}B/s"
                     else:
                         str_ms = f"{val_ms:g}" if val_ms else ""
                     r_ms_raw = c3d.text_input(f"M/s", value=str_ms, key=f"dlg_json_ms_{i}", label_visibility="collapsed")
@@ -224,14 +247,37 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
 
                     # ── Giá bán $ + Upload hình ──
                     if _HAS_ELDORADO and eld_client and eld_client.logged_in:
+                        if "json_img_bytes" not in st.session_state:
+                            st.session_state.json_img_bytes = {}
+
                         _img_col, _price_col = st.columns([2, 1])
-                        r_img = _img_col.file_uploader(
-                            f"Ảnh listing cho {pet_name}",
-                            type=["png", "jpg", "jpeg", "webp"],
-                            key=f"dlg_json_img_{i}", label_visibility="collapsed",
-                        )
-                        if r_img:
-                            _img_col.image(r_img, width=320)
+                        _saved_img_key = f"dlg_img_{i}"
+                        _has_saved = _saved_img_key in st.session_state.json_img_bytes
+
+                        if _has_saved:
+                            _saved = st.session_state.json_img_bytes[_saved_img_key]
+                            _img_col.image(_saved["bytes"], width=320)
+                            _img_col.caption(f"Ảnh đã lưu: {_saved['name']}")
+                            if _img_col.button("Xóa ảnh", key=f"dlg_json_rm_img_{i}", use_container_width=True):
+                                del st.session_state.json_img_bytes[_saved_img_key]
+                                st.rerun()
+                            r_img = _FakeUploadedFile(_saved["bytes"], _saved["name"], _saved["mime"])
+                        else:
+                            r_img = _img_col.file_uploader(
+                                f"Ảnh listing cho {pet_name}",
+                                type=["png", "jpg", "jpeg", "webp"],
+                                key=f"dlg_json_img_{i}", label_visibility="collapsed",
+                            )
+                            if r_img:
+                                _img_bytes = r_img.read()
+                                r_img.seek(0)
+                                st.session_state.json_img_bytes[_saved_img_key] = {
+                                    "bytes": _img_bytes,
+                                    "name": r_img.name or "image.png",
+                                    "mime": r_img.type or "image/png",
+                                }
+                                _img_col.image(_img_bytes, width=320)
+
                         r_price_raw = _price_col.text_input(
                             "Giá bán ($)", value="",
                             placeholder="$0.50",
@@ -321,6 +367,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                     st.session_state.json_show_dialog = False
                     st.session_state.json_batch_results = []
                     st.session_state.json_import_key = st.session_state.get("json_import_key", 0) + 1
+                    st.session_state.pop("json_img_bytes", None)
                     st.rerun()
 
             with col_save:
@@ -407,6 +454,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                             st.session_state.json_show_dialog = False
                             st.session_state.json_batch_results = []
                             st.session_state.json_import_expander = False
+                            st.session_state.pop("json_img_bytes", None)
                             _save_ok = True
 
                     if _save_ok:
@@ -417,14 +465,18 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                         _push_results = {"ok": [], "fail": []}
                         if _push_items and _HAS_ELDORADO and eld_client and eld_client.logged_in:
                             if not st.session_state.get("eld_game_loaded"):
+                                st.toast("Đang kết nối game Eldorado...", icon="🔗")
                                 st.session_state.eld_game_loaded = eld_client.ensure_game_cache()
                             if st.session_state.get("eld_game_loaded"):
                                 _eld_set = st.session_state.get("eld_settings", {})
                                 _def_desc = _eld_set.get("default_desc", "Fast delivery! Contact me if any issues.")
                                 _def_del = _eld_set.get("default_delivery", "20 min")
                                 _def_del_code = DELIVERY_MAP.get(_def_del, "Minute20")
+                                _push_total = len(_push_items)
+                                st.toast(f"🚀 Bắt đầu push {_push_total} listing lên Eldorado...", icon="🚀")
                                 for _pci, _pcfg in enumerate(_push_items):
                                     _pname = _pcfg.get("Tên Pet", "?")
+                                    st.toast(f"[{_pci+1}/{_push_total}] Đang upload ảnh {_pname}...", icon="📤")
                                     try:
                                         _img_data = None
                                         if _pcfg.get("_image"):
@@ -439,6 +491,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                         _pet_ms_range = _pcfg.get("ms_range", "")
                                         _env = eld_client.find_env(_pet_name, rarity=_pet_rarity, index=_pet_idx)
                                         _tid = _env["id"] if _env else OTHER_TRADE_ENV_ID
+                                        st.toast(f"[{_pci+1}/{_push_total}] Đang tạo listing {_pname}...", icon="📋")
                                         _resp = eld_client.create_listing(
                                             title=_pcfg.get("_title", ""),
                                             description=_def_desc,
@@ -452,16 +505,27 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                         )
                                         if _resp and not _resp.get("error"):
                                             _push_results["ok"].append(_pcfg.get("_title", _pname))
+                                            st.toast(f"✅ {_pname} — push thành công", icon="✅")
                                         else:
                                             _err = _resp.get("error", "unknown") if isinstance(_resp, dict) else str(_resp)
                                             _push_results["fail"].append(f"{_pname}: {_err[:80]}")
+                                            st.toast(f"❌ {_pname} — {_err[:50]}", icon="❌")
                                     except Exception as _pe:
                                         _push_results["fail"].append(f"{_pname}: {str(_pe)[:80]}")
-                                    if _pci < len(_push_items) - 1:
+                                        st.toast(f"❌ {_pname} — lỗi: {str(_pe)[:50]}", icon="❌")
+                                    if _pci < _push_total - 1:
                                         _time.sleep(0.5)
                         st.session_state.json_push_results = _push_results
                         st.session_state.json_push_total = len(_push_items)
-                        st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
+                        _ok_n = len(_push_results.get("ok", []))
+                        _fail_n = len(_push_results.get("fail", []))
+                        if _push_items:
+                            if _fail_n == 0:
+                                st.toast(f"✅ Push thành công {_ok_n}/{len(_push_items)} listing", icon="✅")
+                            else:
+                                st.toast(f"⚠️ Push xong: {_ok_n} thành công, {_fail_n} thất bại", icon="⚠️")
+                        else:
+                            st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
                         st.rerun()
 
         json_preview_dialog()

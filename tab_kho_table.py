@@ -216,11 +216,13 @@ def render_inventory_table(df):
                 if _sel_del:
                     st.warning(f"⚠️ Sẽ xóa vĩnh viễn **{len(_sel_del)} dòng** khỏi Supabase. Không thể hoàn tác!")
                     if st.button("🗑️ Xác nhận Xóa", key="inv_del_confirm", type="primary", use_container_width=True):
-                        for _lbl in _sel_del:
-                            sb_delete("inventory", "id", _del_id_map[_lbl])
+                        _del_ids = [_del_id_map[_lbl] for _lbl in _sel_del]
+                        for _did in _del_ids:
+                            sb_delete("inventory", "id", _did)
                         st.cache_data.clear()
                         st.session_state.df = apply_ngay_ton(load_inventory())
                         st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
+                        _clear_searches()
                         st.toast(f"Đã xóa {len(_sel_del)} dòng.", icon="🗑️")
                         st.rerun()
 

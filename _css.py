@@ -617,8 +617,36 @@ hr {
   .hero-banner h1 { font-size: 0.95rem !important; }
   .hero-banner p { font-size: 0.7rem; }
   .sec-heading { font-size: 0.68rem; margin: 0.75rem 0 0.4rem; }
+
+  /* ── Columns: responsive theo so luong ── */
   [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 0.3rem !important; }
-  [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { min-width: 100% !important; flex: 1 1 100% !important; }
+
+  /* 2 columns → giu nguyen 50/50 */
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(2):last-child)
+    > [data-testid="stColumn"] { flex: 1 1 45% !important; min-width: 45% !important; }
+
+  /* 3 columns → 2 + 1 */
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(3):last-child)
+    > [data-testid="stColumn"]:nth-child(-n+2) { flex: 1 1 45% !important; min-width: 45% !important; }
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(3):last-child)
+    > [data-testid="stColumn"]:nth-child(3) { flex: 1 1 100% !important; min-width: 100% !important; }
+
+  /* 4 columns → 2x2 grid */
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4):last-child)
+    > [data-testid="stColumn"] { flex: 1 1 45% !important; min-width: 45% !important; }
+
+  /* 5+ columns → stack */
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(5))
+    > [data-testid="stColumn"] { flex: 1 1 100% !important; min-width: 100% !important; }
+
+  /* Container co form/inner columns → stack de tranh pha layout */
+  [data-testid="stHorizontalBlock"]:has(.stForm) > [data-testid="stColumn"],
+  [data-testid="stHorizontalBlock"]:has(
+    > [data-testid="stColumn"] > [data-testid="stHorizontalBlock"]
+  ) > [data-testid="stColumn"] {
+    flex: 1 1 100% !important; min-width: 100% !important;
+  }
+
   .stForm { padding: 0.5rem !important; }
   .stButton > button { padding: 0.45rem 0.75rem !important; font-size: 0.8rem !important; }
   .stDataFrame { max-height: 350px !important; }

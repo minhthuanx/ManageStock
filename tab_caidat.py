@@ -49,6 +49,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
                             db = append_row(db, {"Name": v}, LIST_SCHEMA)
                             save_csv(db, file)
                             st.toast(f"Đã thêm: {v}", icon="✅")
+                            st.cache_data.clear()
                             st.rerun()
 
                     st.dataframe(db, use_container_width=True, hide_index=True, height=140)
@@ -61,6 +62,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
                         if del_ok:
                             db = db[db["Name"].astype(str) != sel_del].reset_index(drop=True)
                             save_csv(db, file)
+                            st.cache_data.clear()
                             st.rerun()
 
         manage_category(cat_cols[0], "Pet",       pet_db,   PET_LIST_FILE, "🐾")

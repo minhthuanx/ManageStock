@@ -116,11 +116,16 @@ Return ONLY valid JSON, no markdown:
                             vision_models = [m for m in all_models if any(k in m.lower() for k in ["vision", "scout", "pixtral", "vl"])]
                             if vision_models:
                                 target_model = next((m for m in vision_models if "90b" in m.lower() or "scout" in m.lower()), vision_models[0])
-                    except Exception:
-                        pass
+                        else:
+                            st.error(f"❌ Groq API trả về lỗi HTTP {m_resp.status_code}: {m_resp.text[:200]}")
+                            st.stop()
+                    except Exception as _m_err:
+                        st.error(f"❌ Không thể kết nối Groq API: {_m_err}")
+                        st.stop()
 
                     if not target_model:
-                        st.error(f"❌ Không tìm thấy Model Đọc Ảnh nào khả dụng cho Key của bạn! Danh sách model Groq trả về hiện tại: {', '.join(all_models)}")
+                        _model_hint = f"Danh sách model hiện tại ({len(all_models)}): {', '.join(all_models[:10])}{'...' if len(all_models) > 10 else ''}" if all_models else "Không lấy được danh sách model."
+                        st.error(f"❌ Không tìm thấy Model Đọc Ảnh nào khả dụng! {_model_hint}")
                         st.stop()
 
                     st.toast(f"Model: {target_model}", icon="🦙")
@@ -235,7 +240,6 @@ Return ONLY valid JSON, no markdown:
 
         @st.dialog("Kết Quả AI — Xem trước & Chỉnh sửa", width="large")
         def ai_preview_dialog():
-            global pet_db
             pet_opts_dlg   = get_name_options(pet_db)
             # Số Trait là con số đếm (1-15), không phụ thuộc vào file CSV
             trait_opts_dlg = ["None"] + [str(n) for n in range(1, 16)]

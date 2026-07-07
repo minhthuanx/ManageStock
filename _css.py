@@ -611,11 +611,15 @@ hr {
   div[data-testid="stMetricLabel"] { font-size: 0.65rem !important; }
   .stat-card .val { font-size: 0.95rem; }
   [data-testid="stTab"] { padding: 0.35rem 0.6rem !important; font-size: 0.72rem !important; }
-  .hero-banner { padding: 0.7rem 0.85rem; gap: 0.5rem; flex-direction: column !important; align-items: flex-start !important; }
+  .hero-banner { padding: 0.55rem 0.65rem; gap: 0.35rem; flex-direction: column !important; align-items: flex-start !important; }
   .hero-banner > div:first-child { min-width: 0 !important; }
-  .hero-banner .logo { font-size: 1.2rem; }
-  .hero-banner h1 { font-size: 0.95rem !important; }
-  .hero-banner p { font-size: 0.7rem; }
+  .hero-banner .logo { font-size: 0.95rem; }
+  .hero-banner h1 { font-size: 0.85rem !important; }
+  .hero-banner p { font-size: 0.6rem; }
+  .hero-banner > div:last-child { gap: 0.35rem !important; width: 100% !important; }
+  .hero-banner > div:last-child > div { flex: 1 1 0 !important; min-width: 0 !important; padding: 0.35rem 0.5rem !important; }
+  .hero-banner > div:last-child > div > div:first-child { font-size: 0.9rem !important; }
+  .hero-banner > div:last-child > div > div:last-child { font-size: 0.55rem !important; }
   .sec-heading { font-size: 0.68rem; margin: 0.75rem 0 0.4rem; }
 
   /* ── Columns: responsive theo so luong ── */

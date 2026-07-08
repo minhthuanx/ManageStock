@@ -24,7 +24,7 @@ def render_tab_lopack(df, bulk_df, bulk_history, pet_db, ns_db, trait_db):
         pack_in, pack_sell = st.columns([1.15, 1], gap="medium")
 
         with pack_in:
-            with st.container(border=True):
+            with st.container():
                 st.markdown("**Nhập Lô Mới**")
                 with st.form("form_nhap_lo2", clear_on_submit=True):
                     b_pet2 = st.selectbox("Tên Pet", get_name_options(pet_db), key="bp1t2")
@@ -84,7 +84,7 @@ def render_tab_lopack(df, bulk_df, bulk_history, pet_db, ns_db, trait_db):
                         st.rerun()
 
         with pack_sell:
-            with st.container(border=True):
+            with st.container():
                 st.markdown("**Bán Từ Lô**")
 
                 # ── UNDO banner ──

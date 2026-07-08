@@ -257,7 +257,7 @@ def render_tab_eldorado(eld_client):
 
                             # Inline action panel
                             if _is_expanded:
-                                with st.container(border=True):
+                                with st.container():
                                     ac1, ac2, ac3, ac4 = st.columns([2, 1, 1, 1])
                                     _np_val = ac1.number_input("Giá mới ($)", 0.01, 9999.0, _oprice, 0.05, format="%.2f", key="eldo_price_edit")
                                     if ac2.button("💰", key="btn_upd_price", use_container_width=True, help="Đổi giá"):
@@ -352,7 +352,7 @@ def render_tab_eldorado(eld_client):
                         _state_colors = {"Pending": ("#f59e0b", "⏳ Pending"), "Active": ("#22d3ee", "🔄 Active"), "Delivered": ("#3b82f6", "✅ Delivered"), "Cancelled": ("#ef4444", "❌ Cancelled")}
                         _sc, _sl = _state_colors.get(_ostate, ("#6b7280", _ostate))
 
-                        with st.container(border=True):
+                        with st.container():
                             _o1, _o2, _o3, _o4 = st.columns([3, 1.5, 1.5, 1])
                             with _o1:
                                 st.markdown(f"**{_otitle}**")

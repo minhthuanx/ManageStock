@@ -236,6 +236,23 @@ div[data-testid="stMetricLabel"] {
   box-shadow: 0 0 16px rgba(249,115,22,0.06), 0 1px 4px rgba(0,0,0,0.3) !important;
 }
 
+/* ── Nested bordered containers — transparent to prevent "tab nesting" visual ── */
+[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlockBorderWrapper"] {
+  background: transparent !important;
+  border-color: var(--border) !important;
+  box-shadow: none !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlockBorderWrapper"]:hover {
+  border-color: var(--border-h) !important;
+  box-shadow: none !important;
+}
+/* 3rd-level nested — invisible, only spacing */
+[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlockBorderWrapper"] {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
 /* ── Tab content — minimal panel ── */
 [data-testid="stTabContent"] {
   background: transparent !important;

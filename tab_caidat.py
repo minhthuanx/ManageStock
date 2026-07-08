@@ -33,7 +33,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
 
         def manage_category(col, label: str, db: pd.DataFrame, file: str, icon: str):
             with col:
-                with st.container(border=True):
+                with st.container():
                     st.markdown(f"**{icon} {label}**")
                     with st.form(f"form_add_{file}", clear_on_submit=True):
                         c1, c2 = st.columns([3, 1])
@@ -133,7 +133,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
         # ── ELDORADO CONNECTION ──
         if _HAS_ELDORADO:
             st.markdown("---")
-            with st.container(border=True):
+            with st.container():
                 st.markdown('<div class="sec-heading">Eldorado.gg Connection</div>', unsafe_allow_html=True)
 
                 if eld_client and eld_client.logged_in:

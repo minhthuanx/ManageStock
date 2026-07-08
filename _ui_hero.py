@@ -1,5 +1,5 @@
-"""
-Hero banner — TinyFish-inspired floating card with stat dots.
+﻿"""
+Hero banner — Cyberpunk gaming-style floating card with neon stat dots.
 """
 import pandas as pd
 import streamlit as st
@@ -33,29 +33,29 @@ def render_hero_banner(df, bulk_df, bulk_history):
         <div class="logo">👻</div>
         <div>
           <h1 style="margin:0;">ManageStock{_badge_html}</h1>
-          <p style="margin:0;color:#6b6b80;font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;">MINHTHUAN · 2026</p>
+          <p style="margin:0;color:#5a6178;font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;">CYBERPUNK · MINHTHUAN · 2026</p>
         </div>
       </div>
       <div style="display:flex;gap:0.55rem;flex-wrap:wrap;align-items:center;">
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#22d3ee;flex-shrink:0;box-shadow:0 0 8px rgba(34,211,238,0.5);"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(0,240,255,0.04);border:1px solid rgba(0,240,255,0.12);border-radius:12px;padding:0.5rem 1rem;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#00f0ff;flex-shrink:0;box-shadow:0 0 10px rgba(0,240,255,0.5);"></div>
           <div>
-            <div style="font-size:1.15rem;font-weight:700;color:#f0f0f5;line-height:1.2;">{_hb_con_hang_count}</div>
-            <div style="font-size:0.65rem;color:#6b6b80;letter-spacing:0.05em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Còn hàng</div>
+            <div style="font-size:1.15rem;font-weight:800;color:#00f0ff;line-height:1.2;text-shadow:0 0 10px rgba(0,240,255,0.2);">{_hb_con_hang_count}</div>
+            <div style="font-size:0.65rem;color:#5a6178;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Còn hàng</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#6b6b80;flex-shrink:0;"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:0.5rem 1rem;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#5a6178;flex-shrink:0;"></div>
           <div>
-            <div style="font-size:1.15rem;font-weight:700;color:#f0f0f5;line-height:1.2;">{_hb_da_ban}</div>
-            <div style="font-size:0.65rem;color:#6b6b80;letter-spacing:0.05em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Đã bán</div>
+            <div style="font-size:1.15rem;font-weight:800;color:#e8eaf0;line-height:1.2;">{_hb_da_ban}</div>
+            <div style="font-size:0.65rem;color:#5a6178;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Đã bán</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#f97316;flex-shrink:0;box-shadow:0 0 8px rgba(249,115,22,0.5);"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.12);border-radius:12px;padding:0.5rem 1rem;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#00ff88;flex-shrink:0;box-shadow:0 0 10px rgba(0,255,136,0.5);"></div>
           <div>
-            <div style="font-size:1.15rem;font-weight:700;color:#34d399;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
-            <div style="font-size:0.65rem;color:#6b6b80;letter-spacing:0.05em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Hôm nay</div>
+            <div style="font-size:1.15rem;font-weight:800;color:#00ff88;line-height:1.2;text-shadow:0 0 10px rgba(0,255,136,0.2);">{fmt_vnd(_hb_profit_today)}</div>
+            <div style="font-size:0.65rem;color:#5a6178;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Hôm nay</div>
           </div>
         </div>
       </div>

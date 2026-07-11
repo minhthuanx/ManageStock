@@ -3,7 +3,6 @@ Sidebar — inventory stats, daily profit, target, sync button, auto-refresh.
 """
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as _cmp_ar
 
 from _timezone import VN_TZ, now_vn
 from _helpers import fmt_vnd, is_today_timestamp, is_today_bulk_date

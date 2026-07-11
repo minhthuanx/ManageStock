@@ -1,8 +1,6 @@
 """
-Session state initialization — parallel data loading and skeleton UI.
+Session state initialization — data loading and skeleton UI.
 """
-from concurrent.futures import ThreadPoolExecutor
-
 import pandas as pd
 import streamlit as st
 
@@ -31,17 +29,11 @@ def init_session():
             '</div>',
             unsafe_allow_html=True,
         )
-        with ThreadPoolExecutor(max_workers=5) as _ex:
-            _f_inv    = _ex.submit(load_inventory)
-            _f_bulk   = _ex.submit(load_bulk)
-            _f_hist   = _ex.submit(load_bulk_history)
-            _f_groq   = _ex.submit(_load_groq_key_from_supabase)
-            _f_pinned = _ex.submit(_load_pinned_resell_from_supabase)
-            _inv_df   = _f_inv.result()
-            _bulk_r   = _f_bulk.result()
-            _hist_r   = _f_hist.result()
-            _groq_r   = _f_groq.result()
-            _pinned_r = _f_pinned.result()
+        _inv_df   = load_inventory()
+        _bulk_r   = load_bulk()
+        _hist_r   = load_bulk_history()
+        _groq_r   = _load_groq_key_from_supabase()
+        _pinned_r = _load_pinned_resell_from_supabase()
 
         from _helpers import apply_ngay_ton
         st.session_state.df           = apply_ngay_ton(_inv_df)

@@ -197,12 +197,10 @@ def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
 
     is_sold = df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)
 
-    t_ban = pd.Series(pd.NaT, index=df.index)
-    sold_mask = is_sold & t_nhap.notna()
-    if sold_mask.any():
-        t_ban_raw = _parse_ts_col(df.loc[sold_mask, "time_ban"])
-        t_ban_fb = _parse_ts_col(df.loc[sold_mask, "Ngày Bán"])
-        t_ban[sold_mask] = t_ban_raw.fillna(t_ban_fb)
+    t_ban_all = _parse_ts_col(df.get("time_ban", pd.Series(dtype=str)))
+    t_ban_fb_all = _parse_ts_col(df.get("Ngày Bán", pd.Series(dtype=str)))
+    t_ban = t_ban_all.fillna(t_ban_fb_all)
+    t_ban = t_ban.where(is_sold, pd.NaT)
     if hasattr(t_ban.dtype, 'tz') and t_ban.dtype.tz is None:
         t_ban = t_ban.dt.tz_localize(VN_TZ, ambiguous="NaT", nonexistent="NaT")
     elif hasattr(t_ban.dtype, 'tz') and t_ban.dtype.tz is not None:

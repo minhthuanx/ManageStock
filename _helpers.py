@@ -177,7 +177,10 @@ def _parse_ts_col(s: pd.Series) -> pd.Series:
     dt = pd.to_datetime(s, errors="coerce", utc=False)
     fallback1 = pd.to_datetime(s, format="%d/%m/%Y %H:%M", errors="coerce")
     fallback2 = pd.to_datetime(s, format="%d/%m/%Y", errors="coerce")
-    return dt.fillna(fallback1).fillna(fallback2)
+    result = dt.fillna(fallback1).fillna(fallback2)
+    if hasattr(result.dtype, 'tz') and result.dtype.tz is not None:
+        result = result.dt.tz_localize(None)
+    return result
 
 
 def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
@@ -185,36 +188,24 @@ def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
         return df
     from _timezone import VN_TZ
     df = df.copy()
-    now = pd.Timestamp.now(tz=VN_TZ)
+    now = pd.Timestamp.now(tz=VN_TZ).tz_localize(None)
 
     t_nhap = _parse_ts_col(df.get("time_nhap", pd.Series(dtype=str)))
     t_nhap_fallback = _parse_ts_col(df.get("Ngày Nhập", pd.Series(dtype=str)))
     t_nhap = t_nhap.fillna(t_nhap_fallback)
-    if hasattr(t_nhap.dtype, 'tz') and t_nhap.dtype.tz is None:
-        t_nhap = t_nhap.dt.tz_localize(VN_TZ, ambiguous="NaT", nonexistent="NaT")
-    elif hasattr(t_nhap.dtype, 'tz') and t_nhap.dtype.tz is not None:
-        t_nhap = t_nhap.dt.tz_convert(VN_TZ)
 
     is_sold = df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)
 
-    t_ban_all = _parse_ts_col(df.get("time_ban", pd.Series(dtype=str)))
-    t_ban_fb_all = _parse_ts_col(df.get("Ngày Bán", pd.Series(dtype=str)))
-    t_ban = t_ban_all.fillna(t_ban_fb_all)
-    t_ban = t_ban.where(is_sold, pd.NaT)
-    if hasattr(t_ban.dtype, 'tz') and t_ban.dtype.tz is None:
-        t_ban = t_ban.dt.tz_localize(VN_TZ, ambiguous="NaT", nonexistent="NaT")
-    elif hasattr(t_ban.dtype, 'tz') and t_ban.dtype.tz is not None:
-        t_ban = t_ban.dt.tz_convert(VN_TZ)
+    t_ban = _parse_ts_col(df.get("time_ban", pd.Series(dtype=str)))
+    t_ban_fb = _parse_ts_col(df.get("Ngày Bán", pd.Series(dtype=str)))
+    t_ban = t_ban.fillna(t_ban_fb).where(is_sold, pd.NaT)
 
     days = pd.Series(0.0, index=df.index)
     has_nhap = t_nhap.notna()
-    days[has_nhap & is_sold & t_ban.notna()] = (
-        (t_ban[has_nhap & is_sold & t_ban.notna()] - t_nhap[has_nhap & is_sold & t_ban.notna()])
-        .dt.total_seconds() / 86400
-    ).clip(lower=0)
-    days[has_nhap & ~is_sold] = (
-        (now - t_nhap[has_nhap & ~is_sold]).dt.total_seconds() / 86400
-    ).clip(lower=0)
+    sold_ban = has_nhap & is_sold & t_ban.notna()
+    days[sold_ban] = ((t_ban[sold_ban] - t_nhap[sold_ban]).dt.total_seconds() / 86400).clip(lower=0)
+    unsold = has_nhap & ~is_sold
+    days[unsold] = ((now - t_nhap[unsold]).dt.total_seconds() / 86400).clip(lower=0)
 
     df["Ngày Tồn"] = days
     return df

@@ -2,7 +2,6 @@ import re
 import base64
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as _cmp
 
 from datetime import datetime, timedelta
 from _timezone import now_vn, VN_TZ
@@ -18,6 +17,7 @@ from _helpers import (
 
 
 def render_inventory_table(df):
+    df = st.session_state.get("df", df)
     # ── BẢNG TỒN KHO ──
     with st.container(border=True):
         st.markdown('<div class="sec-heading">Tồn Kho Lẻ</div>', unsafe_allow_html=True)
@@ -297,20 +297,20 @@ def render_inventory_table(df):
                         with _ct2:
                             if _b64_desc:
                                 _bid = "cpShop" + str(_ci)
-                                _cmp.html(
+                                _iframe_html = (
+                                    '<!DOCTYPE html><html><body style="margin:0;padding:0;">'
                                     '<button id="' + _bid + '" style="width:100%;padding:8px 4px;border:none;'
                                     'border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#f97316,#fb923c);'
-                                    'color:#0a0a0f;font-weight:600;font-size:11px;">&#x1F47B; M&#xF4; t&#x1EA3;</button>'
-                                    '<script>(function(){'
-                                    'var btn=document.getElementById("' + _bid + '");'
-                                    'var b64="' + _b64_desc + '";'
-                                    'btn.addEventListener("click",function(){'
-                                    'var b=this;var bytes=Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0)});'
-                                    'var txt=new TextDecoder("utf-8").decode(bytes);'
+                                    'color:#0a0a0f;font-weight:600;font-size:11px;">👻 Mô tả</button>'
+                                    '<script>'
+                                    'document.getElementById("' + _bid + '").addEventListener("click",function(){'
+                                    'var b=this,b64="' + _b64_desc + '",'
+                                    'bytes=Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0)}),'
+                                    'txt=new TextDecoder("utf-8").decode(bytes);'
                                     'navigator.clipboard.writeText(txt)'
-                                    '.then(function(){b.innerHTML="&#x2705;";'
-                                    'setTimeout(function(){b.innerHTML="&#x1F47B; M&#xF4; t&#x1EA3;";},1500);})'
-                                    '.catch(function(){b.innerHTML="&#x274C;";});'
-                                    '});})();</script>',
-                                    height=45,
+                                    '.then(function(){b.innerHTML="✅";setTimeout(function(){b.innerHTML="👻 Mô tả";},1500);})'
+                                    '.catch(function(){b.innerHTML="❌";});'
+                                    '});'
+                                    '</script></body></html>'
                                 )
+                                st.iframe(srcdoc=_iframe_html, height=45)

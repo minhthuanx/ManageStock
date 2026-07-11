@@ -171,48 +171,57 @@ def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> s
     return f"🌸{icon}{mutation} {pet_name} {display_ms}{t_str}{icon}🌸Cheapest🚛 Fast Delivery 🚛{ns_str}"
 
 
-# ─── Ngay Ton calculation ────────────────────────────────────────────────
-def calc_ngay_ton(row) -> float:
-    def _parse_ts(ts_str):
-        if not ts_str or str(ts_str).strip() in ("", "nan", "None", "-"):
-            return None
+# ─── Ngay Ton calculation (vectorized) ──────────────────────────────────
+def _parse_ts_col(s: pd.Series) -> pd.Series:
+    """Vectorized timestamp parsing: try ISO → dd/mm/yyyy → NaT."""
+    from _timezone import VN_TZ
+    dt = pd.to_datetime(s, format="mixed", utc=True, errors="coerce")
+    mask = dt.isna()
+    if mask.any():
         try:
-            dt = datetime.fromisoformat(str(ts_str))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=VN_TZ)
-            return dt
+            dt[mask] = pd.to_datetime(s[mask], format="%d/%m/%Y %H:%M", errors="coerce")
         except Exception:
-            return None
-
-    def _parse_text_date(d_str):
-        if not d_str or str(d_str).strip() in ("", "nan", "None", "-"):
-            return None
-        for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y"):
+            pass
+        mask = dt.isna()
+        if mask.any():
             try:
-                dt = datetime.strptime(str(d_str).strip(), fmt)
-                return dt.replace(tzinfo=VN_TZ)
+                dt[mask] = pd.to_datetime(s[mask], format="%d/%m/%Y", errors="coerce")
             except Exception:
                 pass
-        return None
-
-    from _timezone import VN_TZ
-
-    status = str(row.get("Trạng Thái", ""))
-    t_nhap = _parse_ts(row.get("time_nhap", "")) or _parse_text_date(row.get("Ngày Nhập", ""))
-    if t_nhap is None:
-        return 0.0
-    if "Đã bán" in status:
-        t_ban = _parse_ts(row.get("time_ban", "")) or _parse_text_date(row.get("Ngày Bán", ""))
-        if t_ban:
-            return max(0.0, (t_ban - t_nhap).total_seconds() / 86400)
-    return max(0.0, (now_vn() - t_nhap).total_seconds() / 86400)
+    return dt.tz_localize(VN_TZ, ambiguous="NaT", nonexistent="NaT") if dt.tz is None else dt
 
 
 def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
+    from _timezone import VN_TZ
     df = df.copy()
-    df["Ngày Tồn"] = df.apply(calc_ngay_ton, axis=1)
+    now = pd.Timestamp.now(tz=VN_TZ)
+
+    t_nhap = _parse_ts_col(df.get("time_nhap", pd.Series(dtype=str)))
+    t_nhap_fallback = _parse_ts_col(df.get("Ngày Nhập", pd.Series(dtype=str)))
+    t_nhap = t_nhap.fillna(t_nhap_fallback)
+
+    is_sold = df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)
+
+    t_ban = pd.Series(pd.NaT, index=df.index)
+    sold_mask = is_sold & t_nhap.notna()
+    if sold_mask.any():
+        t_ban_raw = _parse_ts_col(df.loc[sold_mask, "time_ban"])
+        t_ban_fb = _parse_ts_col(df.loc[sold_mask, "Ngày Bán"])
+        t_ban[sold_mask] = t_ban_raw.fillna(t_ban_fb)
+
+    days = pd.Series(0.0, index=df.index)
+    has_nhap = t_nhap.notna()
+    days[has_nhap & is_sold & t_ban.notna()] = (
+        (t_ban[has_nhap & is_sold & t_ban.notna()] - t_nhap[has_nhap & is_sold & t_ban.notna()])
+        .dt.total_seconds() / 86400
+    ).clip(lower=0)
+    days[has_nhap & ~is_sold] = (
+        (now - t_nhap[has_nhap & ~is_sold]).dt.total_seconds() / 86400
+    ).clip(lower=0)
+
+    df["Ngày Tồn"] = days
     return df
 
 

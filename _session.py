@@ -46,6 +46,9 @@ def init_session():
         _sk_ph.empty()
         st.session_state.initialized = True
     else:
-        st.session_state.df = normalize_df(st.session_state.get("df", pd.DataFrame()), MAIN_SCHEMA)
-        st.session_state.bulk_df = normalize_df(st.session_state.get("bulk_df", pd.DataFrame()), BULK_SCHEMA)
-        st.session_state.bulk_history = normalize_df(st.session_state.get("bulk_history", pd.DataFrame()), HISTORY_SCHEMA)
+        if "df" not in st.session_state:
+            st.session_state.df = normalize_df(pd.DataFrame(), MAIN_SCHEMA)
+        if "bulk_df" not in st.session_state:
+            st.session_state.bulk_df = normalize_df(pd.DataFrame(), BULK_SCHEMA)
+        if "bulk_history" not in st.session_state:
+            st.session_state.bulk_history = normalize_df(pd.DataFrame(), HISTORY_SCHEMA)

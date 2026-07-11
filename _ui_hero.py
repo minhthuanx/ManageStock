@@ -5,13 +5,11 @@ import pandas as pd
 import streamlit as st
 
 from _timezone import VN_TZ, now_vn
-from _helpers import fmt_vnd, is_today_timestamp, is_today_bulk_date
+from _helpers import fmt_vnd
 
 
 def render_hero_banner(df, bulk_df, bulk_history):
     """Render a TinyFish-style hero banner with floating stat items."""
-    today = now_vn().date()
-
     _hb_con_hang = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
     _badge_count = int(_hb_con_hang[pd.to_numeric(_hb_con_hang["Ngày Tồn"], errors="coerce").fillna(0) >= 7].shape[0])
     _hb_con_hang_count = len(_hb_con_hang)
@@ -19,9 +17,9 @@ def render_hero_banner(df, bulk_df, bulk_history):
     _hb_da_ban_bk = int(pd.to_numeric(bulk_history["Số Lượng Bán"], errors="coerce").fillna(0).sum()) if not bulk_history.empty and "Số Lượng Bán" in bulk_history.columns else 0
     _hb_da_ban = _hb_da_ban_le + _hb_da_ban_bk
 
-    _hb_sold_today = df[df["time_ban"].apply(lambda ts: is_today_timestamp(ts, today))] if "time_ban" in df.columns else pd.DataFrame(columns=df.columns)
-    _hb_profit_le = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if "Lợi Nhuận" in _hb_sold_today.columns else 0.0
-    _hb_bulk_today = bulk_history[bulk_history["Ngày Bán"].apply(lambda d: is_today_bulk_date(d, today))] if (not bulk_history.empty and "Ngày Bán" in bulk_history.columns) else pd.DataFrame()
+    _hb_sold_today = st.session_state.get("_sold_today", pd.DataFrame())
+    _hb_profit_le = float(pd.to_numeric(_hb_sold_today["Lợi Nhuận"], errors="coerce").fillna(0).sum()) if not _hb_sold_today.empty and "Lợi Nhuận" in _hb_sold_today.columns else 0.0
+    _hb_bulk_today = st.session_state.get("_bulk_today", pd.DataFrame())
     _hb_profit_bulk = float(pd.to_numeric(_hb_bulk_today["Lợi Nhuận Giao Dịch"], errors="coerce").fillna(0).sum()) if (not _hb_bulk_today.empty and "Lợi Nhuận Giao Dịch" in _hb_bulk_today.columns) else 0.0
     _hb_profit_today = _hb_profit_le + _hb_profit_bulk
 

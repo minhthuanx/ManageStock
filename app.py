@@ -2,6 +2,7 @@
 Management Dashboard — Entry Point.
 Refactored from 6465-line monolith into modular architecture.
 """
+import pandas as pd
 import streamlit as st
 
 # Page Config MUST be first Streamlit call
@@ -33,14 +34,34 @@ df           = st.session_state.df
 bulk_df      = st.session_state.bulk_df
 bulk_history = st.session_state.bulk_history
 
-# ── Load category lists ──
+# ── Pre-compute shared filters (avoid 3x redundant apply per rerun) ──
+from _helpers import is_today_timestamp, is_today_bulk_date
+from _timezone import now_vn as _now_vn
+_today = _now_vn().date()
+st.session_state["_sold_today"] = (
+    df[df["time_ban"].apply(lambda ts: is_today_timestamp(ts, _today))]
+    if "time_ban" in df.columns else pd.DataFrame(columns=df.columns)
+)
+st.session_state["_bulk_today"] = (
+    bulk_history[bulk_history["Ngày Bán"].apply(lambda d: is_today_bulk_date(d, _today))]
+    if (not bulk_history.empty and "Ngày Bán" in bulk_history.columns) else pd.DataFrame()
+)
+
+# ── Load category lists (cached — no disk read on rerun) ──
 from _database import load_csv
 from _config import PET_LIST_FILE, NS_LIST_FILE, TRAIT_LIST, LIST_SCHEMA
-pet_db   = load_csv(PET_LIST_FILE, LIST_SCHEMA)
-ns_db    = load_csv(NS_LIST_FILE,  LIST_SCHEMA)
-trait_db = load_csv(TRAIT_LIST,    LIST_SCHEMA)
 
-# ── Owner mapping ──
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_cat_lists():
+    return (
+        load_csv(PET_LIST_FILE, LIST_SCHEMA),
+        load_csv(NS_LIST_FILE,  LIST_SCHEMA),
+        load_csv(TRAIT_LIST,    LIST_SCHEMA),
+    )
+
+pet_db, ns_db, trait_db = _load_cat_lists()
+
+# ── Owner mapping (cached — reads file only when content changes) ──
 from _helpers import _load_owner_ns_map
 st.session_state["_owner_ns_map"] = _load_owner_ns_map()
 

@@ -360,6 +360,7 @@ def build_pet_namestock_map() -> dict:
 
 
 # ─── Owner NameStock mapping ─────────────────────────────────────────────
+@st.cache_data(ttl=60, show_spinner=False)
 def _load_owner_ns_map() -> dict:
     _m = {}
     if os.path.exists(OWNER_NS_FILE):

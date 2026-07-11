@@ -51,6 +51,20 @@ html, body, [data-testid="stAppViewContainer"] {
   background: var(--bg) !important;
   border-right: 1px solid var(--border) !important;
 }
+/* Ensure sidebar expand/collapse button is always clickable */
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebar"] button[kind="header"] {
+  z-index: 999999 !important;
+  pointer-events: auto !important;
+}
+[data-testid="stSidebar"][aria-expanded="false"] {
+  min-width: 0 !important;
+  width: 0 !important;
+}
+[data-testid="stSidebar"][aria-expanded="false"] + div {
+  z-index: 999999 !important;
+  pointer-events: auto !important;
+}
 .block-container {
   padding: 1.2rem 2rem 3rem !important;
   max-width: 1440px;

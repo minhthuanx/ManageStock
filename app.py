@@ -10,7 +10,6 @@ st.set_page_config(
     page_title="Management Dashboard",
     page_icon="👻",
     layout="wide",
-    initial_sidebar_state="expanded",
 )
 
 from _css import CSS_STRING

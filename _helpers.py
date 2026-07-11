@@ -175,13 +175,9 @@ def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> s
 def _parse_ts_col(s: pd.Series) -> pd.Series:
     """Vectorized timestamp parsing: try ISO → dd/mm/yyyy → NaT (naive)."""
     dt = pd.to_datetime(s, errors="coerce", utc=False)
-    mask = dt.isna()
-    if mask.any():
-        dt[mask] = pd.to_datetime(s[mask], format="%d/%m/%Y %H:%M", errors="coerce")
-        mask = dt.isna()
-        if mask.any():
-            dt[mask] = pd.to_datetime(s[mask], format="%d/%m/%Y", errors="coerce")
-    return dt
+    fallback1 = pd.to_datetime(s, format="%d/%m/%Y %H:%M", errors="coerce")
+    fallback2 = pd.to_datetime(s, format="%d/%m/%Y", errors="coerce")
+    return dt.fillna(fallback1).fillna(fallback2)
 
 
 def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:

@@ -1,7 +1,10 @@
 """
 Sidebar — inventory stats, daily profit, target, sync button, auto-refresh.
 """
+import os
+
 import pandas as pd
+import psutil
 import streamlit as st
 
 from _timezone import VN_TZ, now_vn
@@ -88,3 +91,13 @@ Secure. Professional. Super Fast. 👻⚡"""
                 st.cache_data.clear()
                 del st.session_state["initialized"]
             st.rerun()
+
+        # ── RAM Monitor ──
+        st.markdown("---")
+        _mem = psutil.virtual_memory()
+        _proc = psutil.Process(os.getpid())
+        _proc_mb = _proc.memory_info().rss / 1024**2
+        st.markdown('<span class="sidebar-heading">System</span>', unsafe_allow_html=True)
+        st.progress(_mem.percent / 100)
+        st.caption(f"RAM: {_mem.used/1024**3:.1f}/{_mem.total/1024**3:.1f} GB ({_mem.percent}%)")
+        st.caption(f"App: {_proc_mb:.0f} MB")

@@ -2,6 +2,7 @@
 Sidebar — inventory stats, daily profit, target, sync button, auto-refresh.
 """
 import os
+import time
 
 import pandas as pd
 import psutil
@@ -92,12 +93,39 @@ Secure. Professional. Super Fast. 👻⚡"""
                 del st.session_state["initialized"]
             st.rerun()
 
-        # ── RAM Monitor ──
+        # ── System Monitor ──
         st.markdown("---")
+        st.markdown('<span class="sidebar-heading">🖥 System Monitor</span>', unsafe_allow_html=True)
+
         _mem = psutil.virtual_memory()
+        _swap = psutil.swap_memory()
+        _disk = psutil.disk_usage("/")
+        _cpu_pct = psutil.cpu_percent(interval=0.1)
+        _load1, _load5, _load15 = psutil.getloadavg()
         _proc = psutil.Process(os.getpid())
-        _proc_mb = _proc.memory_info().rss / 1024**2
-        st.markdown('<span class="sidebar-heading">System</span>', unsafe_allow_html=True)
+        _proc_mem = _proc.memory_info()
+        _proc_mb = _proc_mem.rss / 1024**2
+        _proc_threads = _proc.num_threads()
+        _n_conn = len(psutil.net_connections())
+
+        # RAM
+        _ram_color = "#00ff88" if _mem.percent < 60 else "#fb923c" if _mem.percent < 85 else "#ff4444"
+        st.markdown(f"**RAM** `{_mem.used/1024**3:.1f}` / `{_mem.total/1024**3:.1f} GB` **({_mem.percent}%)**")
         st.progress(_mem.percent / 100)
-        st.caption(f"RAM: {_mem.used/1024**3:.1f}/{_mem.total/1024**3:.1f} GB ({_mem.percent}%)")
-        st.caption(f"App: {_proc_mb:.0f} MB")
+
+        # CPU
+        st.markdown(f"**CPU** `{_cpu_pct}%` · Load `{_load1:.1f}` / `{_load5:.1f}` / `{_load15:.1f}`")
+
+        # Disk
+        st.markdown(f"**Disk** `{_disk.used/1024**3:.1f}` / `{_disk.total/1024**3:.1f} GB` **({_disk.percent}%)**")
+        st.progress(_disk.percent / 100)
+
+        # Swap
+        if _swap.total > 0:
+            st.markdown(f"**Swap** `{_swap.used/1024**3:.1f}` / `{_swap.total/1024**3:.1f} GB` ({_swap.percent}%)")
+
+        # App process
+        st.markdown("---")
+        st.markdown(f"**🐍 App**")
+        st.caption(f"Memory: **{_proc_mb:.0f} MB** · Threads: **{_proc_threads}** · PID: `{_proc.pid}`")
+        st.caption(f"Connections: {_n_conn}")

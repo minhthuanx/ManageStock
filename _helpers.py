@@ -173,14 +173,12 @@ def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> s
 
 # ─── Ngay Ton calculation (vectorized) ──────────────────────────────────
 def _parse_ts_col(s: pd.Series) -> pd.Series:
-    """Vectorized timestamp parsing: try ISO → dd/mm/yyyy → NaT (naive)."""
-    dt = pd.to_datetime(s, errors="coerce", utc=False)
-    fallback1 = pd.to_datetime(s, format="%d/%m/%Y %H:%M", errors="coerce")
-    fallback2 = pd.to_datetime(s, format="%d/%m/%Y", errors="coerce")
+    """Parse timestamps to naive datetime64. Try ISO → dd/mm/yyyy → NaT."""
+    dt = pd.to_datetime(s, utc=True, errors="coerce")
+    fallback1 = pd.to_datetime(s, format="%d/%m/%Y %H:%M", utc=True, errors="coerce")
+    fallback2 = pd.to_datetime(s, format="%d/%m/%Y", utc=True, errors="coerce")
     result = dt.fillna(fallback1).fillna(fallback2)
-    if hasattr(result.dtype, 'tz') and result.dtype.tz is not None:
-        result = result.dt.tz_localize(None)
-    return result
+    return result.dt.tz_localize(None)
 
 
 def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
@@ -188,7 +186,7 @@ def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
         return df
     from _timezone import VN_TZ
     df = df.copy()
-    now = pd.Timestamp.now(tz=VN_TZ).tz_localize(None)
+    now = pd.Timestamp.now(tz=VN_TZ).tz_convert("UTC").tz_localize(None)
 
     t_nhap = _parse_ts_col(df.get("time_nhap", pd.Series(dtype=str)))
     t_nhap_fallback = _parse_ts_col(df.get("Ngày Nhập", pd.Series(dtype=str)))

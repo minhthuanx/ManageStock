@@ -173,22 +173,15 @@ def generate_auto_title(pet_name, mutation, trait_str, ms_value, namestock) -> s
 
 # ─── Ngay Ton calculation (vectorized) ──────────────────────────────────
 def _parse_ts_col(s: pd.Series) -> pd.Series:
-    """Vectorized timestamp parsing: try ISO → dd/mm/yyyy → NaT."""
-    from _timezone import VN_TZ
-    dt = pd.to_datetime(s, format="mixed", utc=True, errors="coerce")
+    """Vectorized timestamp parsing: try ISO → dd/mm/yyyy → NaT (naive)."""
+    dt = pd.to_datetime(s, errors="coerce", utc=False)
     mask = dt.isna()
     if mask.any():
-        try:
-            dt[mask] = pd.to_datetime(s[mask], format="%d/%m/%Y %H:%M", errors="coerce")
-        except Exception:
-            pass
+        dt[mask] = pd.to_datetime(s[mask], format="%d/%m/%Y %H:%M", errors="coerce")
         mask = dt.isna()
         if mask.any():
-            try:
-                dt[mask] = pd.to_datetime(s[mask], format="%d/%m/%Y", errors="coerce")
-            except Exception:
-                pass
-    return dt.tz_localize(VN_TZ, ambiguous="NaT", nonexistent="NaT") if dt.tz is None else dt
+            dt[mask] = pd.to_datetime(s[mask], format="%d/%m/%Y", errors="coerce")
+    return dt
 
 
 def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
@@ -201,6 +194,10 @@ def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
     t_nhap = _parse_ts_col(df.get("time_nhap", pd.Series(dtype=str)))
     t_nhap_fallback = _parse_ts_col(df.get("Ngày Nhập", pd.Series(dtype=str)))
     t_nhap = t_nhap.fillna(t_nhap_fallback)
+    if t_nhap.dt.tz is None:
+        t_nhap = t_nhap.dt.tz_localize(VN_TZ, ambiguous="NaT", nonexistent="NaT")
+    else:
+        t_nhap = t_nhap.dt.tz_convert(VN_TZ)
 
     is_sold = df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)
 
@@ -210,6 +207,10 @@ def apply_ngay_ton(df: pd.DataFrame) -> pd.DataFrame:
         t_ban_raw = _parse_ts_col(df.loc[sold_mask, "time_ban"])
         t_ban_fb = _parse_ts_col(df.loc[sold_mask, "Ngày Bán"])
         t_ban[sold_mask] = t_ban_raw.fillna(t_ban_fb)
+    if t_ban.dt.tz is None:
+        t_ban = t_ban.dt.tz_localize(VN_TZ, ambiguous="NaT", nonexistent="NaT")
+    else:
+        t_ban = t_ban.dt.tz_convert(VN_TZ)
 
     days = pd.Series(0.0, index=df.index)
     has_nhap = t_nhap.notna()

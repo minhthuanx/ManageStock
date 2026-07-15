@@ -4,7 +4,7 @@ import streamlit as st
 
 from _helpers import fmt_vnd, fmt_short
 import _icons as IC
-from _colors import PAL, MUT_COLORS, PP_PAL, NEUTRAL, BG, BG_PLOT, GRID, GRID_ZERO, FG, MUTED
+from _colors import PAL, MUT_COLORS, PP_PAL, NEUTRAL, NEG, BG, BG_PLOT, GRID, GRID_ZERO, FG, MUTED
 
 
 def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):

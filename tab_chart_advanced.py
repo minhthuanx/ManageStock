@@ -1,4 +1,4 @@
-﻿import pandas as pd
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from datetime import datetime, timedelta
@@ -61,7 +61,7 @@ def render_advanced(sold_df, pbd, has_data):
                 _hour_count["Đơn"] = _hour_count["Đơn"].astype(int)
 
                 _peak_hour = int(_hour_count.loc[_hour_count["Đơn"].idxmax(), "Giờ"])
-                _colors = ["#f97316" if h == _peak_hour else "#c2410c" for h in _hour_count["Giờ"]]
+                _colors = ["hsl(217, 91%, 60%)" if h == _peak_hour else "#0088aa" for h in _hour_count["Giờ"]]
 
                 fig_hour = go.Figure(go.Bar(
                     x=[f"{h:02d}:00" for h in _hour_count["Giờ"]],
@@ -69,17 +69,17 @@ def render_advanced(sold_df, pbd, has_data):
                     marker_color=_colors,
                     text=_hour_count["Đơn"].apply(lambda v: str(v) if v > 0 else ""),
                     textposition="outside",
-                    textfont=dict(size=11, color="#f0f0f5"),
+                    textfont=dict(size=11, color="hsl(210, 40%, 98%)"),
                 ))
                 fig_hour.update_layout(
                     xaxis_title="Khung giờ (giờ VN)",
                     yaxis_title="Số đơn bán",
                     margin=dict(t=35, b=45),
-                    plot_bgcolor="#0a0a0f",
-                    paper_bgcolor="#0a0a0f",
-                    font=dict(family="Inter", color="#a8a8b8", size=11),
-                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="#a8a8b8")),
-                    yaxis=dict(tickfont=dict(size=10, color="#a8a8b8"), gridcolor="#1a1a24"),
+                    plot_bgcolor="hsl(222.2, 84%, 4.9%)",
+                    paper_bgcolor="hsl(222.2, 84%, 4.9%)",
+                    font=dict(family="Inter", color="hsl(215, 20.2%, 65.1%)", size=11),
+                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="hsl(215, 20.2%, 65.1%)")),
+                    yaxis=dict(tickfont=dict(size=10, color="hsl(215, 20.2%, 65.1%)"), gridcolor="hsl(217.2, 32.6%, 12%)"),
                     height=430,
                 )
                 st.plotly_chart(fig_hour, use_container_width=True)
@@ -137,12 +137,12 @@ def render_advanced(sold_df, pbd, has_data):
                     xaxis_title="Giờ (giờ VN)",
                     yaxis_title="Thứ",
                     margin=dict(t=35, b=55),
-                    plot_bgcolor="#0a0a0f",
-                    paper_bgcolor="#0a0a0f",
-                    font=dict(family="Inter", color="#a8a8b8", size=11),
+                    plot_bgcolor="hsl(222.2, 84%, 4.9%)",
+                    paper_bgcolor="hsl(222.2, 84%, 4.9%)",
+                    font=dict(family="Inter", color="hsl(215, 20.2%, 65.1%)", size=11),
                     height=380,
-                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="#a8a8b8")),
-                    yaxis=dict(tickfont=dict(size=10, color="#a8a8b8")),
+                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="hsl(215, 20.2%, 65.1%)")),
+                    yaxis=dict(tickfont=dict(size=10, color="hsl(215, 20.2%, 65.1%)")),
                 )
                 st.plotly_chart(fig_hmap, use_container_width=True)
             else:
@@ -221,11 +221,11 @@ def render_advanced(sold_df, pbd, has_data):
             _done = _total_sold_ch >= _an
             _ach_track_cols[_ai].markdown(
                 f"<div style='text-align:center;padding:6px 2px;border-radius:6px;"
-                f"background:{'rgba(34,211,238,0.12)' if _done else 'rgba(255,255,255,0.03)'};"
-                f"border:1px solid {'rgba(34,211,238,0.3)' if _done else 'rgba(255,255,255,0.06)'};'>"
+                f"background:{'hsl(142, 76%, 56% / 0.12)' if _done else 'hsl(210, 40%, 98% / 0.03)'};"
+                f"border:1px solid {'hsl(142, 76%, 56% / 0.3)' if _done else 'hsl(210, 40%, 98% / 0.06)'};'>"
                 f"<div style='font-size:1.1rem;'>{'✅' if _done else '⬜'}</div>"
-                f"<div style='font-size:0.65rem;color:{'#22d3ee' if _done else '#737373'};font-weight:600;'>{_ab}</div>"
-                f"<div style='font-size:0.6rem;color:#52525b;'>{_an}</div></div>",
+                f"<div style='font-size:0.65rem;color:{'hsl(142, 76%, 56%)' if _done else 'hsl(217.2, 20%, 45%)'};font-weight:600;'>{_ab}</div>"
+                f"<div style='font-size:0.6rem;color:hsl(217.2, 20%, 40%);'>{_an}</div></div>",
                 unsafe_allow_html=True,
             )
 
@@ -305,10 +305,10 @@ def render_advanced(sold_df, pbd, has_data):
                 _is_next = (_nxt_ln_ms is not None and _ms == _nxt_ln_ms)
                 _row_cols[_ci].markdown(
                     f"<div style='text-align:center;padding:5px 2px;border-radius:6px;"
-                    f"background:{'rgba(34,211,238,0.12)' if _done else ('rgba(249,115,22,0.10)' if _is_next else 'rgba(255,255,255,0.03)')};"
-                    f"border:1px solid {'rgba(34,211,238,0.3)' if _done else ('rgba(249,115,22,0.3)' if _is_next else 'rgba(255,255,255,0.06)')};"
+                    f"background:{'hsl(142, 76%, 56% / 0.12)' if _done else ('hsl(217, 91%, 60% / 0.10)' if _is_next else 'hsl(210, 40%, 98% / 0.03)')};"
+                    f"border:1px solid {'hsl(142, 76%, 56% / 0.3)' if _done else ('hsl(217, 91%, 60% / 0.3)' if _is_next else 'hsl(210, 40%, 98% / 0.06)')};"
                     f"{'font-weight:700;' if _is_next else ''}'>"
-                    f"<div style='font-size:0.75rem;color:{'#22d3ee' if _done else ('#f97316' if _is_next else '#737373')};'>"
+                    f"<div style='font-size:0.75rem;color:{'hsl(142, 76%, 56%)' if _done else ('hsl(217, 91%, 60%)' if _is_next else 'hsl(217.2, 20%, 45%)')};'>"
                     f"{'✅' if _done else ('🎯' if _is_next else '⬜')} {_ms}M</div></div>",
                     unsafe_allow_html=True,
                 )

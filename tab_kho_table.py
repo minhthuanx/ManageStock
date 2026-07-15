@@ -18,7 +18,6 @@ from _helpers import (
 
 
 def render_inventory_table(df):
-    df = st.session_state.get("df", df)
     # ── BẢNG TỒN KHO ──
     with st.container(border=True):
         st.markdown('<div class="sec-heading">Tồn Kho Lẻ</div>', unsafe_allow_html=True)
@@ -286,9 +285,9 @@ def render_inventory_table(df):
                             _crow.get("NameStock", ""),
                         )
                         st.markdown(
-                            f'<div style="font-size:0.78rem;color:#737373;margin-top:0.5rem;">'
-                            f'STT <b style="color:#fb923c">{int(_crow["STT"])}</b> · '
-                            f'{_crow["Tên Pet"]} · <span style="color:#fb923c">{_crow["Mutation"]}</span>'
+                            f'<div style="font-size:0.8rem;color:hsl(217.2 20% 45%);margin-top:0.5rem;">'
+                            f'STT <b style="color:hsl(217 91% 60%)">{int(_crow["STT"])}</b> · '
+                            f'{_crow["Tên Pet"]} · <span style="color:hsl(217 91% 60%)">{_crow["Mutation"]}</span>'
                             f'</div>',
                             unsafe_allow_html=True,
                         )
@@ -300,8 +299,8 @@ def render_inventory_table(df):
                                 _bid = "cpShop" + str(_ci)
                                 _cmp.html(
                                     '<button id="' + _bid + '" style="width:100%;padding:8px 4px;border:none;'
-                                    'border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#f97316,#fb923c);'
-                                    'color:#0a0a0f;font-weight:600;font-size:11px;">👻 Mô tả</button>'
+                                    'border-radius:var(--radius, 0.5rem);cursor:pointer;background:hsl(210 40% 98%);'
+                                    'color:hsl(222.2 84% 4.9%);font-weight:600;font-size:11px;">&#x1F47B; M&#xF4; t&#x1EA3;</button>'
                                     '<script>(function(){'
                                     'var btn=document.getElementById("' + _bid + '");'
                                     'var b64="' + _b64_desc + '";'
@@ -309,9 +308,9 @@ def render_inventory_table(df):
                                     'var b=this;var bytes=Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0)});'
                                     'var txt=new TextDecoder("utf-8").decode(bytes);'
                                     'navigator.clipboard.writeText(txt)'
-                                    '.then(function(){b.innerHTML="✅";'
-                                    'setTimeout(function(){b.innerHTML="👻 Mô tả";},1500);})'
-                                    '.catch(function(){b.innerHTML="❌";});'
+                                    '.then(function(){b.innerHTML="&#x2705;";'
+                                    'setTimeout(function(){b.innerHTML="&#x1F47B; M&#xF4; t&#x1EA3;";},1500);})'
+                                    '.catch(function(){b.innerHTML="&#x274C;";});'
                                     '});})();</script>',
                                     height=45,
                                 )

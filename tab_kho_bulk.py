@@ -60,15 +60,15 @@ def render_bulk_sell(df):
                     _br_trait  = str(_br.get("Số Trait", "") or "").strip()
                     _br_ton    = int(float(_br.get("Ngày Tồn", 0) or 0))
                     _br_ms_str = f" · <b>{_br_ms}M/s</b>" if _br_ms else ""
-                    _br_ns_str = f" · <span style='color:#52525b'>{_br_ns}</span>" if _br_ns else ""
+                    _br_ns_str = f" · <span style='color:hsl(217.2 20% 45%)'>{_br_ns}</span>" if _br_ns else ""
                     _br_trait_str = f" · Trait:{_br_trait}" if _br_trait and _br_trait.lower() != "none" else ""
-                    _br_ton_str = f" · <span style='color:#f87171'>tồn {_br_ton}d</span>" if _br_ton > 0 else ""
+                    _br_ton_str = f" · <span style='color:hsl(0 84% 60%)'>tồn {_br_ton}d</span>" if _br_ton > 0 else ""
                     _rc1.markdown(
-                        f'<div style="font-size:0.82rem;padding:2px 0;">'
-                        f'<b style="color:#fb923c">#{int(_br["STT"])}</b> · '
-                        f'<b>{_br["Tên Pet"]}</b> · <span style="color:#fb923c">{_br["Mutation"]}</span>'
+                        f'<div style="font-size:0.875rem;padding:2px 0;">'
+                        f'<b style="color:hsl(217 91% 60%)">#{int(_br["STT"])}</b> · '
+                        f'<b>{_br["Tên Pet"]}</b> · <span style="color:hsl(217 91% 60%)">{_br["Mutation"]}</span>'
                         f'{_br_ms_str}{_br_ns_str}{_br_trait_str}'
-                        f' · <span style="color:#737373">{fmt_vnd(float(_br["Giá Nhập"]))}</span>'
+                        f' · <span style="color:hsl(217.2 20% 45%)">{fmt_vnd(float(_br["Giá Nhập"]))}</span>'
                         f'{_br_ton_str}'
                         f'</div>',
                         unsafe_allow_html=True,
@@ -213,22 +213,19 @@ def render_resell(df):
         # PHẦN 1: DANH SÁCH ĐÃ PIN — luôn hiển thị trên cùng
         # ════════════════════════════════════════════════════
         st.markdown(
-            '<div style="display:inline-flex;align-items:center;gap:6px;'
-            'background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.25);'
-            'border-radius:6px;padding:4px 10px;margin-bottom:8px;">'
-            '<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
-            'color:#f97316;font-weight:600;">📌 Danh sách Pin</span>'
-            '<span style="font-size:0.72rem;color:#737373;">— nhấn Re-sell khi chắc chắn khách không lấy</span>'
+            '<div class="shadcn-badge-inline">'
+            '<span class="badge-label">📌 Danh sách Pin</span>'
+            '<span class="badge-value" style="font-weight:400;color:hsl(217.2 20% 45%);">— nhấn Re-sell khi chắc chắn khách không lấy</span>'
             '</div>',
             unsafe_allow_html=True,
         )
 
         if not st.session_state.pinned_resell and not st.session_state.resell_cart:
             st.markdown(
-                '<div style="text-align:center;padding:16px 8px;color:#5a5a60;'
-                'font-size:0.82rem;border:1px dashed rgba(249,115,22,0.2);border-radius:8px;">'
+                '<div style="text-align:center;padding:16px 8px;color:hsl(217.2 20% 45%);'
+                'font-size:0.875rem;border:1px dashed hsl(217.2 32.6% 17.5%);border-radius:var(--radius, 0.5rem);">'
                 '📌 Chưa có pet nào được pin<br>'
-                '<span style="font-size:0.75rem;">Dùng ô tìm kiếm bên dưới để thêm</span>'
+                '<span style="font-size:0.8rem;">Dùng ô tìm kiếm bên dưới để thêm</span>'
                 '</div>',
                 unsafe_allow_html=True,
             )
@@ -249,13 +246,13 @@ def render_resell(df):
                 _pv_mut   = str(_pv.get("Mutation", "") or "")
                 _pv_ban   = str(_pv.get("Ngày Bán", "") or "").strip()
                 _pv_ms_str  = f" · <b>{_pv_ms}M/s</b>" if _pv_ms else ""
-                _pv_ns_str  = f" · <span style='color:#52525b'>{_pv_ns}</span>" if _pv_ns else ""
-                _pv_ban_str = f" · <span style='color:#f87171'>{_pv_ban}</span>" if _pv_ban and _pv_ban != "-" else ""
-                _rs_badge   = " · <span style='color:#22d3ee;font-weight:600;'>✅ Re-sell</span>" if _already_in_rcart else ""
+                _pv_ns_str  = f" · <span style='color:hsl(217.2 20% 45%)'>{_pv_ns}</span>" if _pv_ns else ""
+                _pv_ban_str = f" · <span style='color:hsl(0 84% 60%)'>{_pv_ban}</span>" if _pv_ban and _pv_ban != "-" else ""
+                _rs_badge   = " · <span style='color:hsl(142 76% 56%);font-weight:600;'>✅ Re-sell</span>" if _already_in_rcart else ""
                 st.markdown(
-                    f'<div style="font-size:0.82rem;padding:4px 0 2px 0;">'
-                    f'<b style="color:#f97316">#{int(float(_pv.get("STT", 0) or 0))}</b> · '
-                    f'<b>{_pv.get("Tên Pet", "")}</b> · <span style="color:#fb923c">{_pv_mut}</span>'
+                    f'<div style="font-size:0.875rem;padding:4px 0 2px 0;">'
+                    f'<b style="color:hsl(217 91% 60%)">#{int(float(_pv.get("STT", 0) or 0))}</b> · '
+                    f'<b>{_pv.get("Tên Pet", "")}</b> · <span style="color:hsl(217 91% 60%)">{_pv_mut}</span>'
                     f'{_pv_ms_str}{_pv_ns_str}{_pv_ban_str}{_rs_badge}'
                     f'</div>',
                     unsafe_allow_html=True,
@@ -274,7 +271,7 @@ def render_resell(df):
                     st.session_state.resell_cart.pop(_pid, None)
                     _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
                     st.rerun()
-                st.markdown('<div style="border-top:1px solid rgba(249,115,22,0.12);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
+                st.markdown('<div style="border-top:1px solid hsl(217.2 32.6% 17.5%);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
 
         # ════════════════════════════════════════════════════
         # PHẦN 2: TÌM & THÊM PIN (sub-expander, nằm dưới)
@@ -313,18 +310,18 @@ def render_resell(df):
                         _rr_ns      = str(_rr.get("NameStock", "") or "").strip()
                         _rr_ngayban = str(_rr.get("Ngày Bán", "") or "").strip()
                         _rr_ms_str  = f" · <b>{_rr_ms}M/s</b>" if _rr_ms else ""
-                        _rr_ns_str  = f" · <span style='color:#52525b'>{_rr_ns}</span>" if _rr_ns else ""
-                        _rr_ban_str = f" · <span style='color:#f87171'>Bán: {_rr_ngayban}</span>" if _rr_ngayban and _rr_ngayban != "-" else ""
+                        _rr_ns_str  = f" · <span style='color:hsl(217.2 20% 45%)'>{_rr_ns}</span>" if _rr_ns else ""
+                        _rr_ban_str = f" · <span style='color:hsl(0 84% 60%)'>Bán: {_rr_ngayban}</span>" if _rr_ngayban and _rr_ngayban != "-" else ""
                         if _is_in_rcart:
-                            _status_badge = " · <span style='color:#22d3ee;font-weight:600;'>✅ Re-sell</span>"
+                            _status_badge = " · <span style='color:hsl(142 76% 56%);font-weight:600;'>✅ Re-sell</span>"
                         elif _is_pinned:
-                            _status_badge = " · <span style='color:#fb923c;font-weight:600;'>📌 Đã pin</span>"
+                            _status_badge = " · <span style='color:hsl(217 91% 60%);font-weight:600;'>📌 Đã pin</span>"
                         else:
                             _status_badge = ""
                         st.markdown(
-                            f'<div style="font-size:0.82rem;padding:4px 0 2px 0;">'
-                            f'<b style="color:#f97316">#{int(_rr["STT"])}</b> · '
-                            f'<b>{_rr["Tên Pet"]}</b> · <span style="color:#fb923c">{_rr["Mutation"]}</span>'
+                            f'<div style="font-size:0.875rem;padding:4px 0 2px 0;">'
+                            f'<b style="color:hsl(217 91% 60%)">#{int(_rr["STT"])}</b> · '
+                            f'<b>{_rr["Tên Pet"]}</b> · <span style="color:hsl(217 91% 60%)">{_rr["Mutation"]}</span>'
                             f'{_rr_ms_str}{_rr_ns_str}{_rr_ban_str}{_status_badge}'
                             f'</div>',
                             unsafe_allow_html=True,
@@ -340,7 +337,7 @@ def render_resell(df):
                                 st.session_state.pinned_resell[_rrid] = _rr.to_dict()
                                 _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
                                 st.rerun()
-                        st.markdown('<div style="border-top:1px solid rgba(249,115,22,0.12);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
+                        st.markdown('<div style="border-top:1px solid hsl(217.2 32.6% 17.5%);margin:2px 0 4px 0;"></div>', unsafe_allow_html=True)
                     if len(_rs_df) > 15:
                         st.caption(f"Đang hiển thị 15 / {len(_rs_df)} kết quả — thu hẹp tìm kiếm để xem thêm.")
 
@@ -348,12 +345,9 @@ def render_resell(df):
         if st.session_state.resell_cart:
             st.markdown("---")
             st.markdown(
-                '<div style="display:inline-flex;align-items:center;gap:6px;'
-                'background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);'
-                'border-radius:6px;padding:4px 10px;margin-bottom:6px;">'
-                '<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
-                'color:#22d3ee;font-weight:600;">③ Xác nhận Re-sell</span>'
-                '<span style="font-size:0.72rem;color:#737373;">— tạo bản ghi kho mới, giá nhập 1₫</span>'
+                '<div class="shadcn-badge-inline" style="background:hsl(142 76% 56% / 0.08);border-color:hsl(142 76% 56% / 0.2);">'
+                '<span class="badge-label" style="color:hsl(142 76% 56%);">③ Xác nhận Re-sell</span>'
+                '<span class="badge-value" style="font-weight:400;color:hsl(217.2 20% 45%);">— tạo bản ghi kho mới, giá nhập 1₫</span>'
                 '</div>',
                 unsafe_allow_html=True,
             )

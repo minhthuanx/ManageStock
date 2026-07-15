@@ -17,13 +17,9 @@ def render_tab_chart(df, bulk_df, bulk_history):
         _all_dates.extend(pd.to_datetime(bulk_history["Ngày Bán"], dayfirst=True, errors="coerce").dropna().tolist())
     _start_date_str = min(_all_dates).strftime("%d/%m/%Y") if _all_dates else "—"
     st.markdown(
-        f'<div style="display:inline-flex;align-items:center;gap:8px;'
-        'background:linear-gradient(135deg,rgba(249,115,22,0.12),rgba(255,133,51,0.08));'
-        'border:1px solid rgba(249,115,22,0.35);border-radius:8px;'
-        'padding:6px 14px;margin-bottom:12px;">'
-        '<span style="font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;'
-        'color:#737373;font-weight:500;">Ngày bắt đầu</span>'
-        f'<span style="font-size:0.88rem;font-weight:600;color:#fb923c;letter-spacing:0.02em;">{_start_date_str}</span>'
+        '<div class="shadcn-badge-inline">'
+        '<span class="badge-label">Ngày bắt đầu</span>'
+        f'<span class="badge-value">{_start_date_str}</span>'
         '</div>',
         unsafe_allow_html=True,
     )

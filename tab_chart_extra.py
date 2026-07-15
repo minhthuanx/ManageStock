@@ -36,12 +36,12 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_stock); _sk_val.append(_v_stock)
 
         if _sk_src:
-            _mut_palette = ["hsl(217, 91%, 60%)","hsl(142, 76%, 56%)","#f472b6","hsl(280, 67%, 60%)","#fbbf24",
-                            "hsl(0, 84%, 60%)","#38bdf8","#ff6b35","#4ade80","#f9a8d4"]
+            _mut_palette = ["#00f0ff","#00ff88","#f472b6","#7b61ff","#fbbf24",
+                            "#f87171","#38bdf8","#ff6b35","#4ade80","#f9a8d4"]
             _sk_node_colors = (
                 ["#0088aa"]
                 + [_mut_palette[i % len(_mut_palette)] for i in range(len(_sk_muts))]
-                + ["hsl(217, 91%, 60%)", "hsl(142, 76%, 56%)"]
+                + ["#00f0ff", "#00ff88"]
             )
             fig_sk = go.Figure(go.Sankey(
                 arrangement="snap",
@@ -55,12 +55,12 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     source=_sk_src,
                     target=_sk_tgt,
                     value=_sk_val,
-                    color="hsl(217, 91%, 60% / 0.18)",
+                    color="rgba(0,240,255,0.18)",
                 ),
             ))
             fig_sk.update_layout(
-                paper_bgcolor="hsl(222.2, 84%, 4.9%)",
-                font=dict(family="Inter", color="hsl(210, 40%, 98%)", size=11),
+                paper_bgcolor="#0b0e17",
+                font=dict(family="Inter", color="#e8eaf0", size=11),
                 margin=dict(l=10, r=10, t=25, b=10),
                 height=380,
             )
@@ -127,22 +127,22 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 zmin=0,
                 zmax=_zmax_cal,
                 showscale=True,
-                colorbar=dict(thickness=12, len=0.8, tickfont=dict(size=9, color="hsl(215, 20.2%, 65.1%)")),
+                colorbar=dict(thickness=12, len=0.8, tickfont=dict(size=9, color="#8b93a7")),
                 xgap=3, ygap=3,
             ))
             fig_cal.update_layout(
-                paper_bgcolor="hsl(222.2, 84%, 4.9%)",
-                plot_bgcolor="hsl(222.2, 84%, 4.9%)",
-                font=dict(family="Inter", color="hsl(215, 20.2%, 65.1%)", size=10),
+                paper_bgcolor="#0b0e17",
+                plot_bgcolor="#0b0e17",
+                font=dict(family="Inter", color="#8b93a7", size=10),
                 xaxis=dict(
                     tickmode="array",
                     tickvals=list(range(0, _n_weeks_cal, 4)),
                     ticktext=[_week_x_labels[i] for i in range(0, _n_weeks_cal, 4)],
-                    tickfont=dict(size=9, color="hsl(215, 20.2%, 65.1%)"),
+                    tickfont=dict(size=9, color="#8b93a7"),
                     showgrid=False, zeroline=False,
                 ),
                 yaxis=dict(
-                    tickfont=dict(size=10, color="hsl(215, 20.2%, 65.1%)"),
+                    tickfont=dict(size=10, color="#8b93a7"),
                     showgrid=False, zeroline=False,
                     autorange="reversed",
                 ),
@@ -215,24 +215,24 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 except (np.linalg.LinAlgError, ValueError):
                     _m_coef, _b_coef = 0.0, float(_y.mean()) if len(_y) else 0.0
                 _trend_y = _m_coef * _x + _b_coef
-                _trend_color = "hsl(142, 76%, 56%)" if _m_coef >= 0 else "hsl(0, 84%, 60%)"
+                _trend_color = "#00ff88" if _m_coef >= 0 else "#f87171"
                 _trend_label = f"Xu hướng {'↑ tăng' if _m_coef >= 0 else '↓ giảm'} {abs(_m_coef / max(abs(_y.mean()), 1) * 100):.1f}%/tuần"
 
-                _bar_colors = ["hsl(142, 76%, 56%)" if v >= 0 else "hsl(0, 84%, 60%)" for v in _wk_merged["Lợi Nhuận"]]
+                _bar_colors = ["#00ff88" if v >= 0 else "#f87171" for v in _wk_merged["Lợi Nhuận"]]
                 _fig_wk = go.Figure()
                 _fig_wk.add_trace(go.Bar(
                     x=_wk_merged["_label"], y=_wk_merged["Lợi Nhuận"],
                     name="LN/tuần", marker_color=_bar_colors, opacity=0.7,
                     text=_wk_merged["Lợi Nhuận"].apply(fmt_short),
-                    textposition="outside", textfont=dict(color="hsl(210, 40%, 98%)", size=11),
+                    textposition="outside", textfont=dict(color="#e8eaf0", size=11),
                     hovertemplate="<b>%{x}</b><br>Lợi nhuận: %{y:,.0f}₫<extra></extra>",
                     yaxis="y1",
                 ))
                 _fig_wk.add_trace(go.Scatter(
                     x=_wk_merged["_label"], y=_wk_merged["Số con"],
                     name="Số con bán", mode="lines+markers",
-                    line=dict(color="hsl(217, 91%, 60%)", width=2.5),
-                    marker=dict(size=7, color="hsl(217, 91%, 60%)"),
+                    line=dict(color="#00f0ff", width=2.5),
+                    marker=dict(size=7, color="#00f0ff"),
                     hovertemplate="<b>%{x}</b><br>Số con: %{y:,.0f}<extra></extra>",
                     yaxis="y2",
                 ))
@@ -243,15 +243,15 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     hoverinfo="skip", yaxis="y1",
                 ))
                 _fig_wk.update_layout(
-                    paper_bgcolor="hsl(222.2, 84%, 4.9%)", plot_bgcolor="hsl(222.2, 84%, 4.9%)",
-                    font=dict(family="Inter", color="hsl(215, 20.2%, 65.1%)", size=11),
-                    xaxis=dict(tickfont=dict(color="hsl(210, 40%, 98%)", size=10), gridcolor="hsl(217.2, 32.6%, 12%)"),
-                    yaxis=dict(title="Lợi nhuận (₫)", gridcolor="hsl(217.2, 32.6%, 12%)",
-                               tickfont=dict(color="hsl(215, 20.2%, 65.1%)", size=10), tickformat=",.0f",
-                               zeroline=True, zerolinecolor="hsl(217.2, 32.6%, 15%)"),
+                    paper_bgcolor="#0b0e17", plot_bgcolor="#0b0e17",
+                    font=dict(family="Inter", color="#8b93a7", size=11),
+                    xaxis=dict(tickfont=dict(color="#e8eaf0", size=10), gridcolor="#1a2035"),
+                    yaxis=dict(title="Lợi nhuận (₫)", gridcolor="#1a2035",
+                               tickfont=dict(color="#8b93a7", size=10), tickformat=",.0f",
+                               zeroline=True, zerolinecolor="#222230"),
                     yaxis2=dict(title="Số con", overlaying="y", side="right",
-                                tickfont=dict(color="hsl(217, 91%, 60%)", size=10), zeroline=False, showgrid=False),
-                    legend=dict(orientation="h", x=0, y=1.1, font=dict(color="hsl(215, 20.2%, 65.1%)", size=10)),
+                                tickfont=dict(color="#00f0ff", size=10), zeroline=False, showgrid=False),
+                    legend=dict(orientation="h", x=0, y=1.1, font=dict(color="#8b93a7", size=10)),
                     margin=dict(l=10, r=55, t=45, b=10),
                     height=430, barmode="overlay",
                 )
@@ -296,14 +296,14 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             _trc1, _trc2 = st.columns(2)
             with _trc1:
                 _tr_colors = ["#94a3b8" if t == "None" else
-                              "hsl(142, 76%, 56%)" if i % 3 == 1 else
-                              "hsl(217, 91%, 70%)" if i % 3 == 2 else "#f472b6"
+                              "#00ff88" if i % 3 == 1 else
+                              "#33f5ff" if i % 3 == 2 else "#f472b6"
                               for i, t in enumerate(_tr_grp["_trait"])]
                 _fig_tr = go.Figure(go.Bar(
                     x=_tr_grp["_trait"], y=_tr_grp["LN_mean"],
                     marker_color=_tr_colors, opacity=0.85,
                     text=_tr_grp["LN_mean"].apply(fmt_short),
-                    textposition="outside", textfont=dict(color="hsl(210, 40%, 98%)", size=10),
+                    textposition="outside", textfont=dict(color="#e8eaf0", size=10),
                     customdata=_tr_grp[["LN_total","Count","Margin"]].values,
                     hovertemplate=(
                         "<b>Trait: %{x}</b><br>"
@@ -315,12 +315,12 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     ),
                 ))
                 _fig_tr.update_layout(
-                    title=dict(text="Lợi Nhuận TB / Con theo Trait", font=dict(size=12, color="hsl(210, 40%, 98%)")),
-                    paper_bgcolor="hsl(222.2, 84%, 4.9%)", plot_bgcolor="hsl(222.2, 84%, 4.9%)",
-                    font=dict(family="Inter", color="hsl(215, 20.2%, 65.1%)", size=11),
-                    xaxis=dict(gridcolor="hsl(217.2, 32.6%, 12%)", tickfont=dict(color="hsl(210, 40%, 98%)", size=10)),
-                    yaxis=dict(gridcolor="hsl(217.2, 32.6%, 12%)", tickfont=dict(color="hsl(215, 20.2%, 65.1%)", size=10),
-                               tickformat=",.0f", zeroline=True, zerolinecolor="hsl(217.2, 32.6%, 15%)"),
+                    title=dict(text="Lợi Nhuận TB / Con theo Trait", font=dict(size=12, color="#e8eaf0")),
+                    paper_bgcolor="#0b0e17", plot_bgcolor="#0b0e17",
+                    font=dict(family="Inter", color="#8b93a7", size=11),
+                    xaxis=dict(gridcolor="#1a2035", tickfont=dict(color="#e8eaf0", size=10)),
+                    yaxis=dict(gridcolor="#1a2035", tickfont=dict(color="#8b93a7", size=10),
+                               tickformat=",.0f", zeroline=True, zerolinecolor="#222230"),
                     margin=dict(l=10, r=10, t=45, b=10), height=400, showlegend=False,
                 )
                 st.plotly_chart(_fig_tr, use_container_width=True)
@@ -395,14 +395,14 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
         _fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number+delta",
             value=_recovery_pct,
-            delta={"reference": 80, "suffix": "%", "increasing": {"color": "hsl(142, 76%, 56%)"}, "decreasing": {"color": "hsl(0, 84%, 60%)"}},
-            number={"suffix": "%", "font": {"size": 42, "color": "hsl(210, 40%, 98%)", "family": "Inter"}},
+            delta={"reference": 80, "suffix": "%", "increasing": {"color": "#00ff88"}, "decreasing": {"color": "#f87171"}},
+            number={"suffix": "%", "font": {"size": 42, "color": "#e8eaf0", "family": "Inter"}},
             gauge={
-                "axis": {"range": [0, 100], "tickcolor": "hsl(217.2, 32.6%, 15%)",
-                         "tickfont": {"color": "hsl(215, 20.2%, 65.1%)", "size": 12}},
-                "bar":  {"color": "hsl(217, 91%, 60%)", "thickness": 0.25},
-                "bgcolor": "hsl(222.2, 84%, 4.9%)",
-                "bordercolor": "hsl(217.2, 32.6%, 12%)",
+                "axis": {"range": [0, 100], "tickcolor": "#222230",
+                         "tickfont": {"color": "#8b93a7", "size": 12}},
+                "bar":  {"color": "#00f0ff", "thickness": 0.25},
+                "bgcolor": "#0b0e17",
+                "bordercolor": "#1a2035",
                 "steps": [
                     {"range": [0,  40], "color": "rgba(248,113,113,0.12)"},
                     {"range": [40, 70], "color": "rgba(251,191,36,0.10)"},
@@ -413,11 +413,11 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     "thickness": 0.85, "value": 80,
                 },
             },
-            title={"text": "% Vốn Đã Thu Hồi", "font": {"size": 12, "color": "hsl(215, 20.2%, 65.1%)", "family": "Inter"}},
+            title={"text": "% Vốn Đã Thu Hồi", "font": {"size": 12, "color": "#8b93a7", "family": "Inter"}},
         ))
         _fig_gauge.update_layout(
-            paper_bgcolor="hsl(222.2, 84%, 4.9%)",
-            font=dict(family="Inter", color="hsl(215, 20.2%, 65.1%)", size=11),
+            paper_bgcolor="#0b0e17",
+            font=dict(family="Inter", color="#8b93a7", size=11),
             margin=dict(l=20, r=20, t=35, b=10),
             height=310,
         )

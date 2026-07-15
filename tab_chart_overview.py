@@ -31,7 +31,7 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                 .sort_values("_sk")
             )
             _mo_colors = [
-                "hsl(142, 76%, 56%)" if v >= 0 else "hsl(0, 84%, 60%)"
+                "#00ff88" if v >= 0 else "#f87171"
                 for v in _mo_df["_ln"]
             ]
             _fig_mo = go.Figure(go.Bar(
@@ -40,28 +40,28 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                 marker_color=_mo_colors,
                 marker_line_width=0,
                 text=[
-                    f"{fmt_short(v)}<br><span style='font-size:11px;color:hsl(215, 20.2%, 65.1%)'>{c} GD</span>"
+                    f"{fmt_short(v)}<br><span style='font-size:11px;color:#8b93a7'>{c} GD</span>"
                     for v, c in zip(_mo_df["_ln"], _mo_df["_cnt"])
                 ],
                 textposition="outside",
-                textfont=dict(color="hsl(210, 40%, 98%)", size=11),
+                textfont=dict(color="#e8eaf0", size=11),
                 hovertemplate="<b>%{x}</b><br>Lợi nhuận: %{y:,.0f}₫<extra></extra>",
             ))
             _fig_mo.update_layout(
-                paper_bgcolor="hsl(222.2, 84%, 4.9%)",
-                plot_bgcolor="hsl(222.2, 84%, 4.9%)",
-                font=dict(family="Inter", color="hsl(215, 20.2%, 65.1%)", size=11),
+                paper_bgcolor="#0b0e17",
+                plot_bgcolor="#0b0e17",
+                font=dict(family="Inter", color="#8b93a7", size=11),
                 xaxis=dict(
-                    gridcolor="hsl(217.2, 32.6%, 12%)",
-                    tickfont=dict(color="hsl(210, 40%, 98%)", size=10),
+                    gridcolor="#1a2035",
+                    tickfont=dict(color="#e8eaf0", size=10),
                     tickangle=0,
                 ),
                 yaxis=dict(
-                    gridcolor="hsl(217.2, 32.6%, 12%)",
-                    tickfont=dict(color="hsl(215, 20.2%, 65.1%)", size=10),
+                    gridcolor="#1a2035",
+                    tickfont=dict(color="#8b93a7", size=10),
                     tickformat=",.0f",
                     zeroline=True,
-                    zerolinecolor="hsl(217.2, 32.6%, 15%)",
+                    zerolinecolor="#222230",
                 ),
                 margin=dict(l=10, r=10, t=45, b=10),
                 height=260,

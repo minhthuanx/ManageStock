@@ -1,57 +1,42 @@
 """
-Global CSS string — shadcn/ui Dark Mode design system.
-Clean, minimal, neutral palette with subtle borders and proper typography.
-Based on shadcn/ui design tokens for dark theme.
+Global CSS string — Cyberpunk Lite / Gaming UI theme.
+Deep Navy palette, neon glow borders, grid + scanline background, futuristic gaming feel.
 """
 CSS_STRING = """<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
 
-/* ── Root — shadcn/ui Dark Tokens ── */
+/* ── Root — Cyberpunk Lite / Gaming UI ── */
 :root {
-  --background:        222.2 84% 4.9%;
-  --foreground:        210 40% 98%;
-  --card:              222.2 84% 4.9%;
-  --card-foreground:   210 40% 98%;
-  --popover:           222.2 84% 4.9%;
-  --popover-foreground:210 40% 98%;
-  --primary:           210 40% 98%;
-  --primary-foreground:222.2 47.4% 11.2%;
-  --secondary:         217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted:             217.2 32.6% 17.5%;
-  --muted-foreground:  215 20.2% 65.1%;
-  --accent:            217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive:       0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border:            217.2 32.6% 17.5%;
-  --input:             217.2 32.6% 17.5%;
-  --ring:              212.7 26.8% 83.9%;
-  --radius:            0.5rem;
-
-  /* Semantic colors */
-  --bg:                hsl(222.2 84% 4.9%);
-  --bg-subtle:         hsl(222.2 84% 6.9%);
-  --surface:           hsl(222.2 84% 5.9%);
-  --surface-hover:     hsl(217.2 32.6% 14.5%);
-  --border-color:      hsl(217.2 32.6% 17.5%);
-  --border-hover:      hsl(217.2 32.6% 22%);
-  --text-primary:      hsl(210 40% 98%);
-  --text-secondary:    hsl(215 20.2% 65.1%);
-  --text-muted:        hsl(217.2 20% 45%);
-  --ring-color:        hsl(212.7 26.8% 83.9%);
-
-  /* Accent colors */
-  --green:             hsl(142 76% 56%);
-  --green-bg:          hsl(142 76% 56% / 0.1);
-  --red:               hsl(0 84% 60%);
-  --red-bg:            hsl(0 84% 60% / 0.1);
-  --yellow:            hsl(38 92% 50%);
-  --yellow-bg:         hsl(38 92% 50% / 0.1);
-  --blue:              hsl(217 91% 60%);
-  --blue-bg:           hsl(217 91% 60% / 0.1);
-  --purple:            hsl(280 67% 60%);
-  --purple-bg:         hsl(280 67% 60% / 0.1);
+  --bg:        #0b0e17;
+  --surface:   #111827;
+  --surface2:  #1a2035;
+  --surface3:  #222b45;
+  --border:    rgba(0,240,255,0.08);
+  --border-h:  rgba(0,240,255,0.18);
+  --accent:    #00f0ff;
+  --accent-h:  #33f5ff;
+  --accent-bg: rgba(0,240,255,0.06);
+  --pink:      #ff2d75;
+  --pink-bg:   rgba(255,45,117,0.08);
+  --purple:    #7b61ff;
+  --purple-bg: rgba(123,97,255,0.08);
+  --green:     #00ff88;
+  --green-bg:  rgba(0,255,136,0.06);
+  --red:       #ff3355;
+  --red-bg:    rgba(255,51,85,0.06);
+  --yellow:    #ffaa00;
+  --yellow-bg: rgba(255,170,0,0.06);
+  --text:      #e8eaf0;
+  --text2:     #8b93a7;
+  --text3:     #5a6178;
+  --radius:    10px;
+  --radius-sm: 7px;
+  --mono:      'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --display:   'Orbitron', 'Inter', sans-serif;
+  --glow-cyan:   0 0 12px rgba(0,240,255,0.25), 0 0 30px rgba(0,240,255,0.08);
+  --glow-pink:   0 0 12px rgba(255,45,117,0.25), 0 0 30px rgba(255,45,117,0.08);
+  --glow-green:  0 0 12px rgba(0,255,136,0.25), 0 0 30px rgba(0,255,136,0.08);
+  --glow-purple: 0 0 12px rgba(123,97,255,0.25), 0 0 30px rgba(123,97,255,0.08);
 }
 
 /* ── Base ── */
@@ -59,27 +44,40 @@ CSS_STRING = """<style>
 html { scrollbar-gutter: stable; overflow-y: scroll; }
 body { overflow-anchor: none; }
 html, body, [data-testid="stAppViewContainer"] {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  color: var(--text-primary) !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  color: var(--text) !important;
+  font-feature-settings: "tnum" 1, "cv01" 1, "ss01" 1;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-/* ── Background ── */
+/* ── Background — deep navy with subtle gradient ── */
 [data-testid="stAppViewContainer"] {
-  background: var(--bg) !important;
+  background: linear-gradient(160deg, #0b0e17 0%, #0f1629 50%, #0b0e17 100%) !important;
 }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] {
-  background: var(--bg) !important;
-  border-right: 1px solid var(--border-color) !important;
+  background: linear-gradient(180deg, #0b0e17 0%, #111827 100%) !important;
+  border-right: 1px solid rgba(0,240,255,0.1) !important;
 }
 .block-container {
-  padding: 1.5rem 2rem 3rem !important;
+  padding: 1.2rem 2rem 3rem !important;
   max-width: 1440px;
   margin-left: auto !important;
   margin-right: auto !important;
+}
+
+/* ── Grid + Scanline overlay — futuristic gaming ── */
+[data-testid="stAppViewContainer"] > section.main {
+  position: relative;
+}
+[data-testid="stAppViewContainer"] > section.main > div.block-container {
+  background:
+    repeating-linear-gradient(0deg,rgba(0,240,255,0.015) 0px,transparent 1px,transparent 3px),
+    linear-gradient(rgba(0,240,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,240,255,0.03) 1px, transparent 1px) !important;
+  background-size: 100% 4px, 48px 48px, 48px 48px !important;
+  background-position: 0 0, -1px -1px, -1px -1px !important;
 }
 
 /* ── Layout ── */
@@ -90,84 +88,88 @@ html, body, [data-testid="stAppViewContainer"] {
 [data-testid="stTabContent"] { scrollbar-gutter: stable; }
 [data-testid="stAppViewContainer"] > section.main { scrollbar-gutter: stable; }
 
-/* ── Metrics — shadcn card style ── */
+/* ── Metrics — gaming HUD style ── */
 div[data-testid="stMetricValue"] {
-  font-size: clamp(1rem, 2.5vw, 1.5rem) !important;
-  font-weight: 700 !important;
-  color: var(--text-primary) !important;
-  letter-spacing: -0.025em !important;
-  line-height: 1.2 !important;
+  font-size: clamp(1rem, 2.5vw, 1.3rem) !important;
+  font-weight: 800 !important;
+  color: var(--accent) !important;
+  letter-spacing: -0.02em !important;
+  text-shadow: 0 0 18px rgba(0,240,255,0.25);
 }
 div[data-testid="stMetricLabel"] {
-  font-size: 0.8rem !important;
-  color: var(--text-muted) !important;
-  letter-spacing: 0.01em !important;
-  text-transform: none !important;
-  font-weight: 500 !important;
-}
-div[data-testid="stMetric"] {
-  font-size: 0.875rem !important;
+  font-size: 0.7rem !important;
+  color: var(--text2) !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  font-weight: 600 !important;
+  font-family: var(--mono) !important;
 }
 
-/* ── Buttons — shadcn style ── */
+/* ── Buttons — gaming neon pill ── */
 .stButton > button {
   border-radius: var(--radius) !important;
-  font-size: 0.875rem !important;
-  font-weight: 500 !important;
-  letter-spacing: 0 !important;
-  transition: all 0.15s ease !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+  transition: all 0.2s ease !important;
   width: 100%;
-  border: 1px solid var(--border-color) !important;
-  background: var(--secondary) !important;
-  color: var(--text-primary) !important;
-  padding: 0.5rem 1rem !important;
-  height: 2.25rem !important;
-  line-height: 1.25 !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+  padding: 0.55rem 1rem !important;
+  position: relative;
 }
 .stButton > button:hover {
-  background: var(--surface-hover) !important;
-  border-color: var(--border-hover) !important;
+  background: var(--surface3) !important;
+  border-color: var(--border-h) !important;
+  box-shadow: 0 0 14px rgba(0,240,255,0.08);
 }
 .stButton > button:active {
-  transform: scale(0.98);
-}
-.stButton > button:focus-visible {
-  outline: 2px solid var(--ring-color) !important;
-  outline-offset: 2px !important;
+  background: var(--border) !important;
+  transform: scale(0.985);
 }
 .stButton > button[kind="primary"] {
-  background: var(--text-primary) !important;
-  color: var(--bg) !important;
+  background: linear-gradient(135deg, #00f0ff 0%, #7b61ff 100%) !important;
+  color: #0b0e17 !important;
   border: none !important;
-  font-weight: 600 !important;
+  border-radius: 999px !important;
+  box-shadow: var(--glow-cyan), 0 0 50px rgba(0,240,255,0.1) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  font-size: 0.8rem !important;
 }
 .stButton > button[kind="primary"]:hover {
-  background: hsl(210 40% 90%) !important;
-  opacity: 0.9;
+  background: linear-gradient(135deg, #33f5ff 0%, #9580ff 100%) !important;
+  box-shadow: var(--glow-cyan), 0 0 60px rgba(0,240,255,0.18) !important;
+  transform: translateY(-1px);
 }
 .stButton > button[kind="secondary"] {
   background: transparent !important;
-  color: var(--text-secondary) !important;
-  border: 1px solid var(--border-color) !important;
+  color: var(--text2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
 }
 .stButton > button[kind="secondary"]:hover {
-  background: var(--secondary) !important;
-  color: var(--text-primary) !important;
+  background: var(--surface2) !important;
+  border-color: rgba(0,240,255,0.2) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 0 10px rgba(0,240,255,0.06) !important;
 }
 .stButton > button[kind="tertiary"] {
   background: transparent !important;
-  color: var(--text-muted) !important;
+  color: var(--text3) !important;
   border: none !important;
 }
 .stButton > button[kind="tertiary"]:hover {
-  color: var(--text-primary) !important;
-  background: var(--secondary) !important;
+  color: var(--accent) !important;
+  box-shadow: none !important;
 }
 
-/* ── Tabs — shadcn underline style ── */
+/* ── Tabs — gaming neon underline ── */
 [data-testid="stTabs"] > div:first-child {
   gap: 0 !important;
-  border-bottom: 1px solid var(--border-color) !important;
+  border-bottom: 1px solid rgba(0,240,255,0.1) !important;
   background: transparent !important;
   padding: 0 !important;
 }
@@ -175,17 +177,18 @@ div[data-testid="stMetric"] {
 [data-testid="stTabs"] [data-baseweb="tab-highlight"] { display: none !important; }
 [data-testid="stTab"] {
   border-radius: 0 !important;
-  padding: 0.75rem 1rem !important;
-  font-weight: 500 !important;
-  font-size: 0.875rem !important;
-  letter-spacing: 0 !important;
-  color: var(--text-muted) !important;
+  padding: 0.65rem 1.1rem !important;
+  font-weight: 600 !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.04em !important;
+  color: var(--text3) !important;
   border: none !important;
   background: transparent !important;
-  transition: color 0.15s ease !important;
+  transition: color 0.2s ease, text-shadow 0.2s ease !important;
   position: relative !important;
   outline: none !important;
-  text-transform: none !important;
+  text-transform: uppercase !important;
+  font-family: var(--mono) !important;
 }
 [data-testid="stTab"]::after {
   content: '' !important;
@@ -196,76 +199,76 @@ div[data-testid="stMetric"] {
   width: 100% !important;
   height: 2px !important;
   border-radius: 1px !important;
-  background: var(--text-primary) !important;
+  background: linear-gradient(90deg, var(--accent), var(--purple)) !important;
   opacity: 0 !important;
   transform: scaleX(0) !important;
-  transition: opacity 0.15s ease, transform 0.15s ease !important;
+  transition: opacity 0.2s ease, transform 0.2s ease !important;
+  box-shadow: 0 0 8px rgba(0,240,255,0.3);
 }
 [data-testid="stTab"][aria-selected="true"] {
-  color: var(--text-primary) !important;
-  font-weight: 600 !important;
+  color: var(--accent) !important;
+  font-weight: 700 !important;
   background: transparent !important;
+  text-shadow: 0 0 12px rgba(0,240,255,0.3);
 }
 [data-testid="stTab"][aria-selected="true"]::after {
   opacity: 1 !important;
   transform: scaleX(1) !important;
 }
 [data-testid="stTab"]:hover:not([aria-selected="true"]) {
-  color: var(--text-secondary) !important;
+  color: var(--text2) !important;
   background: transparent !important;
 }
 
-/* ── Inputs — shadcn style ── */
+/* ── Inputs — neon focus ring ── */
 .stTextInput input, .stNumberInput input, .stSelectbox select {
-  background: var(--bg) !important;
-  border: 1px solid var(--border-color) !important;
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
-  color: var(--text-primary) !important;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
-  font-size: 0.875rem !important;
+  color: var(--text) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
 }
 .stTextInput input:focus, .stNumberInput input:focus {
-  border-color: var(--ring-color) !important;
-  box-shadow: 0 0 0 2px hsl(212.7 26.8% 83.9% / 0.2) !important;
-  outline: none !important;
-}
-.stTextInput label, .stNumberInput label, .stSelectbox label {
-  color: var(--text-primary) !important;
-  font-size: 0.875rem !important;
-  font-weight: 500 !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(0,240,255,0.1), 0 0 12px rgba(0,240,255,0.08) !important;
 }
 
-/* ── Containers — shadcn card ── */
+/* ── Containers — cyberpunk card with cyan glow ── */
 [data-testid="stVerticalBlockBorderWrapper"] {
-  border-color: var(--border-color) !important;
-  background: var(--bg) !important;
+  border-color: rgba(0,240,255,0.1) !important;
+  background: var(--surface) !important;
   border-radius: var(--radius) !important;
-  transition: border-color 0.15s ease !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(0,240,255,0.03) !important;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"] > div {
-  border-color: var(--border-color) !important;
+  border-color: rgba(0,240,255,0.1) !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"] > [data-testid="stVerticalBlock"] {
   background: transparent !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"]:hover {
-  border-color: var(--border-hover) !important;
+  border-color: rgba(0,240,255,0.28) !important;
+  box-shadow: var(--glow-cyan), 0 2px 8px rgba(0,0,0,0.4) !important;
 }
-/* Nested bordered containers */
+/* Nested bordered containers — transparent */
 [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlockBorderWrapper"] {
   background: transparent !important;
-  border-color: var(--border-color) !important;
+  border-color: rgba(0,240,255,0.06) !important;
+  box-shadow: none !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlockBorderWrapper"]:hover {
-  border-color: var(--border-hover) !important;
+  border-color: rgba(0,240,255,0.12) !important;
+  box-shadow: none !important;
 }
-/* 3rd-level nested */
+/* 3rd-level nested — invisible */
 [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlockBorderWrapper"] {
   background: transparent !important;
-  border-color: var(--border-color) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
-/* ── Tab content ── */
+/* ── Tab content — minimal panel ── */
 [data-testid="stTabContent"] {
   background: transparent !important;
   border: none !important;
@@ -275,395 +278,389 @@ div[data-testid="stMetric"] {
   box-shadow: none !important;
 }
 
-/* ── DataFrames — shadcn table style ── */
+/* ── DataFrames ── */
 .stDataFrame {
   border-radius: var(--radius) !important;
   overflow: hidden !important;
-  border: 1px solid var(--border-color) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
 }
 [data-testid="stElementToolbar"] {
-  background: var(--secondary) !important;
-  border: 1px solid var(--border-color) !important;
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
 }
-[data-testid="stElementToolbarButton"] svg { color: var(--text-muted) !important; }
-[data-testid="stElementToolbarButton"]:hover svg { color: var(--text-primary) !important; }
+[data-testid="stElementToolbarButton"] svg { color: var(--text3) !important; }
+[data-testid="stElementToolbarButton"]:hover svg { color: var(--accent) !important; }
 
-/* ── Status badges — shadcn badge ── */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 9999px;
-  padding: 0.125rem 0.625rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.25rem;
-  transition: colors 0.15s ease;
-  white-space: nowrap;
-}
-.badge-default {
-  background: var(--secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-}
-.badge-secondary {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-}
-.badge-outline {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-}
-.badge-success {
-  background: var(--green-bg);
-  color: var(--green);
-  border: 1px solid hsl(142 76% 56% / 0.2);
-}
-.badge-danger {
-  background: var(--red-bg);
-  color: var(--red);
-  border: 1px solid hsl(0 84% 60% / 0.2);
-}
-.badge-warning {
-  background: var(--yellow-bg);
-  color: var(--yellow);
-  border: 1px solid hsl(38 92% 50% / 0.2);
-}
-.badge-info {
-  background: var(--blue-bg);
-  color: var(--blue);
-  border: 1px solid hsl(217 91% 60% / 0.2);
-}
-.badge-purple {
-  background: var(--purple-bg);
-  color: var(--purple);
-  border: 1px solid hsl(280 67% 60% / 0.2);
-}
-/* Legacy class mappings */
-.badge-sold  { color: var(--green); font-weight: 500; }
-.badge-stock { color: var(--blue); font-weight: 500; }
+/* ── Status badges ── */
+.badge-sold  { color: var(--green); font-weight: 600; text-shadow: 0 0 8px rgba(0,255,136,0.3); }
+.badge-stock { color: var(--accent); font-weight: 600; text-shadow: 0 0 8px rgba(0,240,255,0.3); }
 
-/* ── Hero banner — shadcn card ── */
+/* ── Hero banner — cyberpunk gaming card ── */
 .hero-banner {
-  background: var(--surface);
-  border: 1px solid var(--border-color);
+  background: linear-gradient(135deg, rgba(17,24,39,0.95) 0%, rgba(26,32,53,0.95) 100%);
+  border: 1px solid rgba(0,240,255,0.15);
   border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
+  padding: 1.15rem 1.4rem;
   margin-bottom: 1rem;
   display: flex;
   align-items: center;
   gap: 1rem;
+  box-shadow: var(--glow-cyan), 0 4px 16px rgba(0,0,0,0.5);
   position: relative;
   overflow: hidden;
 }
+.hero-banner::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--purple), transparent);
+  opacity: 0.8;
+}
 .hero-banner .logo {
-  font-size: 1.5rem;
-  opacity: 0.9;
+  font-size: 1.6rem;
+  opacity: 0.95;
+  filter: drop-shadow(0 0 8px rgba(0,240,255,0.4));
 }
 .hero-banner h1 {
   margin: 0;
-  font-size: clamp(1.1rem, 2.5vw, 1.5rem);
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  color: var(--text-primary);
+  font-size: clamp(1.05rem, 2.5vw, 1.35rem);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  text-shadow: 0 0 20px rgba(0,240,255,0.2);
 }
 .hero-banner p {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.02em;
+  color: var(--text3);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  font-family: var(--mono);
 }
 
-/* ── Stat cards — shadcn card ── */
+/* ── Stat cards — gaming HUD panel ── */
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.8rem;
 }
 .stat-card {
   background: var(--surface);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem;
+  padding: 0.75rem 0.9rem;
   text-align: center;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 .stat-card:hover {
-  border-color: var(--border-hover);
+  border-color: rgba(0,240,255,0.25);
+  box-shadow: 0 0 16px rgba(0,240,255,0.08);
+  transform: translateY(-2px);
 }
+.stat-card:hover::before { opacity: 1; }
 .stat-card .val {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.025em;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--accent);
+  text-shadow: 0 0 10px rgba(0,240,255,0.2);
 }
 .stat-card .lbl {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-top: 0.25rem;
-  font-weight: 500;
+  font-size: 0.66rem;
+  color: var(--text3);
+  margin-top: 0.2rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  font-family: var(--mono);
 }
 
-/* ── Section headings — shadcn style ── */
+/* ── Section headings — neon accent with glow ── */
 .sec-heading {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
   margin: 1.5rem 0 0.75rem !important;
   padding: 0;
   width: 100%;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(0,240,255,0.1);
+  padding-bottom: 0.5rem;
+  text-shadow: 0 0 10px rgba(0,240,255,0.2);
 }
 .sec-heading::before {
   content: '';
   display: inline-block;
-  width: 2px;
-  height: 16px;
-  border-radius: 1px;
-  background: var(--text-primary);
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--accent), var(--purple));
   flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(0,240,255,0.4);
 }
 .sec-heading::after {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-color);
+  background: linear-gradient(90deg, rgba(0,240,255,0.12), transparent);
   margin-left: 0.5rem;
 }
 
-/* ── Stat panels — shadcn card ── */
+/* ── Stat panels — cyberpunk card ── */
 .stat-panel {
   background: var(--surface);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem 1.25rem 0.75rem;
+  padding: 1rem 1.1rem 0.75rem;
   margin-bottom: 0.75rem;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .stat-panel:hover {
-  border-color: var(--border-hover);
+  border-color: rgba(0,240,255,0.2);
+  box-shadow: 0 0 12px rgba(0,240,255,0.05);
 }
 
-/* ── Metric cards — shadcard with subtle left border ── */
+/* ── Metric cards — neon left accent bar ── */
 div[data-testid="stMetric"] {
   background: var(--surface) !important;
-  border: 1px solid var(--border-color) !important;
-  border-left: 3px solid var(--text-muted) !important;
+  border: 1px solid var(--border) !important;
+  border-left: 3px solid var(--accent) !important;
   border-radius: var(--radius) !important;
-  padding: 0.75rem 1rem !important;
-  transition: border-color 0.15s ease !important;
+  padding: 0.65rem 0.85rem !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
 }
 div[data-testid="stMetric"]:hover {
-  border-color: var(--border-hover) !important;
-  border-left-color: var(--text-secondary) !important;
+  border-color: rgba(0,240,255,0.2) !important;
+  border-left-color: var(--accent-h) !important;
+  box-shadow: 0 0 18px rgba(0,240,255,0.08) !important;
 }
 
-/* ── Expanders — shadcn collapsible ── */
+/* ── Expanders ── */
 [data-testid="stExpander"] {
-  border: 1px solid var(--border-color) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
-  background: transparent !important;
+  background: var(--surface) !important;
   overflow: hidden !important;
-  transition: border-color 0.15s ease !important;
+  transition: border-color 0.2s ease !important;
 }
 [data-testid="stExpander"]:hover {
-  border-color: var(--border-hover) !important;
+  border-color: rgba(0,240,255,0.18) !important;
 }
 [data-testid="stExpander"] summary {
-  padding: 0.75rem 1rem !important;
-  font-weight: 500 !important;
-  font-size: 0.875rem !important;
-  color: var(--text-primary) !important;
+  padding: 0.65rem 0.9rem !important;
+  font-weight: 600 !important;
+  font-size: 0.84rem !important;
+  color: var(--text) !important;
   background: transparent !important;
   border: none !important;
 }
-[data-testid="stExpander"] summary:hover {
-  color: var(--text-secondary) !important;
-}
+[data-testid="stExpander"] summary:hover { color: var(--accent) !important; }
 
-/* ── Progress bar — shadcn style ── */
+/* ── Progress bar — neon glow ── */
 [data-testid="stProgressBar"] > div > div {
-  background: var(--text-primary) !important;
-  border-radius: 9999px !important;
+  background: linear-gradient(90deg, var(--accent), var(--purple)) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 0 10px rgba(0,240,255,0.3), 0 0 20px rgba(123,97,255,0.15);
 }
 [data-testid="stProgressBar"] > div {
-  background: var(--secondary) !important;
-  border-radius: 9999px !important;
+  background: var(--surface3) !important;
+  border-radius: 4px !important;
 }
 
-/* ── Scrollbar — subtle ── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* ── Scrollbar — neon accent ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: hsl(217.2 32.6% 25%); border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: hsl(217.2 32.6% 35%); }
+::-webkit-scrollbar-thumb { background: rgba(0,240,255,0.15); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,240,255,0.3); }
 
-/* ── Form container — shadcn card ── */
+/* ── Form container ── */
 [data-testid="stForm"] {
-  background: transparent !important;
-  border: 1px solid var(--border-color) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
-  padding: 1.25rem !important;
+  padding: 1rem !important;
 }
 
-/* ── Selectbox / multiselect — shadcn style ── */
+/* ── Selectbox / multiselect ── */
 [data-baseweb="select"] > div:first-child {
-  background: var(--bg) !important;
-  border: 1px solid var(--border-color) !important;
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
-  color: var(--text-primary) !important;
+  color: var(--text) !important;
 }
 [data-baseweb="select"] > div:first-child:focus-within {
-  border-color: var(--ring-color) !important;
-  box-shadow: 0 0 0 2px hsl(212.7 26.8% 83.9% / 0.2) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(0,240,255,0.1), 0 0 12px rgba(0,240,255,0.06) !important;
 }
 [data-baseweb="popover"] [data-baseweb="menu"] {
-  background: var(--surface) !important;
-  border: 1px solid var(--border-color) !important;
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
 }
 [data-baseweb="popover"] [role="option"]:hover {
-  background: var(--surface-hover) !important;
+  background: var(--surface3) !important;
 }
 [data-baseweb="tag"] {
-  background: var(--secondary) !important;
-  color: var(--text-primary) !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: var(--radius) !important;
+  background: rgba(0,240,255,0.1) !important;
+  color: var(--accent) !important;
+  border: none !important;
+  border-radius: 4px !important;
 }
 
 /* ── Caption ── */
 [data-testid="stCaptionContainer"] p {
-  color: var(--text-muted) !important;
-  font-size: 0.8rem !important;
+  color: var(--text3) !important;
+  font-size: 0.74rem !important;
+  font-family: var(--mono) !important;
 }
 
 /* ── Divider ── */
 hr {
   border: none !important;
-  border-top: 1px solid var(--border-color) !important;
-  margin: 1rem 0 !important;
+  border-top: 1px solid rgba(0,240,255,0.08) !important;
+  margin: 0.75rem 0 !important;
 }
 
-/* ── Sidebar section headings ── */
+/* ── Sidebar section headings — neon accent ── */
 [data-testid="stSidebar"] .sidebar-heading {
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-  padding: 0.5rem 0 0.35rem;
-  border-bottom: 1px solid var(--border-color);
-  margin-bottom: 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 0.4rem 0 0.25rem;
+  border-bottom: 1px solid rgba(0,240,255,0.1);
+  margin-bottom: 0.35rem;
   display: block;
+  text-shadow: 0 0 8px rgba(0,240,255,0.15);
 }
 
-/* ── Radio pill chips — shadcn toggle style ── */
+/* ── Radio pill chips — neon selection ── */
 [data-testid="stRadio"] > div { gap: 0.25rem !important; flex-wrap: wrap !important; }
 [data-testid="stRadio"] label {
-  background: transparent !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: var(--radius) !important;
-  padding: 0.375rem 0.75rem !important;
-  font-size: 0.8125rem !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 999px !important;
+  padding: 0.25rem 0.75rem !important;
+  font-size: 0.75rem !important;
   font-weight: 500 !important;
-  color: var(--text-muted) !important;
+  color: var(--text2) !important;
   cursor: pointer !important;
-  transition: all 0.15s ease !important;
+  transition: all 0.2s ease !important;
 }
 [data-testid="stRadio"] label:has(input:checked) {
-  background: var(--secondary) !important;
-  border-color: var(--border-hover) !important;
-  color: var(--text-primary) !important;
-  font-weight: 500 !important;
+  background: rgba(0,240,255,0.1) !important;
+  border-color: rgba(0,240,255,0.35) !important;
+  color: var(--accent) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 10px rgba(0,240,255,0.08);
 }
 [data-testid="stRadio"] label:hover {
-  border-color: var(--border-hover) !important;
-  color: var(--text-secondary) !important;
+  border-color: var(--border-h) !important;
+  color: var(--text) !important;
 }
 [data-testid="stRadio"] label input[type="radio"] { display: none !important; }
 [data-testid="stRadio"] label > div:first-child { display: none !important; }
 
-/* ── Badge warn — shadcn danger badge ── */
+/* ── Ton lau badge — warning neon pink ── */
 .badge-warn {
-  background: var(--red-bg);
-  color: var(--red);
-  border: 1px solid hsl(0 84% 60% / 0.2);
-  border-radius: 9999px;
-  padding: 0.125rem 0.625rem;
-  font-size: 0.75rem;
-  font-weight: 500;
+  background: rgba(255,45,117,0.12);
+  color: var(--pink);
+  border: 1px solid rgba(255,45,117,0.3);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: var(--mono);
   margin-left: 8px;
   vertical-align: middle;
   display: inline-block;
-  white-space: nowrap;
+  box-shadow: 0 0 8px rgba(255,45,117,0.15);
+  text-shadow: 0 0 6px rgba(255,45,117,0.3);
+  animation: pulse-warn 2s ease-in-out infinite;
+}
+@keyframes pulse-warn {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,45,117,0.15); }
+  50% { box-shadow: 0 0 16px rgba(255,45,117,0.3); }
 }
 
-/* ── Alerts — shadcn alert ── */
+/* ── Alerts — neon borders ── */
 [data-testid="stAlert"] {
   border-radius: var(--radius) !important;
   border-width: 1px !important;
-  font-size: 0.875rem !important;
-  padding: 0.75rem 1rem !important;
+  font-size: 0.82rem !important;
+  padding: 0.6rem 0.85rem !important;
 }
 [data-testid="stAlert"][kind="info"], div[data-testid="stInfo"] > div {
-  background: var(--blue-bg) !important;
-  border-color: hsl(217 91% 60% / 0.2) !important;
-  color: var(--text-primary) !important;
+  background: rgba(0,240,255,0.04) !important;
+  border-color: rgba(0,240,255,0.18) !important;
+  color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="success"], div[data-testid="stSuccess"] > div {
   background: var(--green-bg) !important;
-  border-color: hsl(142 76% 56% / 0.2) !important;
-  color: var(--text-primary) !important;
+  border-color: rgba(0,255,136,0.25) !important;
+  color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="warning"], div[data-testid="stWarning"] > div {
   background: var(--yellow-bg) !important;
-  border-color: hsl(38 92% 50% / 0.2) !important;
-  color: var(--text-primary) !important;
+  border-color: rgba(255,170,0,0.25) !important;
+  color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="error"], div[data-testid="stError"] > div {
   background: var(--red-bg) !important;
-  border-color: hsl(0 84% 60% / 0.2) !important;
-  color: var(--text-primary) !important;
+  border-color: rgba(255,51,85,0.25) !important;
+  color: var(--text) !important;
 }
 
-/* ── Plotly chart containers ── */
+/* ── Plotly chart containers — clean neon border ── */
 .js-plotly-plot {
-  border: 1px solid var(--border-color) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
   overflow: hidden !important;
 }
 
-/* ── Copy description button ── */
+/* ── Copy description button — neon gradient ── */
 .copy-desc-btn {
-  background: var(--text-primary) !important;
-  color: var(--bg) !important;
+  background: linear-gradient(135deg, var(--accent), var(--purple)) !important;
+  color: #0b0e17 !important;
   border: none !important;
-  border-radius: var(--radius) !important;
-  font-weight: 600 !important;
-  padding: 0.5rem 1rem !important;
-  font-size: 0.875rem !important;
+  border-radius: 999px !important;
+  font-weight: 700 !important;
+  box-shadow: var(--glow-cyan) !important;
 }
 .copy-desc-btn:hover {
-  opacity: 0.9;
+  background: linear-gradient(135deg, var(--accent-h), #9580ff) !important;
 }
 
-/* ── Toast — shadcn toast ── */
+/* ── Toast ── */
 [data-testid="stToast"] {
-  font-size: 0.875rem !important;
+  font-size: 0.84rem !important;
   border-radius: var(--radius) !important;
-  background: var(--surface) !important;
-  border: 1px solid var(--border-color) !important;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
-  color: var(--text-primary) !important;
+  background: var(--surface2) !important;
+  border: 1px solid rgba(0,240,255,0.15) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 12px rgba(0,240,255,0.06) !important;
+  color: var(--text) !important;
 }
-[data-testid="stToastContainer"] { bottom: 1.5rem !important; right: 1.5rem !important; }
+[data-testid="stToastContainer"] { bottom: 2rem !important; right: 1.5rem !important; }
 
 /* ── Empty state ── */
 .empty-state {
@@ -671,13 +668,13 @@ hr {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 3rem 1rem;
-  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  gap: 0.4rem;
   text-align: center;
 }
-.empty-state .es-icon { font-size: 2.5rem; opacity: 0.3; }
-.empty-state .es-title { font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); }
-.empty-state .es-sub { font-size: 0.8rem; color: var(--text-muted); }
+.empty-state .es-icon { font-size: 2rem; opacity: 0.35; filter: grayscale(0.5); }
+.empty-state .es-title { font-size: 0.9rem; font-weight: 500; color: var(--text3); }
+.empty-state .es-sub { font-size: 0.76rem; color: var(--text3); opacity: 0.6; }
 
 /* ── Button load spinner ── */
 .btn-busy {
@@ -689,84 +686,53 @@ hr {
 /* ── Hide Streamlit branding ── */
 #MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
 
-/* ── Separator line utility ── */
+/* ── Gaming accent decorations ── */
 .cyber-line {
   height: 1px;
-  background: var(--border-color);
+  background: linear-gradient(90deg, transparent, var(--accent), var(--purple), transparent);
   margin: 1rem 0;
+  opacity: 0.5;
 }
 
-/* ── Text utility classes ── */
-.text-primary   { color: var(--text-primary); }
-.text-secondary { color: var(--text-secondary); }
-.text-muted     { color: var(--text-muted); }
-.text-green     { color: var(--green); }
-.text-red       { color: var(--red); }
-.text-yellow    { color: var(--yellow); }
-.text-blue      { color: var(--blue); }
-.text-purple    { color: var(--purple); }
+/* ── Neon text utility classes ── */
+.neon-cyan { color: var(--accent); text-shadow: 0 0 10px rgba(0,240,255,0.3); }
+.neon-pink { color: var(--pink); text-shadow: 0 0 10px rgba(255,45,117,0.3); }
+.neon-green { color: var(--green); text-shadow: 0 0 10px rgba(0,255,136,0.3); }
+.neon-purple { color: var(--purple); text-shadow: 0 0 10px rgba(123,97,255,0.3); }
+.neon-yellow { color: var(--yellow); text-shadow: 0 0 10px rgba(255,170,0,0.3); }
 
-/* Legacy neon classes → shadcn mappings */
-.neon-cyan   { color: var(--blue); }
-.neon-pink   { color: var(--red); }
-.neon-green  { color: var(--green); }
-.neon-purple { color: var(--purple); }
-.neon-yellow { color: var(--yellow); }
-
-/* ── Hero stat dot ── */
+/* ── Hero stat dot glow ── */
 .hero-stat-dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.hero-stat-dot.cyan   { background: var(--blue); }
-.hero-stat-dot.pink   { background: var(--red); }
-.hero-stat-dot.green  { background: var(--green); }
-.hero-stat-dot.purple { background: var(--purple); }
-.hero-stat-dot.muted  { background: var(--text-muted); }
-
-/* ── Shadcn-style inline badge for chart dates ── */
-.shadcn-badge-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  padding: 0.375rem 0.75rem;
-  margin-bottom: 0.75rem;
-}
-.shadcn-badge-inline .badge-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-.shadcn-badge-inline .badge-value {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
+.hero-stat-dot.cyan { background: var(--accent); box-shadow: 0 0 10px rgba(0,240,255,0.5); }
+.hero-stat-dot.pink { background: var(--pink); box-shadow: 0 0 10px rgba(255,45,117,0.5); }
+.hero-stat-dot.green { background: var(--green); box-shadow: 0 0 10px rgba(0,255,136,0.5); }
+.hero-stat-dot.purple { background: var(--purple); box-shadow: 0 0 10px rgba(123,97,255,0.5); }
+.hero-stat-dot.muted { background: var(--text3); }
 
 /* ── Mobile responsive ── */
 @media (max-width: 768px) {
   .block-container { padding: 0.5rem 0.75rem 3rem !important; }
-  div[data-testid="stMetricValue"] { font-size: 1rem !important; }
-  div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; }
-  .stat-card .val { font-size: 1rem; }
-  [data-testid="stTab"] { padding: 0.5rem 0.75rem !important; font-size: 0.8125rem !important; }
-  .hero-banner { padding: 0.75rem 1rem; gap: 0.5rem; flex-direction: column !important; align-items: flex-start !important; }
+  div[data-testid="stMetricValue"] { font-size: 0.95rem !important; }
+  div[data-testid="stMetricLabel"] { font-size: 0.65rem !important; }
+  .stat-card .val { font-size: 0.95rem; }
+  [data-testid="stTab"] { padding: 0.35rem 0.6rem !important; font-size: 0.72rem !important; }
+  .hero-banner { padding: 0.55rem 0.65rem; gap: 0.35rem; flex-direction: column !important; align-items: flex-start !important; }
   .hero-banner > div:first-child { min-width: 0 !important; }
-  .hero-banner .logo { font-size: 1.25rem; }
-  .hero-banner h1 { font-size: 1rem !important; }
-  .hero-banner p { font-size: 0.7rem; }
-  .hero-banner > div:last-child { gap: 0.5rem !important; width: 100% !important; }
-  .hero-banner > div:last-child > div { flex: 1 1 0 !important; min-width: 0 !important; padding: 0.5rem 0.75rem !important; }
-  .hero-banner > div:last-child > div > div:first-child { font-size: 1rem !important; }
-  .hero-banner > div:last-child > div > div:last-child { font-size: 0.7rem !important; }
-  .sec-heading { font-size: 0.8125rem; margin: 0.75rem 0 0.4rem; }
+  .hero-banner .logo { font-size: 0.95rem; }
+  .hero-banner h1 { font-size: 0.85rem !important; }
+  .hero-banner p { font-size: 0.6rem; }
+  .hero-banner > div:last-child { gap: 0.35rem !important; width: 100% !important; }
+  .hero-banner > div:last-child > div { flex: 1 1 0 !important; min-width: 0 !important; padding: 0.35rem 0.5rem !important; }
+  .hero-banner > div:last-child > div > div:first-child { font-size: 0.9rem !important; }
+  .hero-banner > div:last-child > div > div:last-child { font-size: 0.55rem !important; }
+  .sec-heading { font-size: 0.68rem; margin: 0.75rem 0 0.4rem; }
 
-  [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 0.5rem !important; }
+  [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 0.3rem !important; }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(2):last-child)
     > [data-testid="stColumn"] { flex: 1 1 45% !important; min-width: 45% !important; }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(3):last-child)
@@ -784,15 +750,15 @@ hr {
     flex: 1 1 100% !important; min-width: 100% !important;
   }
 
-  .stForm { padding: 0.75rem !important; }
-  .stButton > button { padding: 0.375rem 0.75rem !important; font-size: 0.8125rem !important; }
+  .stForm { padding: 0.5rem !important; }
+  .stButton > button { padding: 0.45rem 0.75rem !important; font-size: 0.8rem !important; }
   .stDataFrame { max-height: 350px !important; }
-  [data-testid="stDataFrameResizable"] { font-size: 0.8125rem !important; }
-  [data-testid="stExpander"] summary { font-size: 0.8125rem !important; padding: 0.5rem 0.75rem !important; }
-  .stTextInput input, .stNumberInput input { font-size: 0.875rem !important; padding: 0.5rem 0.75rem !important; }
-  .stSelectbox [data-baseweb="select"] { font-size: 0.875rem !important; }
-  [data-testid="stRadio"] > div { flex-wrap: wrap !important; gap: 0.25rem !important; }
-  [data-testid="stRadio"] label { font-size: 0.8125rem !important; padding: 0.25rem 0.5rem !important; }
+  [data-testid="stDataFrameResizable"] { font-size: 0.75rem !important; }
+  [data-testid="stExpander"] summary { font-size: 0.82rem !important; padding: 0.4rem 0.6rem !important; }
+  .stTextInput input, .stNumberInput input { font-size: 0.85rem !important; padding: 0.4rem 0.6rem !important; }
+  .stSelectbox [data-baseweb="select"] { font-size: 0.85rem !important; }
+  [data-testid="stRadio"] > div { flex-wrap: wrap !important; gap: 0.2rem !important; }
+  [data-testid="stRadio"] label { font-size: 0.75rem !important; padding: 0.25rem 0.5rem !important; }
   [data-testid="stSidebar"] { min-width: 260px !important; }
   .js-plotly-plot { min-height: 250px !important; }
 }

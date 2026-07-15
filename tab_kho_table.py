@@ -286,8 +286,8 @@ def render_inventory_table(df):
                         )
                         st.markdown(
                             f'<div style="font-size:0.8rem;color:#777777;margin-top:0.5rem;">'
-                            f'STT <b style="color:#22d3ee">{int(_crow["STT"])}</b> · '
-                            f'{_crow["Tên Pet"]} · <span style="color:#22d3ee">{_crow["Mutation"]}</span>'
+                            f'STT <b style="color:#8b5cf6">{int(_crow["STT"])}</b> · '
+                            f'{_crow["Tên Pet"]} · <span style="color:#8b5cf6">{_crow["Mutation"]}</span>'
                             f'</div>',
                             unsafe_allow_html=True,
                         )

@@ -31,7 +31,7 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                 .sort_values("_sk")
             )
             _mo_colors = [
-                "#22d3ee" if v >= 0 else "#f87171"
+                "#8b5cf6" if v >= 0 else "#f87171"
                 for v in _mo_df["_ln"]
             ]
             _fig_mo = go.Figure(go.Bar(

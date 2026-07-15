@@ -41,7 +41,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
 
             _wf_labels = ["Tổng Doanh Thu", "Tổng Vốn", "Lợi Nhuận Ròng"]
             _wf_vals   = [total_rev, total_cost, abs(net_profit)]
-            _wf_colors = ["#22d3ee", "#f87171", "#22d3ee" if net_profit >= 0 else "#f87171"]
+            _wf_colors = ["#8b5cf6", "#f87171", "#8b5cf6" if net_profit >= 0 else "#f87171"]
 
             _fig_wf = go.Figure(go.Bar(
                 x=_wf_labels,
@@ -58,7 +58,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                 x="Lợi Nhuận Ròng", y=abs(net_profit),
                 text=f"<b>{'+ ' if net_profit >= 0 else '- '}{fmt_short(abs(net_profit))}</b>",
                 showarrow=False, yshift=24,
-                font=dict(color="#22d3ee" if net_profit >= 0 else "#f87171", size=12)
+                font=dict(color="#8b5cf6" if net_profit >= 0 else "#f87171", size=12)
             )
             _fig_wf.update_layout(
                 paper_bgcolor="#000000", plot_bgcolor="#000000",
@@ -144,8 +144,8 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                 textposition="outside",
                 textfont=dict(size=11, color="#f0f0f0", family="Inter"),
                 marker=dict(
-                    color="#22d3ee",
-                    line=dict(color="#22d3ee", width=0),
+                    color="#8b5cf6",
+                    line=dict(color="#8b5cf6", width=0),
                 ),
                 cliponaxis=False,
             ))
@@ -244,7 +244,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                         ax=0, ay=-32,
                     ))
 
-            _bar_colors = ["#22d3ee" if v >= 0 else "#f87171" for v in _cum_daily["Lợi Nhuận"]]
+            _bar_colors = ["#8b5cf6" if v >= 0 else "#f87171" for v in _cum_daily["Lợi Nhuận"]]
 
             _fig_cum = go.Figure()
             _fig_cum.add_trace(go.Bar(
@@ -258,8 +258,8 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                 x=_cum_daily["Ngày DT"], y=_cum_daily["Tích Lũy"],
                 mode="lines",
                 fill="tozeroy",
-                fillcolor="rgba(34,211,238,0.22)",
-                line=dict(color="#22d3ee", width=2.5),
+                fillcolor="rgba(139,92,246,0.22)",
+                line=dict(color="#8b5cf6", width=2.5),
                 name="Tích lũy",
                 hovertemplate="%{x|%d/%m/%Y}<br>Tích lũy: <b>%{y:,.0f}₫</b><extra></extra>",
             ))

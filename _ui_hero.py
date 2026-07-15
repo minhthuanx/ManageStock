@@ -1,5 +1,5 @@
 """
-Hero banner — Neon Cyan glow theme.
+Hero banner — Purple→Fuchsia neon glow theme.
 """
 import pandas as pd
 import streamlit as st
@@ -32,19 +32,19 @@ def render_hero_banner(df, bulk_df, bulk_history):
         <div class="logo">👻</div>
         <div>
           <h1 style="margin:0;">ManageStock{_badge_html}</h1>
-          <p style="margin:0;color:#777;font-size:0.7rem;letter-spacing:0.02em;">Inventory Management · MINHTHUAN · 2026</p>
+          <p style="margin:0;color:#666;font-size:0.7rem;letter-spacing:0.02em;">Inventory Management · MINHTHUAN · 2026</p>
         </div>
       </div>
       <div style="display:flex;gap:0.55rem;flex-wrap:wrap;align-items:center;">
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(34,211,238,0.18);border:1px solid rgba(34,211,238,0.3);border-radius:8px;padding:0.5rem 1rem;box-shadow:0 0 12px rgba(34,211,238,0.15),inset 0 0 15px rgba(34,211,238,0.05);transition:all 0.25s ease;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#22d3ee;flex-shrink:0;box-shadow:0 0 8px rgba(34,211,238,0.6);"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(139,92,246,0.18);border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:0.5rem 1rem;box-shadow:0 0 12px rgba(139,92,246,0.15),inset 0 0 15px rgba(139,92,246,0.05);transition:all 0.25s ease;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#8b5cf6;flex-shrink:0;box-shadow:0 0 8px rgba(139,92,246,0.6);"></div>
           <div>
             <div style="font-size:1.15rem;font-weight:700;color:#f0f0f0;line-height:1.2;">{_hb_con_hang_count}</div>
             <div style="font-size:0.65rem;color:#666;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;">Còn hàng</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.25);border-radius:8px;padding:0.5rem 1rem;box-shadow:0 0 12px rgba(167,139,250,0.1);transition:all 0.25s ease;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#a78bfa;flex-shrink:0;box-shadow:0 0 8px rgba(167,139,250,0.5);"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(217,70,239,0.12);border:1px solid rgba(217,70,239,0.25);border-radius:8px;padding:0.5rem 1rem;box-shadow:0 0 12px rgba(217,70,239,0.1);transition:all 0.25s ease;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#d946ef;flex-shrink:0;box-shadow:0 0 8px rgba(217,70,239,0.5);"></div>
           <div>
             <div style="font-size:1.15rem;font-weight:700;color:#f0f0f0;line-height:1.2;">{_hb_da_ban}</div>
             <div style="font-size:0.65rem;color:#666;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;">Đã bán</div>

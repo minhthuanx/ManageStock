@@ -29,7 +29,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             fig_cmp = go.Figure(go.Bar(
                 x=_compare_df["Hạng mục"],
                 y=_compare_df["Giá trị"],
-                marker_color=["#22d3ee", "#22d3ee"],
+                marker_color=["#8b5cf6", "#8b5cf6"],
                 text=_compare_df["Giá trị"].apply(fmt_short),
                 textposition="outside",
                 textfont=dict(color="#f0f0f0", size=11),
@@ -63,7 +63,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=top_pets["Lợi Nhuận"],
                     y=top_pets["Tên Pet"],
                     orientation="h",
-                    marker=dict(color="#22d3ee"),
+                    marker=dict(color="#8b5cf6"),
                     text=top_pets["Lợi Nhuận"].apply(fmt_short),
                     textposition="outside",
                     textfont=dict(color="#f0f0f0", size=11),
@@ -107,19 +107,19 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
                 # Color palette per mutation (distinct vivid colors)
                 _MUT_PALETTE = {
-                    "Normal":"#888888","Gold":"#fbbf24","Diamond":"#67e8f9",
+                    "Normal":"#888888","Gold":"#fbbf24","Diamond":"#a78bfa",
                     "Bloodrot":"#f87171","Candy":"#f9a8d4","Divine":"#a78bfa",
-                    "Lava":"#ff6b35","Galaxy":"#22d3ee","Yin-Yang":"#e2e8f0",
+                    "Lava":"#ff6b35","Galaxy":"#8b5cf6","Yin-Yang":"#e2e8f0",
                     "Radioactive":"#86efac","Cursed":"#4ade80","Rainbow":"#f472b6",
                     "Không rõ":"#6b7280",
                 }
-                _dot_colors = [_MUT_PALETTE.get(m, "#67e8f9") for m in _tm_grp["_mut"]]
+                _dot_colors = [_MUT_PALETTE.get(m, "#a78bfa") for m in _tm_grp["_mut"]]
 
                 _fig_bub = go.Figure()
 
                 # Quadrant shading
                 _fig_bub.add_hrect(y0=_med_y, y1=_tm_grp["LN_per_unit"].max()*1.2,
-                                   fillcolor="rgba(34,211,238,0.04)", line_width=0)
+                                   fillcolor="rgba(139,92,246,0.04)", line_width=0)
                 _fig_bub.add_hrect(y0=_tm_grp["LN_per_unit"].min()*1.2, y1=_med_y,
                                    fillcolor="rgba(248,113,113,0.04)", line_width=0)
 
@@ -142,7 +142,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
                 # Bubbles
                 for _, _row in _tm_grp.iterrows():
-                    _col = _MUT_PALETTE.get(str(_row["_mut"]), "#67e8f9")
+                    _col = _MUT_PALETTE.get(str(_row["_mut"]), "#a78bfa")
                     _sz  = max(24, min(90, _row["DT"] / (_tm_grp["DT"].max() or 1) * 80 + 14))
                     _fig_bub.add_trace(go.Scatter(
                         x=[_row["Count"]],
@@ -233,10 +233,10 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     )
 
                 _PP_PALETTE = [
-                    "#22d3ee","#22d3ee","#f472b6","#fbbf24","#38bdf8",
-                    "#a78bfa","#4ade80","#ff6b35","#67e8f9","#f87171",
-                    "#39d353","#86efac","#fdba74","#22d3ee","#f9a8d4",
-                    "#67e8f9","#fde68a","#bae6fd","#fecdd3","#bbf7d0",
+                    "#8b5cf6","#8b5cf6","#f472b6","#fbbf24","#38bdf8",
+                    "#a78bfa","#4ade80","#ff6b35","#a78bfa","#f87171",
+                    "#39d353","#86efac","#fdba74","#8b5cf6","#f9a8d4",
+                    "#a78bfa","#fde68a","#bae6fd","#fecdd3","#bbf7d0",
                 ]
                 for _pi, (_, _pr) in enumerate(_pp_grp.iterrows()):
                     _sz2 = max(16, min(68, _pr["Count"] / max(float(_pp_grp["Count"].max()), 1) * 52 + 16))
@@ -343,7 +343,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=_mut_perf["LN_mean"],
                     y=_mut_perf["Mutation"],
                     orientation="h",
-                    marker=dict(color="#22d3ee"),
+                    marker=dict(color="#8b5cf6"),
                     text=_mut_perf["LN_mean"].apply(fmt_short),
                     textposition="outside",
                     textfont=dict(color="#f0f0f0", size=10),

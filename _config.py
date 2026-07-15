@@ -99,11 +99,12 @@ LIST_SCHEMA = {"Name": ""}
 MUTATION_OPTIONS = [
     "None", "Normal", "Gold", "Diamond", "Bloodrot", "Candy",
     "Divine", "Lava", "Galaxy", "Yin-Yang", "Radioactive",
-    "Cursed", "Rainbow", "Cyber",
+    "Cursed", "Rainbow", "Cyber", "Phantom",
 ]
 
 MUTATION_ICONS = {
     "gold": "👑", "diamond": "💎", "bloodrot": "🩸", "candy": "🍬",
     "divine": "✨", "lava": "🌋", "galaxy": "🌌", "yin-yang": "☯️",
     "radioactive": "☢️", "cursed": "😈", "rainbow": "🌈", "cyber": "🤖",
+    "phantom": "👻",
 }

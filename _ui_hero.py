@@ -1,5 +1,5 @@
 """
-Hero banner — Cyberpunk gaming-style floating card with neon stat dots.
+Hero banner — Refined dark theme with violet accent dots.
 """
 import pandas as pd
 import streamlit as st
@@ -9,7 +9,7 @@ from _helpers import fmt_vnd, is_today_timestamp, is_today_bulk_date
 
 
 def render_hero_banner(df, bulk_df, bulk_history):
-    """Render a TinyFish-style hero banner with floating stat items."""
+    """Render a dark-themed hero banner with stat items."""
     today = now_vn().date()
 
     _hb_con_hang = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
@@ -33,29 +33,29 @@ def render_hero_banner(df, bulk_df, bulk_history):
         <div class="logo">👻</div>
         <div>
           <h1 style="margin:0;">ManageStock{_badge_html}</h1>
-          <p style="margin:0;color:#5a6178;font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;">CYBERPUNK · MINHTHUAN · 2026</p>
+          <p style="margin:0;color:#64748b;font-size:0.7rem;letter-spacing:0.02em;">Inventory Management · MINHTHUAN · 2026</p>
         </div>
       </div>
       <div style="display:flex;gap:0.55rem;flex-wrap:wrap;align-items:center;">
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(0,240,255,0.04);border:1px solid rgba(0,240,255,0.12);border-radius:12px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#00f0ff;flex-shrink:0;box-shadow:0 0 10px rgba(0,240,255,0.5);"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(129,140,248,0.08);border:1px solid rgba(129,140,248,0.15);border-radius:8px;padding:0.5rem 1rem;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#818cf8;flex-shrink:0;"></div>
           <div>
-            <div style="font-size:1.15rem;font-weight:800;color:#00f0ff;line-height:1.2;text-shadow:0 0 10px rgba(0,240,255,0.2);">{_hb_con_hang_count}</div>
-            <div style="font-size:0.65rem;color:#5a6178;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Còn hàng</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#f1f5f9;line-height:1.2;">{_hb_con_hang_count}</div>
+            <div style="font-size:0.65rem;color:#64748b;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;">Còn hàng</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#5a6178;flex-shrink:0;"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.03);border:1px solid #1e1e1e;border-radius:8px;padding:0.5rem 1rem;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#64748b;flex-shrink:0;"></div>
           <div>
-            <div style="font-size:1.15rem;font-weight:800;color:#e8eaf0;line-height:1.2;">{_hb_da_ban}</div>
-            <div style="font-size:0.65rem;color:#5a6178;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Đã bán</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#f1f5f9;line-height:1.2;">{_hb_da_ban}</div>
+            <div style="font-size:0.65rem;color:#64748b;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;">Đã bán</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.12);border-radius:12px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#00ff88;flex-shrink:0;box-shadow:0 0 10px rgba(0,255,136,0.5);"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.15);border-radius:8px;padding:0.5rem 1rem;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#34d399;flex-shrink:0;"></div>
           <div>
-            <div style="font-size:1.15rem;font-weight:800;color:#00ff88;line-height:1.2;text-shadow:0 0 10px rgba(0,255,136,0.2);">{fmt_vnd(_hb_profit_today)}</div>
-            <div style="font-size:0.65rem;color:#5a6178;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;font-family:'JetBrains Mono',monospace;">Hôm nay</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#f1f5f9;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
+            <div style="font-size:0.65rem;color:#64748b;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;">Hôm nay</div>
           </div>
         </div>
       </div>

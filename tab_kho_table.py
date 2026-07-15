@@ -285,9 +285,9 @@ def render_inventory_table(df):
                             _crow.get("NameStock", ""),
                         )
                         st.markdown(
-                            f'<div style="font-size:0.8rem;color:#5a6178;margin-top:0.5rem;">'
-                            f'STT <b style="color:#00f0ff">{int(_crow["STT"])}</b> · '
-                            f'{_crow["Tên Pet"]} · <span style="color:#00f0ff">{_crow["Mutation"]}</span>'
+                            f'<div style="font-size:0.8rem;color:#64748b;margin-top:0.5rem;">'
+                            f'STT <b style="color:#818cf8">{int(_crow["STT"])}</b> · '
+                            f'{_crow["Tên Pet"]} · <span style="color:#818cf8">{_crow["Mutation"]}</span>'
                             f'</div>',
                             unsafe_allow_html=True,
                         )
@@ -299,8 +299,8 @@ def render_inventory_table(df):
                                 _bid = "cpShop" + str(_ci)
                                 _cmp.html(
                                     '<button id="' + _bid + '" style="width:100%;padding:8px 4px;border:none;'
-                                    'border-radius:8px;cursor:pointer;background:#e8eaf0;'
-                                    'color:#0b0e17;font-weight:600;font-size:11px;">&#x1F47B; M&#xF4; t&#x1EA3;</button>'
+                                    'border-radius:8px;cursor:pointer;background:#f1f5f9;'
+                                    'color:#000000;font-weight:600;font-size:11px;">&#x1F47B; M&#xF4; t&#x1EA3;</button>'
                                     '<script>(function(){'
                                     'var btn=document.getElementById("' + _bid + '");'
                                     'var b64="' + _b64_desc + '";'

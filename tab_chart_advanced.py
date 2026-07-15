@@ -61,7 +61,7 @@ def render_advanced(sold_df, pbd, has_data):
                 _hour_count["Đơn"] = _hour_count["Đơn"].astype(int)
 
                 _peak_hour = int(_hour_count.loc[_hour_count["Đơn"].idxmax(), "Giờ"])
-                _colors = ["#00f0ff" if h == _peak_hour else "#0088aa" for h in _hour_count["Giờ"]]
+                _colors = ["#818cf8" if h == _peak_hour else "#0088aa" for h in _hour_count["Giờ"]]
 
                 fig_hour = go.Figure(go.Bar(
                     x=[f"{h:02d}:00" for h in _hour_count["Giờ"]],
@@ -69,17 +69,17 @@ def render_advanced(sold_df, pbd, has_data):
                     marker_color=_colors,
                     text=_hour_count["Đơn"].apply(lambda v: str(v) if v > 0 else ""),
                     textposition="outside",
-                    textfont=dict(size=11, color="#e8eaf0"),
+                    textfont=dict(size=11, color="#f1f5f9"),
                 ))
                 fig_hour.update_layout(
                     xaxis_title="Khung giờ (giờ VN)",
                     yaxis_title="Số đơn bán",
                     margin=dict(t=35, b=45),
-                    plot_bgcolor="#0b0e17",
-                    paper_bgcolor="#0b0e17",
-                    font=dict(family="Inter", color="#8b93a7", size=11),
-                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="#8b93a7")),
-                    yaxis=dict(tickfont=dict(size=10, color="#8b93a7"), gridcolor="#1a2035"),
+                    plot_bgcolor="#000000",
+                    paper_bgcolor="#000000",
+                    font=dict(family="Inter", color="#94a3b8", size=11),
+                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="#94a3b8")),
+                    yaxis=dict(tickfont=dict(size=10, color="#94a3b8"), gridcolor="#111111"),
                     height=430,
                 )
                 st.plotly_chart(fig_hour, use_container_width=True)
@@ -137,12 +137,12 @@ def render_advanced(sold_df, pbd, has_data):
                     xaxis_title="Giờ (giờ VN)",
                     yaxis_title="Thứ",
                     margin=dict(t=35, b=55),
-                    plot_bgcolor="#0b0e17",
-                    paper_bgcolor="#0b0e17",
-                    font=dict(family="Inter", color="#8b93a7", size=11),
+                    plot_bgcolor="#000000",
+                    paper_bgcolor="#000000",
+                    font=dict(family="Inter", color="#94a3b8", size=11),
                     height=380,
-                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="#8b93a7")),
-                    yaxis=dict(tickfont=dict(size=10, color="#8b93a7")),
+                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="#94a3b8")),
+                    yaxis=dict(tickfont=dict(size=10, color="#94a3b8")),
                 )
                 st.plotly_chart(fig_hmap, use_container_width=True)
             else:
@@ -221,11 +221,11 @@ def render_advanced(sold_df, pbd, has_data):
             _done = _total_sold_ch >= _an
             _ach_track_cols[_ai].markdown(
                 f"<div style='text-align:center;padding:6px 2px;border-radius:6px;"
-                f"background:{'rgba(0,255,136,0.12)' if _done else 'rgba(255,255,255,0.03)'};"
-                f"border:1px solid {'rgba(0,255,136,0.3)' if _done else 'rgba(255,255,255,0.06)'};'>"
+                f"background:{'rgba(52,211,153,0.12)' if _done else 'rgba(255,255,255,0.03)'};"
+                f"border:1px solid {'rgba(52,211,153,0.3)' if _done else 'rgba(255,255,255,0.06)'};'>"
                 f"<div style='font-size:1.1rem;'>{'✅' if _done else '⬜'}</div>"
-                f"<div style='font-size:0.65rem;color:{'#00ff88' if _done else '#5a6178'};font-weight:600;'>{_ab}</div>"
-                f"<div style='font-size:0.6rem;color:#4a5068;'>{_an}</div></div>",
+                f"<div style='font-size:0.65rem;color:{'#34d399' if _done else '#64748b'};font-weight:600;'>{_ab}</div>"
+                f"<div style='font-size:0.6rem;color:#64748b;'>{_an}</div></div>",
                 unsafe_allow_html=True,
             )
 
@@ -305,10 +305,10 @@ def render_advanced(sold_df, pbd, has_data):
                 _is_next = (_nxt_ln_ms is not None and _ms == _nxt_ln_ms)
                 _row_cols[_ci].markdown(
                     f"<div style='text-align:center;padding:5px 2px;border-radius:6px;"
-                    f"background:{'rgba(0,255,136,0.12)' if _done else ('rgba(0,240,255,0.10)' if _is_next else 'rgba(255,255,255,0.03)')};"
-                    f"border:1px solid {'rgba(0,255,136,0.3)' if _done else ('rgba(0,240,255,0.3)' if _is_next else 'rgba(255,255,255,0.06)')};"
+                    f"background:{'rgba(52,211,153,0.12)' if _done else ('rgba(129,140,248,0.10)' if _is_next else 'rgba(255,255,255,0.03)')};"
+                    f"border:1px solid {'rgba(52,211,153,0.3)' if _done else ('rgba(129,140,248,0.3)' if _is_next else 'rgba(255,255,255,0.06)')};"
                     f"{'font-weight:700;' if _is_next else ''}'>"
-                    f"<div style='font-size:0.75rem;color:{'#00ff88' if _done else ('#00f0ff' if _is_next else '#5a6178')};'>"
+                    f"<div style='font-size:0.75rem;color:{'#34d399' if _done else ('#818cf8' if _is_next else '#64748b')};'>"
                     f"{'✅' if _done else ('🎯' if _is_next else '⬜')} {_ms}M</div></div>",
                     unsafe_allow_html=True,
                 )

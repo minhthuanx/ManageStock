@@ -285,7 +285,7 @@ def render_inventory_table(df):
                             _crow.get("NameStock", ""),
                         )
                         st.markdown(
-                            f'<div style="font-size:0.8rem;color:#555555;margin-top:0.5rem;">'
+                            f'<div style="font-size:0.8rem;color:#777777;margin-top:0.5rem;">'
                             f'STT <b style="color:#22d3ee">{int(_crow["STT"])}</b> · '
                             f'{_crow["Tên Pet"]} · <span style="color:#22d3ee">{_crow["Mutation"]}</span>'
                             f'</div>',

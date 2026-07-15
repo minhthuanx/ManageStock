@@ -50,7 +50,7 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
             _fig_mo.update_layout(
                 paper_bgcolor="#000000",
                 plot_bgcolor="#000000",
-                font=dict(family="Inter", color="#888888", size=11),
+                font=dict(family="Inter", color="#999999", size=11),
                 xaxis=dict(
                     gridcolor="#141414",
                     tickfont=dict(color="#f0f0f0", size=10),
@@ -58,7 +58,7 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                 ),
                 yaxis=dict(
                     gridcolor="#141414",
-                    tickfont=dict(color="#888888", size=10),
+                    tickfont=dict(color="#999999", size=10),
                     tickformat=",.0f",
                     zeroline=True,
                     zerolinecolor="#1f1f1f",

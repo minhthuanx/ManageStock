@@ -34,7 +34,7 @@ def render_tab_eldorado(eld_client):
                     display:inline-flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;
                     color:#f0f0f0;border:3px solid #22d3ee;">{_initial}</div>
                     <div style="font-size:1.6rem;font-weight:700;color:#f0f0f0;margin-top:10px;">{eld_client.username}</div>
-                    <div style="font-size:1rem;color:#555555;margin-top:6px;">
+                    <div style="font-size:1rem;color:#777777;margin-top:6px;">
                         👍 {eld_client.pos} &nbsp;&nbsp; 👎 {eld_client.neg} &nbsp;&nbsp; | &nbsp;&nbsp; {eld_client.pos + eld_client.neg} giao dịch
                     </div>
                 </div>

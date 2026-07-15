@@ -37,13 +37,13 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             fig_cmp.update_layout(
                 paper_bgcolor="#000000",
                 plot_bgcolor="#000000",
-                font=dict(family="Inter", color="#888888", size=11),
+                font=dict(family="Inter", color="#999999", size=11),
                 title=dict(text="Doanh thu - Vốn tồn", font=dict(size=12, color="#f0f0f0")),
                 margin=dict(l=10, r=10, t=55, b=10),
                 height=400,
                 yaxis_title="VNĐ",
                 xaxis=dict(tickfont=dict(color="#f0f0f0", size=10)),
-                yaxis=dict(tickfont=dict(color="#888888", size=10), gridcolor="#141414"),
+                yaxis=dict(tickfont=dict(color="#999999", size=10), gridcolor="#141414"),
             )
             if _dt_sold_total > 0 or _von_ton_total > 0:
                 st.plotly_chart(fig_cmp, use_container_width=True)
@@ -71,9 +71,9 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 fig_bar.update_layout(
                     paper_bgcolor="#000000",
                     plot_bgcolor="#000000",
-                    font=dict(family="Inter", color="#888888", size=11),
+                    font=dict(family="Inter", color="#999999", size=11),
                     title=dict(text="Top 10 Pet Lợi nhuận cao", font=dict(size=12, color="#f0f0f0")),
-                    xaxis=dict(gridcolor="#141414", tickformat=",.0f", tickfont=dict(color="#888888", size=10)),
+                    xaxis=dict(gridcolor="#141414", tickformat=",.0f", tickfont=dict(color="#999999", size=10)),
                     yaxis=dict(gridcolor="#141414", tickfont=dict(color="#f0f0f0", size=10)),
                     margin=dict(l=10, r=10, t=55, b=10),
                     height=400,
@@ -172,15 +172,15 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
                 _fig_bub.update_layout(
                     paper_bgcolor="#000000", plot_bgcolor="#000000",
-                    font=dict(family="Inter", color="#888888", size=11),
+                    font=dict(family="Inter", color="#999999", size=11),
                     xaxis=dict(
                         title="Số con đã bán (volume)",
-                        gridcolor="#141414", tickfont=dict(color="#888888", size=10),
+                        gridcolor="#141414", tickfont=dict(color="#999999", size=10),
                         zeroline=False,
                     ),
                     yaxis=dict(
                         title="LN trung bình / con (₫)",
-                        gridcolor="#141414", tickfont=dict(color="#888888", size=10),
+                        gridcolor="#141414", tickfont=dict(color="#999999", size=10),
                         tickformat=",.0f", zeroline=True, zerolinecolor="#1f1f1f",
                     ),
                     margin=dict(l=10, r=10, t=25, b=10),
@@ -261,16 +261,16 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
                 _fig_pp.update_layout(
                     paper_bgcolor="#000000", plot_bgcolor="#000000",
-                    font=dict(family="Inter", color="#888888", size=11),
+                    font=dict(family="Inter", color="#999999", size=11),
                     xaxis=dict(title="Giá nhập TB (₫)", gridcolor="#141414",
-                               tickfont=dict(color="#888888", size=10), tickformat=",.0f", zeroline=False),
+                               tickfont=dict(color="#999999", size=10), tickformat=",.0f", zeroline=False),
                     yaxis=dict(title="LN TB / con (₫)", gridcolor="#141414",
-                               tickfont=dict(color="#888888", size=10), tickformat=",.0f",
+                               tickfont=dict(color="#999999", size=10), tickformat=",.0f",
                                zeroline=True, zerolinecolor="#1f1f1f"),
                     legend=dict(
                         orientation="v", x=1.01, y=1,
-                        font=dict(color="#888888", size=9),
-                        bgcolor="rgba(10,10,15,0.8)",
+                        font=dict(color="#999999", size=9),
+                        bgcolor="rgba(10,10,15,0.9)",
                         bordercolor="#141414", borderwidth=1,
                     ),
                     margin=dict(l=10, r=180, t=25, b=10),
@@ -318,9 +318,9 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 ))
                 fig_spd.update_layout(
                     paper_bgcolor="#000000", plot_bgcolor="#000000",
-                    font=dict(family="Inter", color="#888888", size=11),
+                    font=dict(family="Inter", color="#999999", size=11),
                     title=dict(text="Top 10 Pet bán chậm nhất (ngày TB)", font=dict(size=12, color="#f0f0f0")),
-                    xaxis=dict(gridcolor="#141414", tickfont=dict(color="#888888", size=10)),
+                    xaxis=dict(gridcolor="#141414", tickfont=dict(color="#999999", size=10)),
                     yaxis=dict(gridcolor="#141414", tickfont=dict(color="#f0f0f0", size=10)),
                     margin=dict(l=10, r=25, t=50, b=10),
                     height=400, showlegend=False,
@@ -352,9 +352,9 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 ))
                 fig_mut.update_layout(
                     paper_bgcolor="#000000", plot_bgcolor="#000000",
-                    font=dict(family="Inter", color="#888888", size=11),
+                    font=dict(family="Inter", color="#999999", size=11),
                     title=dict(text="Lợi nhuận TB theo Mutation", font=dict(size=12, color="#f0f0f0")),
-                    xaxis=dict(gridcolor="#141414", tickformat=",.0f", tickfont=dict(color="#888888", size=10)),
+                    xaxis=dict(gridcolor="#141414", tickformat=",.0f", tickfont=dict(color="#999999", size=10)),
                     yaxis=dict(gridcolor="#141414", tickfont=dict(color="#f0f0f0", size=10)),
                     margin=dict(l=10, r=25, t=50, b=10),
                     height=400, showlegend=False,

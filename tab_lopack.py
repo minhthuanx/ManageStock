@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from _timezone import now_vn, now_str
+import _icons as IC
 from _config import (
     BULK_SCHEMA, HISTORY_SCHEMA, MUTATION_OPTIONS, EXCHANGE_RATE,
 )
@@ -72,7 +73,7 @@ def render_tab_lopack(df, bulk_df, bulk_history, pet_db, ns_db, trait_db):
                             # nhất quán với save_bulk_supabase dùng explicit id
                             ok2 = sb_insert("bulk_inventory", db_row2)
                             if not ok2:
-                                st.error("❌ Không thể lưu lô hàng. Vui lòng thử lại.")
+                                st.error("Không thể lưu lô hàng. Vui lòng thử lại.")
                                 st.stop()
                             st.cache_data.clear()
                         # Append vào session state ngay để hiển thị tức thì sau rerun
@@ -91,8 +92,8 @@ def render_tab_lopack(df, bulk_df, bulk_history, pet_db, ns_db, trait_db):
                 if st.session_state.get("last_sale_undo", {}).get("type") == "bulk":
                     _undo_bk = st.session_state["last_sale_undo"]
                     _ub1, _ub2 = st.columns([3, 1])
-                    _ub1.info(f"↩️ Vừa bán: **{_undo_bk['label']}**  —  Bán nhầm? Hoàn tác ngay!")
-                    if _ub2.button("↩️ Hoàn tác", key="undo_bulk_btn", use_container_width=True):
+                    _ub1.info(f"↩ Vừa bán: **{_undo_bk['label']}**  —  Bán nhầm? Hoàn tác ngay!")
+                    if _ub2.button(f"↩ Hoàn tác", key="undo_bulk_btn", use_container_width=True):
                         _ud_bk = st.session_state.pop("last_sale_undo")
                         # Restore bulk_inventory row
                         if USE_SUPABASE:
@@ -152,7 +153,7 @@ def render_tab_lopack(df, bulk_df, bulk_history, pet_db, ns_db, trait_db):
                     _don_gia2 = float(target2["Giá Nhập Tổng"]) / max(float(target2["Số Lượng Gốc"]), 1)
                     _ngay_nhap2 = str(target2.get("Ngày Nhập", ""))[:10]
                     st.caption(
-                        f"📦 Còn: **{int(target2['Còn Lại'])}** / {int(float(target2['Số Lượng Gốc']))} con"
+                        f"Còn: **{int(target2['Còn Lại'])}** / {int(float(target2['Số Lượng Gốc']))} con"
                         f" · Vốn tổng: **{fmt_vnd(float(target2['Giá Nhập Tổng']))}**"
                         f" · Giá/con: **{fmt_vnd(_don_gia2)}**"
                         f" · Nhập: {_ngay_nhap2}"
@@ -192,13 +193,13 @@ def render_tab_lopack(df, bulk_df, bulk_history, pet_db, ns_db, trait_db):
                         _base_u = _pnd_bulk["gia_nhap_tong"] / max(_pnd_bulk["so_luong_goc"], 1)
                         _ln_bk  = _rev_bk - (_base_u * _pnd_bulk["s_qty"])
                         st.warning(
-                            f"⚠️ **Xác nhận bán** · {_pnd_bulk['ten_lo']}\n\n"
+                            f"! **Xác nhận bán** · {_pnd_bulk['ten_lo']}\n\n"
                             f"Số lượng: **{_pnd_bulk['s_qty']}** @ **${_pnd_bulk['s_prc']}/unit** "
                             f"→ {fmt_vnd(_rev_bk)} · LN giao dịch: **{fmt_vnd(_ln_bk)}**"
                         )
                         _bf1, _bf2 = st.columns(2)
-                        _do_confirm_bk = _bf1.button("✅ Xác nhận bán", key="confirm_sell_bulk", type="primary", use_container_width=True)
-                        _do_cancel_bk  = _bf2.button("❌ Hủy", key="cancel_sell_bulk", use_container_width=True)
+                        _do_confirm_bk = _bf1.button(f"✓ Xác nhận bán", key="confirm_sell_bulk", type="primary", use_container_width=True)
+                        _do_cancel_bk  = _bf2.button(f"× Hủy", key="cancel_sell_bulk", use_container_width=True)
 
                         if _do_cancel_bk:
                             st.session_state.pop("pending_bulk_sale", None)
@@ -261,7 +262,7 @@ def render_tab_lopack(df, bulk_df, bulk_history, pet_db, ns_db, trait_db):
                                     "old_loi_nhuan": _pnd_b["old_loi_nhuan"],
                                     "old_trang_thai":_pnd_b["old_trang_thai"],
                                 }
-                                st.toast("✅ Giao dịch hoàn tất · Nhấn Hoàn Tác nếu bán nhầm", icon="✅")
+                                st.toast("Giao dịch hoàn tất · Nhấn Hoàn Tác nếu bán nhầm", icon="✅")
                                 _clear_searches()  # reset form key → xóa trắng giá bán
                                 st.rerun()
                             else:
@@ -311,7 +312,7 @@ def render_tab_lopack(df, bulk_df, bulk_history, pet_db, ns_db, trait_db):
         if not view_bulk_base.empty:
             csv_bulk = view_bulk_base.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
             st.download_button(
-                "⬇️ Xuất CSV",
+                f"↓ Xuất CSV",
                 data=csv_bulk,
                 file_name=f"lo_pack_{now_vn().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv",
@@ -366,7 +367,7 @@ def render_tab_lopack(df, bulk_df, bulk_history, pet_db, ns_db, trait_db):
 
         # ── XÓA DÒNG LÔ PACK ──
         if USE_SUPABASE and not bulk_df.empty:
-            with st.expander("🗑️ Xóa dòng khỏi Lô Pack", expanded=False):
+            with st.expander("Xóa dòng khỏi Lô Pack", expanded=False):
                 def _safe_int_bk(v, default=0):
                     try: return int(float(v)) if v not in (None, "", "nan", "None") else default
                     except: return default
@@ -383,8 +384,8 @@ def render_tab_lopack(df, bulk_df, bulk_history, pet_db, ns_db, trait_db):
                     key="bulk_del_multiselect",
                 )
                 if _sel_bk_del:
-                    st.warning(f"⚠️ Sẽ xóa vĩnh viễn **{len(_sel_bk_del)} lô** khỏi Supabase. Không thể hoàn tác!")
-                    if st.button("🗑️ Xác nhận Xóa", key="bulk_del_confirm", type="primary", use_container_width=True):
+                    st.warning(f"Sẽ xóa vĩnh viễn **{len(_sel_bk_del)} lô** khỏi Supabase. Không thể hoàn tác!")
+                    if st.button("× Xác nhận Xóa", key="bulk_del_confirm", type="primary", use_container_width=True):
                         for _lbl in _sel_bk_del:
                             sb_delete("bulk_inventory", "id", _del_bk_id_map[_lbl])
                         st.cache_data.clear()

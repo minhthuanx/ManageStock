@@ -24,6 +24,7 @@ from _database import (
     load_inventory, load_csv, save_csv, supabase_client, to_db,
 )
 from _eldorado_helpers import _HAS_ELDORADO
+import _icons as IC
 
 try:
     from eldorado_client import DELIVERY_MAP, OTHER_TRADE_ENV_ID
@@ -60,7 +61,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
     # =========================================================
     # JSON IMPORT — Nhập từ JSON
     # =========================================================
-    with st.expander("📋 JSON Import — Nhập từ JSON", expanded=st.session_state.get("json_import_expander", False)):
+    with st.expander("JSON Import — Nhập từ JSON", expanded=st.session_state.get("json_import_expander", False)):
         st.caption("Dán JSON từ game vào đây để nhập dữ liệu pet nhanh chóng")
 
         if "json_import_key" not in st.session_state:
@@ -86,7 +87,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
         if parse_btn and json_input.strip():
             json_results = parse_json_import(json_input)
             if not json_results:
-                st.error("❌ Lỗi: Không thể phân tích JSON. Kiểm tra định dạng lại.")
+                st.error(f"× Lỗi: Không thể phân tích JSON. Kiểm tra định dạng lại.")
             else:
                 st.session_state.json_batch_results = json_results
                 st.session_state.json_show_dialog = True
@@ -106,7 +107,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
             trait_opts_dlg = ["None"] + [str(n) for n in range(1, 16)]
             ns_opts_dlg    = [""] + list(get_name_options(ns_db, fallback=""))
 
-            st.caption(f"**{len(json_results)}** mục từ JSON · Tick 🗑️ Xoá ở từng dòng để bỏ qua khi lưu")
+            st.caption(f"**{len(json_results)}** mục từ JSON · Tick × Xoá ở từng dòng để bỏ qua khi lưu")
 
             # ── NameStock chung cho cả batch ──
             _gn1, _gn2 = st.columns([1, 3])
@@ -148,7 +149,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
             _new_count = sum(1 for r in json_results if r.get("_is_new", True))
             _old_count = len(json_results) - _new_count
             if _old_count > 0:
-                st.info(f"🔄 **{_old_count}** pet đã tồn tại (bị lược bỏ) · **{_new_count}** pet mới")
+                st.info(f"↻ **{_old_count}** pet đã tồn tại (bị lược bỏ) · **{_new_count}** pet mới")
 
             for i, res in enumerate(json_results):
                 if not res.get("_is_new", True):
@@ -157,13 +158,13 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                 pet_name = res.get("Tên Pet", f"Item {i+1}")
                 mutation = res.get("Mutation", "Normal")
 
-                _expander_label = f"🆕 {pet_name} · {mutation}"
+                _expander_label = f"✓ {pet_name} · {mutation}"
 
                 with st.expander(_expander_label, expanded=True):
                     # Top row: Delete checkbox + basic info
                     _del_col, _info_col = st.columns([0.5, 5])
                     with _del_col:
-                        r_delete = st.checkbox("🗑️ Xoá", key=f"dlg_json_delete_{i}", label_visibility="collapsed")
+                        r_delete = st.checkbox("× Xoá", key=f"dlg_json_delete_{i}", label_visibility="collapsed")
 
                     with _info_col:
                         ms_val = res.get('M/s')
@@ -308,7 +309,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                     similar_names = ", ".join([f"{p[0]} ({p[1]:.1f}M/s)" for p in similar_pets[:3]])
                                     if len(similar_pets) > 3:
                                         similar_names += f" +{len(similar_pets)-3} nữa"
-                                    st.warning(f"⚠️ **Có vẻ trùng (cùng {effective_ns}):** {similar_names}")
+                                    st.warning(f"! **Có vẻ trùng (cùng {effective_ns}):** {similar_names}")
                         except Exception as e:
                             pass
 
@@ -316,7 +317,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                     _res_owner = res.get("_owner", "")
                     _res_unmapped = res.get("_owner_unmapped", False)
                     if _res_unmapped and _res_owner:
-                        st.warning(f"⚠️ Owner `{_res_owner}` chưa có trong mapping Owner → NameStock. Hãy thêm ở tab Cài Đặt.")
+                        st.warning(f"! Owner `{_res_owner}` chưa có trong mapping Owner → NameStock. Hãy thêm ở tab Cài Đặt.")
 
                 r_ms = parse_usd(r_ms_raw)
                 r_cost = parse_vnd(r_cost_raw)
@@ -339,7 +340,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                         elif r_price < 0.50: err_row.append("giá bán tối thiểu $0.50")
 
                 if not r_delete and err_row:
-                    st.info(f"⚠️ Thiếu thông tin: {', '.join(err_row)}")
+                    st.info(f"! Thiếu thông tin: {', '.join(err_row)}")
                     all_valid = False
 
                 edited_rows.append({
@@ -473,7 +474,7 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                 _def_del = _eld_set.get("default_delivery", "20 min")
                                 _def_del_code = DELIVERY_MAP.get(_def_del, "Minute20")
                                 _push_total = len(_push_items)
-                                st.toast(f"🚀 Bắt đầu push {_push_total} listing lên Eldorado...", icon="🚀")
+                                st.toast(f"Bắt đầu push {_push_total} listing lên Eldorado...", icon="🚀")
                                 for _pci, _pcfg in enumerate(_push_items):
                                     _pname = _pcfg.get("Tên Pet", "?")
                                     st.toast(f"[{_pci+1}/{_push_total}] Đang upload ảnh {_pname}...", icon="📤")
@@ -505,14 +506,14 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                                         )
                                         if _resp and not _resp.get("error"):
                                             _push_results["ok"].append(_pcfg.get("_title", _pname))
-                                            st.toast(f"✅ {_pname} — push thành công", icon="✅")
+                                            st.toast(f"{_pname} — push thành công", icon="✅")
                                         else:
                                             _err = _resp.get("error", "unknown") if isinstance(_resp, dict) else str(_resp)
                                             _push_results["fail"].append(f"{_pname}: {_err[:80]}")
-                                            st.toast(f"❌ {_pname} — {_err[:50]}", icon="❌")
+                                            st.toast(f"{_pname} — {_err[:50]}", icon="❌")
                                     except Exception as _pe:
                                         _push_results["fail"].append(f"{_pname}: {str(_pe)[:80]}")
-                                        st.toast(f"❌ {_pname} — lỗi: {str(_pe)[:50]}", icon="❌")
+                                        st.toast(f"{_pname} — lỗi: {str(_pe)[:50]}", icon="❌")
                                     if _pci < _push_total - 1:
                                         _time.sleep(0.5)
                         st.session_state.json_push_results = _push_results
@@ -521,20 +522,20 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                         _fail_n = len(_push_results.get("fail", []))
                         if _push_items:
                             if _fail_n == 0:
-                                st.toast(f"✅ Push thành công {_ok_n}/{len(_push_items)} listing", icon="✅")
+                                st.toast(f"Push thành công {_ok_n}/{len(_push_items)} listing", icon="✅")
                             else:
-                                st.toast(f"⚠️ Push xong: {_ok_n} thành công, {_fail_n} thất bại", icon="⚠️")
+                                st.toast(f"Push xong: {_ok_n} thành công, {_fail_n} thất bại", icon="⚠️")
                         else:
-                            st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
+                            st.toast(f"Đã lưu {saved} mục thành công", icon="✅")
                         st.rerun()
 
         json_preview_dialog()
 
     if st.session_state.get("json_saved_output"):
-        st.success("🎉 Đã lưu thành công!")
+        st.success(f"✓ Đã lưu thành công!")
 
         if st.session_state.json_saved_output != "[]":
-            if st.button("📦 Trích xuất JSON các pet ĐÃ ĐƯỢC LƯU"):
+            if st.button("↓ Trích xuất JSON các pet ĐÃ ĐƯỢC LƯU"):
                 st.session_state.show_saved_json = True
 
             if st.session_state.get("show_saved_json"):
@@ -546,25 +547,25 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                 _pt = st.session_state.json_push_total
                 if _pr:
                     if _pr["ok"]:
-                        st.success(f"✅ Push Eldorado thành công: {len(_pr['ok'])}/{_pt}")
-                        with st.expander("📋 Danh sách đã push", expanded=False):
+                        st.success(f"✓ Push Eldorado thành công: {len(_pr['ok'])}/{_pt}")
+                        with st.expander("Danh sách đã push", expanded=False):
                             for _t in _pr["ok"]:
                                 st.caption(f"• {_t}")
                     if _pr["fail"]:
-                        st.error(f"❌ Push Eldorado thất bại: {len(_pr['fail'])}/{_pt}")
-                        with st.expander("❌ Chi tiết lỗi", expanded=True):
+                        st.error(f"× Push Eldorado thất bại: {len(_pr['fail'])}/{_pt}")
+                        with st.expander("Chi tiết lỗi", expanded=True):
                             for _e in _pr["fail"]:
                                 st.caption(f"• {_e}")
                 else:
-                    st.info("ℹ️ Không có mục nào đủ điều kiện push lên Eldorado (cần ảnh + giá $ ≥0.50).")
-                if st.button("❌ Ẩn kết quả push", key="btn_hide_push"):
+                    st.info("i Không có mục nào đủ điều kiện push lên Eldorado (cần ảnh + giá $ >=0.50).")
+                if st.button("× Ẩn kết quả push", key="btn_hide_push"):
                     del st.session_state.json_push_results
                     del st.session_state.json_push_total
                     st.rerun()
         else:
             st.info("Không có pet nào được lưu.")
 
-        if st.button("❌ Xóa toàn bộ kết quả này", key="btn_clear_json_results"):
+        if st.button("× Xóa toàn bộ kết quả này", key="btn_clear_json_results"):
             st.session_state.json_saved_output = ""
             st.session_state.json_unsaved_output = ""
             st.session_state.show_saved_json = False

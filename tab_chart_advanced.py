@@ -69,17 +69,17 @@ def render_advanced(sold_df, pbd, has_data):
                     marker_color=_colors,
                     text=_hour_count["Đơn"].apply(lambda v: str(v) if v > 0 else ""),
                     textposition="outside",
-                    textfont=dict(size=11, color="#f0f0f0"),
+                    textfont=dict(size=11, color="#f1f5f9"),
                 ))
                 fig_hour.update_layout(
                     xaxis_title="Khung giờ (giờ VN)",
                     yaxis_title="Số đơn bán",
                     margin=dict(t=35, b=45),
-                    plot_bgcolor="#000000",
-                    paper_bgcolor="#000000",
-                    font=dict(family="Inter", color="#999999", size=11),
-                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="#999999")),
-                    yaxis=dict(tickfont=dict(size=10, color="#999999"), gridcolor="#141414"),
+                    plot_bgcolor="#0b1120",
+                    paper_bgcolor="#0b1120",
+                    font=dict(family="Space Grotesk", color="#94a3b8", size=11),
+                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="#94a3b8")),
+                    yaxis=dict(tickfont=dict(size=10, color="#94a3b8"), gridcolor="#1e293b"),
                     height=430,
                 )
                 st.plotly_chart(fig_hour, use_container_width=True)
@@ -137,12 +137,12 @@ def render_advanced(sold_df, pbd, has_data):
                     xaxis_title="Giờ (giờ VN)",
                     yaxis_title="Thứ",
                     margin=dict(t=35, b=55),
-                    plot_bgcolor="#000000",
-                    paper_bgcolor="#000000",
-                    font=dict(family="Inter", color="#999999", size=11),
+                    plot_bgcolor="#0b1120",
+                    paper_bgcolor="#0b1120",
+                    font=dict(family="Space Grotesk", color="#94a3b8", size=11),
                     height=380,
-                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="#999999")),
-                    yaxis=dict(tickfont=dict(size=10, color="#999999")),
+                    xaxis=dict(tickangle=-45, tickfont=dict(size=10, color="#94a3b8")),
+                    yaxis=dict(tickfont=dict(size=10, color="#94a3b8")),
                 )
                 st.plotly_chart(fig_hmap, use_container_width=True)
             else:
@@ -189,12 +189,12 @@ def render_advanced(sold_df, pbd, has_data):
             (10,   "🥉 Starter"),
             (50,   "🥈 Half Century"),
             (100,  "🥇 Century Club"),
-            (250,  "💎 Quarter K"),
-            (500,  "🏆 Legend"),
-            (1000, "👑 Master"),
-            (2500, "⚡ Elite"),
-            (5000, "🌟 Grandmaster"),
-            (10000,"🔥 Immortal"),
+            (250,  "Quarter K"),
+            (500,  "Legend"),
+            (1000, "Master"),
+            (2500, "Elite"),
+            (5000, "Grandmaster"),
+            (10000,"Immortal"),
         ]
         # Pick the 4 levels surrounding current count (2 passed, current, 1 next)
         _ach_passed  = [(n, b) for n, b in _ACH_BASES if _total_sold_ch >= n]
@@ -203,7 +203,7 @@ def render_advanced(sold_df, pbd, has_data):
         _next_sell_ms = _ach_pending[0] if _ach_pending else None
         # Show 2 levels above current for context
         _ach_display = _ach_passed[-2:] + _ach_pending[:2] if len(_ach_passed) >= 2 else _ach_passed + _ach_pending[:3]
-        _streak_icon_ch = "🔥" if _streak_ch >= 3 else ("✨" if _streak_ch >= 1 else "💤")
+        _streak_icon_ch = "On fire" if _streak_ch >= 3 else ("Active" if _streak_ch >= 1 else "Idle")
 
         _ach_c1, _ach_c2, _ach_c3 = st.columns(3)
         _ach_c1.metric("Chuỗi ngày", f"{_streak_icon_ch} {_streak_ch} ngày")
@@ -223,8 +223,8 @@ def render_advanced(sold_df, pbd, has_data):
                 f"<div style='text-align:center;padding:6px 2px;border-radius:6px;"
                 f"background:{'rgba(161,161,170,0.22)' if _done else 'rgba(255,255,255,0.03)'};"
                 f"border:1px solid {'rgba(161,161,170,0.3)' if _done else 'rgba(255,255,255,0.06)'};'>"
-                f"<div style='font-size:1.1rem;'>{'✅' if _done else '⬜'}</div>"
-                f"<div style='font-size:0.65rem;color:{'#a1a1aa' if _done else '#555555'};font-weight:600;'>{_ab}</div>"
+                f"<div style='font-size:1.1rem;'>{'<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#22c55e\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><polyline points=\"22 4 12 14.01 9 11.01\"/></svg>' if _done else '<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#475569\" stroke-width=\"1.5\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"3\"/></svg>'}</div>"
+                f"<div style='font-size:0.65rem;color:{'#a1a1aa' if _done else '#64748b'};font-weight:600;'>{_ab}</div>"
                 f"<div style='font-size:0.6rem;color:#777777;'>{_an}</div></div>",
                 unsafe_allow_html=True,
             )
@@ -294,7 +294,7 @@ def render_advanced(sold_df, pbd, has_data):
                         text=f"Mốc {_nxt_ln_ms}M: {fmt_vnd(_total_ln_ch)} / {fmt_vnd(_nxt_ln_ms * 1_000_000)} ({_pct_ln*100:.0f}%)")
         else:
             _top = _LN_MS[-1] if _LN_MS else 100
-            st.progress(1.0, text=f"🏆 Đã vượt {_top}M tích lũy!")
+            st.progress(1.0, text=f"Đã vượt {_top}M tích lũy!")
         # Milestone grid — show all, highlight next target
         _n_cols = min(len(_LN_MS), 5)
         _ms_rows = [_LN_MS[i:i+_n_cols] for i in range(0, len(_LN_MS), _n_cols)]
@@ -308,7 +308,7 @@ def render_advanced(sold_df, pbd, has_data):
                     f"background:{'rgba(161,161,170,0.22)' if _done else ('rgba(161,161,170,0.10)' if _is_next else 'rgba(255,255,255,0.03)')};"
                     f"border:1px solid {'rgba(161,161,170,0.3)' if _done else ('rgba(161,161,170,0.3)' if _is_next else 'rgba(255,255,255,0.06)')};"
                     f"{'font-weight:700;' if _is_next else ''}'>"
-                    f"<div style='font-size:0.75rem;color:{'#a1a1aa' if _done else ('#a1a1aa' if _is_next else '#555555')};'>"
-                    f"{'✅' if _done else ('🎯' if _is_next else '⬜')} {_ms}M</div></div>",
+                    f"<div style='font-size:0.75rem;color:{'#a1a1aa' if _done else ('#a1a1aa' if _is_next else '#64748b')};'>"
+                    f"{'&#10003;' if _done else ('&#9679;' if _is_next else '&#9744;')} {_ms}M</div></div>",
                     unsafe_allow_html=True,
                 )

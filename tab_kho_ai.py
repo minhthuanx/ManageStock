@@ -9,6 +9,7 @@ import streamlit as st
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from _timezone import now_vn, now_str, now_iso
+import _icons as IC
 from _helpers import (
     parse_vnd, parse_usd, fmt_vnd, get_name_options, append_row,
     generate_auto_title, _clear_searches, _sv,
@@ -58,7 +59,7 @@ def render_ai_vision(df, pet_db, ns_db, trait_db):
             if ai_key_input and ai_key_input.strip():
                 st.session_state.groq_key = ai_key_input.strip()
                 _save_groq_key_to_supabase(ai_key_input.strip())
-                st.toast("✅ Đã lưu Groq Key vĩnh viễn!", icon="🔑")
+                st.toast("Đã lưu Groq Key vĩnh viễn!", icon="🔑")
                 st.rerun()
             st.info("Nhập Groq API Key để bật nhận dạng hình ảnh AI (Llama 3.2 90B Vision · miễn phí).")
             ai_key = ""
@@ -78,7 +79,7 @@ def render_ai_vision(df, pet_db, ns_db, trait_db):
             )
 
             if batch_imgs:
-                st.caption(f"🖼️ Đã chọn **{len(batch_imgs)}** ảnh — {', '.join(f.name[:18] for f in batch_imgs[:3])}{'...' if len(batch_imgs) > 3 else ''}")
+                st.caption(f"Đã chọn **{len(batch_imgs)}** ảnh — {', '.join(f.name[:18] for f in batch_imgs[:3])}{'...' if len(batch_imgs) > 3 else ''}")
 
                 scan_btn = st.button(
                     f"Phân tích {len(batch_imgs)} ảnh",
@@ -117,15 +118,15 @@ Return ONLY valid JSON, no markdown:
                             if vision_models:
                                 target_model = next((m for m in vision_models if "90b" in m.lower() or "scout" in m.lower()), vision_models[0])
                         else:
-                            st.error(f"❌ Groq API trả về lỗi HTTP {m_resp.status_code}: {m_resp.text[:200]}")
+                            st.error(f"Groq API trả về lỗi HTTP {m_resp.status_code}: {m_resp.text[:200]}")
                             st.stop()
                     except Exception as _m_err:
-                        st.error(f"❌ Không thể kết nối Groq API: {_m_err}")
+                        st.error(f"Không thể kết nối Groq API: {_m_err}")
                         st.stop()
 
                     if not target_model:
                         _model_hint = f"Danh sách model hiện tại ({len(all_models)}): {', '.join(all_models[:10])}{'...' if len(all_models) > 10 else ''}" if all_models else "Không lấy được danh sách model."
-                        st.error(f"❌ Không tìm thấy Model Đọc Ảnh nào khả dụng! {_model_hint}")
+                        st.error(f"Không tìm thấy Model Đọc Ảnh nào khả dụng! {_model_hint}")
                         st.stop()
 
                     st.toast(f"Model: {target_model}", icon="🦙")
@@ -221,7 +222,7 @@ Return ONLY valid JSON, no markdown:
                             _n = _done_count[0]
                             progress.progress(
                                 int(_n / len(_img_data) * 100),
-                                text=f"⚡ Đã xong {_n}/{len(_img_data)} ảnh..."
+                                text=f"Đã xong {_n}/{len(_img_data)} ảnh..."
                             )
                     # Sắp xếp lại theo thứ tự ảnh gốc
                     _order = {d["name"]: i for i, d in enumerate(_img_data)}
@@ -270,8 +271,8 @@ Return ONLY valid JSON, no markdown:
                 is_ok = res.get("_ok", False)
 
                 _expander_label = (
-                    f"❌ {fname} — Lỗi nhận dạng" if not is_ok
-                    else f"✅ {fname} — {str(res.get('Tên Pet','?'))} · {str(res.get('Mutation','Normal'))} · {str(res.get('M/s','?'))}M/s"
+                    f"× {fname} — Lỗi nhận dạng" if not is_ok
+                    else f"✓ {fname} — {str(res.get('Tên Pet','?'))} · {str(res.get('Mutation','Normal'))} · {str(res.get('M/s','?'))}M/s"
                 )
                 with st.expander(_expander_label, expanded=True):
                     if not is_ok:
@@ -423,7 +424,7 @@ Return ONLY valid JSON, no markdown:
                             _save_ok = True
 
                     if _save_ok:
-                        st.toast(f"✅ Đã lưu {saved} mục thành công", icon="✅")
+                        st.toast(f"Đã lưu {saved} mục thành công", icon="✅")
                         st.rerun()
 
         ai_preview_dialog()

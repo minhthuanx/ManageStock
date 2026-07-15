@@ -59,8 +59,8 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 ),
             ))
             fig_sk.update_layout(
-                paper_bgcolor="#000000",
-                font=dict(family="Inter", color="#f0f0f0", size=11),
+                paper_bgcolor="#0b1120",
+                font=dict(family="Space Grotesk", color="#f1f5f9", size=11),
                 margin=dict(l=10, r=10, t=25, b=10),
                 height=380,
             )
@@ -118,7 +118,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 text=_text_cal,
                 hovertemplate="%{text}<extra></extra>",
                 colorscale=[
-                    [0.0,  "#0c0c12"],
+                    [0.0,  "#0b1120"],
                     [0.01, "#0e4429"],
                     [0.3,  "#006d32"],
                     [0.6,  "#26a641"],
@@ -127,22 +127,22 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 zmin=0,
                 zmax=_zmax_cal,
                 showscale=True,
-                colorbar=dict(thickness=12, len=0.8, tickfont=dict(size=9, color="#999999")),
+                colorbar=dict(thickness=12, len=0.8, tickfont=dict(size=9, color="#94a3b8")),
                 xgap=3, ygap=3,
             ))
             fig_cal.update_layout(
-                paper_bgcolor="#000000",
-                plot_bgcolor="#000000",
-                font=dict(family="Inter", color="#999999", size=10),
+                paper_bgcolor="#0b1120",
+                plot_bgcolor="#0b1120",
+                font=dict(family="Space Grotesk", color="#94a3b8", size=10),
                 xaxis=dict(
                     tickmode="array",
                     tickvals=list(range(0, _n_weeks_cal, 4)),
                     ticktext=[_week_x_labels[i] for i in range(0, _n_weeks_cal, 4)],
-                    tickfont=dict(size=9, color="#999999"),
+                    tickfont=dict(size=9, color="#94a3b8"),
                     showgrid=False, zeroline=False,
                 ),
                 yaxis=dict(
-                    tickfont=dict(size=10, color="#999999"),
+                    tickfont=dict(size=10, color="#94a3b8"),
                     showgrid=False, zeroline=False,
                     autorange="reversed",
                 ),
@@ -224,7 +224,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=_wk_merged["_label"], y=_wk_merged["Lợi Nhuận"],
                     name="LN/tuần", marker_color=_bar_colors, opacity=0.7,
                     text=_wk_merged["Lợi Nhuận"].apply(fmt_short),
-                    textposition="outside", textfont=dict(color="#f0f0f0", size=11),
+                    textposition="outside", textfont=dict(color="#f1f5f9", size=11),
                     hovertemplate="<b>%{x}</b><br>Lợi nhuận: %{y:,.0f}₫<extra></extra>",
                     yaxis="y1",
                 ))
@@ -243,15 +243,15 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     hoverinfo="skip", yaxis="y1",
                 ))
                 _fig_wk.update_layout(
-                    paper_bgcolor="#000000", plot_bgcolor="#000000",
-                    font=dict(family="Inter", color="#999999", size=11),
-                    xaxis=dict(tickfont=dict(color="#f0f0f0", size=10), gridcolor="#141414"),
-                    yaxis=dict(title="Lợi nhuận (₫)", gridcolor="#141414",
-                               tickfont=dict(color="#999999", size=10), tickformat=",.0f",
+                    paper_bgcolor="#0b1120", plot_bgcolor="#0b1120",
+                    font=dict(family="Space Grotesk", color="#94a3b8", size=11),
+                    xaxis=dict(tickfont=dict(color="#f1f5f9", size=10), gridcolor="#1e293b"),
+                    yaxis=dict(title="Lợi nhuận (₫)", gridcolor="#1e293b",
+                               tickfont=dict(color="#94a3b8", size=10), tickformat=",.0f",
                                zeroline=True, zerolinecolor="#1f1f1f"),
                     yaxis2=dict(title="Số con", overlaying="y", side="right",
                                 tickfont=dict(color="#a1a1aa", size=10), zeroline=False, showgrid=False),
-                    legend=dict(orientation="h", x=0, y=1.1, font=dict(color="#999999", size=10)),
+                    legend=dict(orientation="h", x=0, y=1.1, font=dict(color="#94a3b8", size=10)),
                     margin=dict(l=10, r=55, t=45, b=10),
                     height=430, barmode="overlay",
                 )
@@ -303,7 +303,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=_tr_grp["_trait"], y=_tr_grp["LN_mean"],
                     marker_color=_tr_colors, opacity=0.85,
                     text=_tr_grp["LN_mean"].apply(fmt_short),
-                    textposition="outside", textfont=dict(color="#f0f0f0", size=10),
+                    textposition="outside", textfont=dict(color="#f1f5f9", size=10),
                     customdata=_tr_grp[["LN_total","Count","Margin"]].values,
                     hovertemplate=(
                         "<b>Trait: %{x}</b><br>"
@@ -315,11 +315,11 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     ),
                 ))
                 _fig_tr.update_layout(
-                    title=dict(text="Lợi Nhuận TB / Con theo Trait", font=dict(size=12, color="#f0f0f0")),
-                    paper_bgcolor="#000000", plot_bgcolor="#000000",
-                    font=dict(family="Inter", color="#999999", size=11),
-                    xaxis=dict(gridcolor="#141414", tickfont=dict(color="#f0f0f0", size=10)),
-                    yaxis=dict(gridcolor="#141414", tickfont=dict(color="#999999", size=10),
+                    title=dict(text="Lợi Nhuận TB / Con theo Trait", font=dict(size=12, color="#f1f5f9")),
+                    paper_bgcolor="#0b1120", plot_bgcolor="#0b1120",
+                    font=dict(family="Space Grotesk", color="#94a3b8", size=11),
+                    xaxis=dict(gridcolor="#1e293b", tickfont=dict(color="#f1f5f9", size=10)),
+                    yaxis=dict(gridcolor="#1e293b", tickfont=dict(color="#94a3b8", size=10),
                                tickformat=",.0f", zeroline=True, zerolinecolor="#1f1f1f"),
                     margin=dict(l=10, r=10, t=45, b=10), height=400, showlegend=False,
                 )
@@ -396,13 +396,13 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             mode="gauge+number+delta",
             value=_recovery_pct,
             delta={"reference": 80, "suffix": "%", "increasing": {"color": "#a1a1aa"}, "decreasing": {"color": "#f87171"}},
-            number={"suffix": "%", "font": {"size": 42, "color": "#f0f0f0", "family": "Inter"}},
+            number={"suffix": "%", "font": {"size": 42, "color": "#f1f5f9", "family": "Inter"}},
             gauge={
                 "axis": {"range": [0, 100], "tickcolor": "#1f1f1f",
                          "tickfont": {"color": "#888888", "size": 12}},
                 "bar":  {"color": "#a1a1aa", "thickness": 0.25},
-                "bgcolor": "#000000",
-                "bordercolor": "#141414",
+                "bgcolor": "#0b1120",
+                "bordercolor": "#1e293b",
                 "steps": [
                     {"range": [0,  40], "color": "rgba(248,113,113,0.12)"},
                     {"range": [40, 70], "color": "rgba(251,191,36,0.10)"},
@@ -416,8 +416,8 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             title={"text": "% Vốn Đã Thu Hồi", "font": {"size": 12, "color": "#888888", "family": "Inter"}},
         ))
         _fig_gauge.update_layout(
-            paper_bgcolor="#000000",
-            font=dict(family="Inter", color="#999999", size=11),
+            paper_bgcolor="#0b1120",
+            font=dict(family="Space Grotesk", color="#94a3b8", size=11),
             margin=dict(l=20, r=20, t=35, b=10),
             height=310,
         )

@@ -1,60 +1,61 @@
 """
-Global CSS string — shadcn/ui dark theme for Streamlit.
-Based on shadcn dark zinc palette with semantic CSS variables.
+Global CSS string — Cool Slate dark theme for Streamlit.
+Font: Space Grotesk  |  Accent: Rose #f43f5e  |  Danger: Orange #f97316
 """
 CSS_STRING = """<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
-/* ── shadcn semantic tokens (dark zinc) ── */
+/* ── Cool Slate tokens ── */
 :root {
-  --background:      240 10% 3.9%;
-  --foreground:      0 0% 98%;
-  --card:            240 10% 3.9%;
-  --card-foreground: 0 0% 98%;
-  --popover:         240 10% 3.9%;
-  --popover-foreground: 0 0% 98%;
-  --primary:         0 0% 98%;
-  --primary-foreground: 240 5.9% 10%;
-  --secondary:       240 3.7% 15.9%;
-  --secondary-foreground: 0 0% 98%;
-  --muted:           240 3.7% 15.9%;
-  --muted-foreground: 240 5% 64.9%;
-  --accent:          240 3.7% 15.9%;
-  --accent-foreground: 0 0% 98%;
-  --destructive:     0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 98%;
-  --border:          240 3.7% 15.9%;
-  --input:           240 3.7% 15.9%;
-  --ring:            240 4.9% 83.9%;
+  --background:      #0b1120;
+  --surface:         #111827;
+  --surface2:        #1a2332;
+  --border:          #1e293b;
+  --fg:              #f1f5f9;
+  --muted:           #94a3b8;
+  --accent:          #f43f5e;
+  --danger:          #f97316;
+  --success:         #22c55e;
   --radius:          0.5rem;
-
-  /* convenience aliases */
-  --bg:        hsl(var(--background));
-  --fg:        hsl(var(--foreground));
-  --card-bg:   hsl(var(--card));
-  --muted-bg:  hsl(var(--muted));
-  --muted-fg:  hsl(var(--muted-foreground));
-  --border-c:  hsl(var(--border));
-  --input-bg:  hsl(var(--input));
-  --ring-c:    hsl(var(--ring));
 }
 
-/* ── Base reset ── */
-*, *::before, *::after { box-sizing: border-box; }
-html { scrollbar-gutter: stable; overflow-y: scroll; }
-body { overflow-anchor: none; }
-html, body, [data-testid="stAppViewContainer"] {
-  font-family: 'Inter', system-ui, sans-serif !important;
-  background: var(--bg) !important;
+/* ══════════════════════════════════════════════
+   FONT: Space Grotesk — body + targeted overrides
+   Never touch: pseudo-elements, svg, * selectors
+   ══════════════════════════════════════════════ */
+* { box-sizing: border-box; }
+html {
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+}
+body {
+  overflow-anchor: none;
+  font-family: 'Space Grotesk', system-ui, sans-serif !important;
+  background: var(--background) !important;
   color: var(--fg) !important;
   font-feature-settings: "tnum" 1, "cv01" 1, "ss01" 1;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+/* Targeted overrides — Streamlit sets font-family on these elements */
+[data-testid="stAppViewContainer"],
+[data-testid="stSidebar"],
+[data-testid="stHeader"],
+h1, h2, h3, h4, h5, h6, p, label, button, input, textarea, select,
+[data-testid="stTab"],
+[data-testid="stMetricValue"], [data-testid="stMetricLabel"],
+[data-testid="stAlert"], [data-testid="stToast"],
+[data-testid="stCaptionContainer"] p,
+[data-testid="stExpander"] summary,
+.stMarkdown,
+div[data-testid="stVerticalBlockBorderWrapper"] {
+  font-family: 'Space Grotesk', system-ui, sans-serif !important;
+}
+
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] {
-  background: hsl(240 10% 5.5%) !important;
-  border-right: 1px solid var(--border-c) !important;
+  background: #0f1729 !important;
+  border-right: 1px solid var(--border) !important;
 }
 .block-container { padding: 1rem 1rem 3rem !important; max-width: 1400px; }
 
@@ -71,9 +72,155 @@ html, body, [data-testid="stAppViewContainer"] {
 
 /* ── Main content area ── */
 [data-testid="stAppViewContainer"] > section.main > div.block-container {
-  background: hsl(240 10% 5%) !important;
+  background: var(--surface) !important;
   border-radius: var(--radius) !important;
-  border: 1px solid var(--border-c) !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* ══════════════════════════════════════════════
+   INPUTS: Single border, no double-border
+   ══════════════════════════════════════════════ */
+
+/* --- Text input --- */
+.stTextInput input,
+[data-baseweb="input"] {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--fg) !important;
+  border-radius: calc(var(--radius) - 2px) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.stTextInput input:focus,
+[data-baseweb="input"]:focus,
+[data-baseweb="input"]:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* --- Number input --- */
+.stNumberInput input {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--fg) !important;
+  border-radius: calc(var(--radius) - 2px) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.stNumberInput input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: none !important;
+}
+
+/* --- Select / Multiselect --- */
+.stSelectbox,
+.stMultiSelect,
+[data-baseweb="select"] {
+  color: var(--fg) !important;
+}
+[data-baseweb="select"] > div:first-child {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: calc(var(--radius) - 2px) !important;
+  color: var(--fg) !important;
+  box-shadow: none !important;
+}
+[data-baseweb="select"] > div:first-child:focus-within,
+[data-baseweb="select"] > div:first-child[data-focus="true"] {
+  border-color: var(--accent) !important;
+  box-shadow: none !important;
+}
+[data-baseweb="select"][aria-expanded="true"] > div:first-child {
+  border-color: var(--accent) !important;
+  box-shadow: none !important;
+}
+[data-baseweb="select"] svg { color: var(--muted) !important; }
+
+/* --- Popover / dropdown --- */
+[data-baseweb="popover"] {
+  background: var(--surface) !important;
+}
+[data-baseweb="popover"] [data-baseweb="menu"],
+[data-baseweb="listbox"] {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: calc(var(--radius) - 2px) !important;
+}
+[data-baseweb="menu"] [role="option"],
+[data-baseweb="listbox"] [role="option"] {
+  background: transparent !important;
+  color: var(--fg) !important;
+}
+[data-baseweb="menu"] [role="option"]:hover,
+[data-baseweb="menu"] [role="option"][aria-selected="true"],
+[data-baseweb="listbox"] [role="option"]:hover {
+  background: var(--border) !important;
+}
+[data-baseweb="menu"] [aria-selected="true"],
+[data-baseweb="listbox"] [aria-selected="true"] {
+  background: var(--border) !important;
+}
+
+/* --- Tag input (multiselect tags) --- */
+[data-baseweb="tag"] {
+  background: var(--border) !important;
+  color: var(--fg) !important;
+  border: 1px solid #2d3a4f !important;
+  border-radius: calc(var(--radius) - 2px) !important;
+}
+[data-baseweb="tag"] span { color: var(--fg) !important; }
+[data-baseweb="input"]::placeholder,
+[data-baseweb="input"] [placeholder] {
+  color: var(--muted) !important;
+}
+
+/* --- DatePicker / Calendar --- */
+[data-baseweb="datepicker"] [data-baseweb="input"],
+[data-baseweb="calendar"] {
+  background: var(--surface) !important;
+  color: var(--fg) !important;
+}
+
+/* --- Textarea --- */
+[data-baseweb="textarea"] {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--fg) !important;
+  border-radius: calc(var(--radius) - 2px) !important;
+  box-shadow: none !important;
+}
+[data-baseweb="textarea"]:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: none !important;
+}
+
+/* --- Checkbox --- */
+[data-baseweb="checkbox"] svg { color: var(--fg) !important; }
+[data-baseweb="checkbox"][aria-checked="true"] svg { color: var(--accent) !important; }
+
+/* --- Slider --- */
+[data-baseweb="slider"] [role="slider"] {
+  background: var(--fg) !important;
+}
+
+/* --- Toggle / Switch --- */
+[data-baseweb="toggle"] svg { color: var(--muted) !important; }
+
+/* ══════════════════════════════════════════════
+   Streamlit widget labels
+   ══════════════════════════════════════════════ */
+
+/* --- Labels --- */
+.stTextInput label,
+.stNumberInput label,
+.stSelectbox label,
+.stMultiSelect label,
+.stTextArea label,
+.stDateInput label {
+  color: var(--muted) !important;
+  font-size: 0.78rem !important;
+  font-weight: 500 !important;
 }
 
 /* ── Metric ── */
@@ -84,7 +231,7 @@ div[data-testid="stMetricValue"] {
 }
 div[data-testid="stMetricLabel"] {
   font-size: 0.72rem !important;
-  color: var(--muted-fg) !important;
+  color: var(--muted) !important;
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
@@ -100,26 +247,24 @@ div[data-testid="stMetricLabel"] {
 }
 .stButton > button[kind="primary"] {
   background: var(--fg) !important;
-  color: hsl(var(--background)) !important;
+  color: var(--background) !important;
   border: none !important;
 }
 .stButton > button[kind="primary"]:hover {
-  background: hsl(0 0% 83%) !important;
+  background: #cbd5e1 !important;
   box-shadow: none !important;
 }
-
-/* ── Secondary / tertiary buttons ── */
 .stButton > button[kind="secondary"] {
-  background: var(--muted-bg) !important;
+  background: var(--surface) !important;
   color: var(--fg) !important;
-  border: 1px solid var(--border-c) !important;
+  border: 1px solid var(--border) !important;
 }
 .stButton > button[kind="secondary"]:hover {
-  background: hsl(240 3.7% 20%) !important;
+  background: var(--border) !important;
 }
 .stButton > button[kind="tertiary"] {
   background: transparent !important;
-  color: var(--muted-fg) !important;
+  color: var(--muted) !important;
   border: none !important;
 }
 .stButton > button[kind="tertiary"]:hover {
@@ -129,7 +274,7 @@ div[data-testid="stMetricLabel"] {
 /* ── Tabs ── */
 [data-testid="stTabs"] > div:first-child {
   gap: 0 !important;
-  border-bottom: 1px solid var(--border-c) !important;
+  border-bottom: 1px solid var(--border) !important;
   background: transparent !important;
   padding: 0 !important;
 }
@@ -142,7 +287,7 @@ div[data-testid="stMetricLabel"] {
   font-size: 0.78rem !important;
   letter-spacing: 0.04em !important;
   text-transform: uppercase !important;
-  color: var(--muted-fg) !important;
+  color: var(--muted) !important;
   border: none !important;
   background: transparent !important;
   transition: color 0.15s ease !important;
@@ -158,7 +303,7 @@ div[data-testid="stMetricLabel"] {
   width: 100% !important;
   height: 2px !important;
   border-radius: 1px !important;
-  background: var(--foreground) !important;
+  background: var(--fg) !important;
   opacity: 0 !important;
   transform: scaleX(0) !important;
   transition: opacity 0.15s ease, transform 0.15s ease !important;
@@ -172,55 +317,16 @@ div[data-testid="stMetricLabel"] {
   transform: scaleX(1) !important;
 }
 [data-testid="stTab"]:hover:not([aria-selected="true"]) {
-  color: var(--muted-fg) !important;
+  color: var(--muted) !important;
 }
 
-/* ── Inputs ── */
-.stTextInput input, .stNumberInput input, .stSelectbox select {
-  background: var(--input-bg) !important;
-  border: 1px solid var(--input-bg) !important;
-  border-radius: calc(var(--radius) - 2px) !important;
-  color: var(--fg) !important;
-}
-.stTextInput input:focus, .stNumberInput input:focus {
-  border-color: var(--ring-c) !important;
-  box-shadow: 0 0 0 1px var(--ring-c) !important;
-  outline: none !important;
-}
-
-/* ── Select / Multiselect ── */
-[data-baseweb="select"] > div:first-child {
-  background: var(--input-bg) !important;
-  border: 1px solid var(--input-bg) !important;
-  border-radius: calc(var(--radius) - 2px) !important;
-  color: var(--fg) !important;
-}
-[data-baseweb="select"] > div:first-child:focus-within {
-  border-color: var(--ring-c) !important;
-  box-shadow: 0 0 0 1px var(--ring-c) !important;
-}
-[data-baseweb="popover"] [data-baseweb="menu"] {
-  background: var(--popover) !important;
-  border: 1px solid var(--border-c) !important;
-  border-radius: calc(var(--radius) - 2px) !important;
-}
-[data-baseweb="popover"] [role="option"]:hover {
-  background: var(--accent) !important;
-}
-[data-baseweb="tag"] {
-  background: hsl(240 3.7% 20%) !important;
-  color: var(--fg) !important;
-  border: 1px solid var(--border-c) !important;
-  border-radius: calc(var(--radius) - 2px) !important;
-}
-
-/* ── Containers (expander/form wrappers) ── */
+/* ── Containers ── */
 [data-testid="stVerticalBlockBorderWrapper"] {
-  border-color: var(--border-c) !important;
+  border-color: var(--border) !important;
   border-radius: var(--radius) !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"] > div {
-  border-color: var(--border-c) !important;
+  border-color: var(--border) !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"] > [data-testid="stVerticalBlock"] {
   background: transparent !important;
@@ -229,7 +335,7 @@ div[data-testid="stMetricLabel"] {
 /* ── Tab content ── */
 [data-testid="stTabContent"] {
   background: transparent !important;
-  border: 1px solid var(--border-c) !important;
+  border: 1px solid var(--border) !important;
   border-top: none !important;
   border-radius: 0 0 var(--radius) var(--radius) !important;
   padding: 1rem !important;
@@ -239,25 +345,25 @@ div[data-testid="stMetricLabel"] {
 .stDataFrame {
   border-radius: var(--radius) !important;
   overflow: hidden !important;
-  border: 1px solid var(--border-c) !important;
-  background: var(--card-bg) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
 }
 [data-testid="stElementToolbar"] {
-  background: var(--muted-bg) !important;
-  border: 1px solid var(--border-c) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
   border-radius: calc(var(--radius) - 2px) !important;
 }
-[data-testid="stElementToolbarButton"] svg { color: var(--muted-fg) !important; }
+[data-testid="stElementToolbarButton"] svg { color: var(--muted) !important; }
 [data-testid="stElementToolbarButton"]:hover svg { color: var(--fg) !important; }
 
 /* ── Status badges ── */
-.badge-sold   { color: hsl(142 76% 60%); font-weight: 600; }
-.badge-stock  { color: hsl(var(--ring)); font-weight: 600; }
+.badge-sold   { color: var(--danger); font-weight: 600; }
+.badge-stock  { color: var(--success); font-weight: 600; }
 
 /* ── Hero banner ── */
 .hero-banner {
-  background: var(--card-bg);
-  border: 1px solid var(--border-c);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.9rem 1.2rem;
   margin-bottom: 1rem;
@@ -267,7 +373,7 @@ div[data-testid="stMetricLabel"] {
 }
 .hero-banner .logo { font-size: 2rem; }
 .hero-banner h1 { margin: 0; font-size: clamp(1.1rem, 3vw, 1.5rem); font-weight: 600; letter-spacing: -0.01em; }
-.hero-banner p  { margin: 0; color: var(--muted-fg); font-size: 0.82rem; }
+.hero-banner p  { margin: 0; color: var(--muted); font-size: 0.82rem; }
 
 /* ── Stats grid ── */
 .stat-grid {
@@ -277,16 +383,16 @@ div[data-testid="stMetricLabel"] {
   margin-bottom: 0.8rem;
 }
 .stat-card {
-  background: var(--card-bg);
-  border: 1px solid var(--border-c);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.75rem 0.9rem;
   text-align: center;
   transition: border-color 0.15s ease;
 }
-.stat-card:hover { border-color: hsl(240 3.7% 25%); }
+.stat-card:hover { border-color: #334155; }
 .stat-card .val { font-size: 1.2rem; font-weight: 700; color: var(--fg); }
-.stat-card .lbl { font-size: 0.7rem; color: var(--muted-fg); margin-top: 0.1rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.stat-card .lbl { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; letter-spacing: 0.04em; text-transform: uppercase; }
 
 /* ── Section headings ── */
 .sec-heading {
@@ -297,7 +403,7 @@ div[data-testid="stMetricLabel"] {
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted-fg);
+  color: var(--muted);
   margin: 2rem 0 1rem !important;
   padding: 0;
   width: 100%;
@@ -308,21 +414,21 @@ div[data-testid="stMetricLabel"] {
   width: 3px;
   height: 14px;
   border-radius: 2px;
-  background: var(--foreground);
+  background: var(--accent);
   flex-shrink: 0;
 }
 .sec-heading::after {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-c);
+  background: var(--border);
   margin-left: 0.4rem;
 }
 
 /* ── Section card panels ── */
 .stat-panel {
-  background: var(--card-bg);
-  border: 1px solid var(--border-c);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.2rem 1.2rem 0.8rem;
   margin-bottom: 1rem;
@@ -330,21 +436,21 @@ div[data-testid="stMetricLabel"] {
 
 /* ── Metric cards ── */
 div[data-testid="stMetric"] {
-  background: var(--card-bg) !important;
-  border: 1px solid var(--border-c) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
   padding: 0.7rem 0.9rem !important;
   transition: border-color 0.15s ease;
 }
 div[data-testid="stMetric"]:hover {
-  border-color: hsl(240 3.7% 25%) !important;
+  border-color: #334155 !important;
 }
 
 /* ── Expanders ── */
 [data-testid="stExpander"] {
-  border: 1px solid var(--border-c) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
-  background: var(--card-bg) !important;
+  background: var(--surface) !important;
   overflow: hidden !important;
 }
 [data-testid="stExpander"] summary {
@@ -356,15 +462,15 @@ div[data-testid="stMetric"]:hover {
   background: transparent !important;
   border: none !important;
 }
-[data-testid="stExpander"] summary:hover { color: var(--muted-fg) !important; }
+[data-testid="stExpander"] summary:hover { color: var(--muted) !important; }
 
 /* ── Progress bar ── */
 [data-testid="stProgressBar"] > div > div {
-  background: var(--foreground) !important;
+  background: var(--accent) !important;
   border-radius: 999px !important;
 }
 [data-testid="stProgressBar"] > div {
-  background: var(--muted-bg) !important;
+  background: var(--border) !important;
   border-radius: 999px !important;
 }
 
@@ -377,33 +483,33 @@ div[data-testid="stMetric"]:hover {
 }
 [data-testid="stAlert"][kind="info"],
 div[data-testid="stInfo"] > div {
-  background: hsl(213 94% 12%) !important;
-  border-color: hsl(213 94% 25%) !important;
+  background: rgba(14,165,233,0.08) !important;
+  border-color: rgba(14,165,233,0.25) !important;
   color: var(--fg) !important;
 }
 [data-testid="stAlert"][kind="success"],
 div[data-testid="stSuccess"] > div {
-  background: hsl(142 72% 8%) !important;
-  border-color: hsl(142 72% 20%) !important;
+  background: rgba(34,197,94,0.08) !important;
+  border-color: rgba(34,197,94,0.25) !important;
   color: var(--fg) !important;
 }
 [data-testid="stAlert"][kind="warning"],
 div[data-testid="stWarning"] > div {
-  background: hsl(38 80% 8%) !important;
-  border-color: hsl(38 80% 20%) !important;
+  background: rgba(245,158,11,0.08) !important;
+  border-color: rgba(245,158,11,0.25) !important;
   color: var(--fg) !important;
 }
 [data-testid="stAlert"][kind="error"],
 div[data-testid="stError"] > div {
-  background: hsl(0 62% 12%) !important;
-  border-color: hsl(0 62% 22%) !important;
+  background: rgba(249,115,22,0.08) !important;
+  border-color: rgba(249,115,22,0.25) !important;
   color: var(--fg) !important;
 }
 
 /* ── Form ── */
 [data-testid="stForm"] {
-  background: var(--card-bg) !important;
-  border: 1px solid var(--border-c) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
   padding: 1rem !important;
 }
@@ -414,25 +520,25 @@ div[data-testid="stError"] > div {
   flex-wrap: wrap !important;
 }
 [data-testid="stRadio"] label {
-  background: var(--muted-bg) !important;
-  border: 1px solid var(--border-c) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 999px !important;
   padding: 0.25rem 0.75rem !important;
   font-size: 0.75rem !important;
   font-weight: 500 !important;
-  color: var(--muted-fg) !important;
+  color: var(--muted) !important;
   cursor: pointer !important;
   transition: all 0.15s ease !important;
   white-space: nowrap !important;
 }
 [data-testid="stRadio"] label:has(input:checked) {
-  background: var(--foreground) !important;
-  border-color: var(--foreground) !important;
-  color: var(--background) !important;
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
   font-weight: 600 !important;
 }
 [data-testid="stRadio"] label:hover {
-  border-color: hsl(240 3.7% 30%) !important;
+  border-color: #334155 !important;
   color: var(--fg) !important;
 }
 [data-testid="stRadio"] label input[type="radio"] { display: none !important; }
@@ -440,14 +546,14 @@ div[data-testid="stError"] > div {
 
 /* ── Caption ── */
 [data-testid="stCaptionContainer"] p {
-  color: var(--muted-fg) !important;
+  color: var(--muted) !important;
   font-size: 0.76rem !important;
 }
 
 /* ── Divider ── */
 hr {
   border: none !important;
-  border-top: 1px solid var(--border-c) !important;
+  border-top: 1px solid var(--border) !important;
   margin: 0.8rem 0 !important;
 }
 
@@ -457,9 +563,9 @@ hr {
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted-fg);
+  color: var(--muted);
   padding: 0.5rem 0 0.3rem;
-  border-bottom: 1px solid var(--border-c);
+  border-bottom: 1px solid var(--border);
   margin-bottom: 0.4rem;
   display: block;
 }
@@ -467,26 +573,26 @@ hr {
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: hsl(240 3.7% 20%); border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: hsl(240 3.7% 30%); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #334155; }
 
 /* ── Copy description button ── */
 .copy-desc-btn {
-  background: var(--foreground) !important;
+  background: var(--fg) !important;
   color: var(--background) !important;
   border: none !important;
   border-radius: calc(var(--radius) - 2px) !important;
   font-weight: 500 !important;
 }
 .copy-desc-btn:hover {
-  background: hsl(0 0% 83%) !important;
+  background: #cbd5e1 !important;
   box-shadow: none !important;
 }
 
 /* ── Toast ── */
 [data-testid="stToast"] {
-  background: var(--popover) !important;
-  border: 1px solid var(--border-c) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
   font-size: 0.85rem !important;
   color: var(--fg) !important;
@@ -507,14 +613,14 @@ hr {
   text-align: center;
 }
 .empty-state .es-icon { font-size: 2.4rem; opacity: 0.3; }
-.empty-state .es-title { font-size: 0.95rem; font-weight: 500; color: var(--muted-fg); }
-.empty-state .es-sub { font-size: 0.78rem; color: var(--muted-fg); opacity: 0.65; }
+.empty-state .es-title { font-size: 0.95rem; font-weight: 500; color: var(--muted); }
+.empty-state .es-sub { font-size: 0.78rem; color: var(--muted); opacity: 0.65; }
 
 /* ── Ton lau badge ── */
 .badge-warn {
-  background: hsl(0 62% 15%);
-  color: hsl(0 84% 70%);
-  border: 1px solid hsl(0 62% 25%);
+  background: rgba(249,115,22,0.12);
+  color: var(--danger);
+  border: 1px solid rgba(249,115,22,0.3);
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 0.72rem;
@@ -527,7 +633,7 @@ hr {
 /* ── Skeleton shimmer ── */
 .sk-line {
   border-radius: calc(var(--radius) - 2px);
-  background: linear-gradient(90deg, var(--muted-bg) 25%, hsl(240 3.7% 18%) 50%, var(--muted-bg) 75%);
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
   background-size: 200% 100%;
   animation: sk-shimmer 1.4s infinite;
 }

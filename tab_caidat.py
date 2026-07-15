@@ -1,4 +1,4 @@
-﻿"""
+"""
 Tab 6: Cài Đặt — Category management, Eldorado connection, system monitor.
 Extracted from app_backup.py lines 6151-6465.
 """
@@ -11,6 +11,7 @@ import sys
 import pandas as pd
 import streamlit as st
 
+import _icons as IC
 from _config import PET_LIST_FILE, NS_LIST_FILE, TRAIT_LIST, LIST_SCHEMA
 from _database import USE_SUPABASE, supabase_client, find_duplicates, save_csv
 from _helpers import append_row, generate_auto_title, _save_owner_ns_map
@@ -31,14 +32,14 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
 
         cat_cols = st.columns(3)
 
-        def manage_category(col, label: str, db: pd.DataFrame, file: str, icon: str):
+        def manage_category(col, label: str, db: pd.DataFrame, file: str):
             with col:
                 with st.container():
-                    st.markdown(f"**{icon} {label}**")
+                    st.markdown(f"**{label}**")
                     with st.form(f"form_add_{file}", clear_on_submit=True):
-                        c1, c2 = st.columns([3, 1])
-                        new_val = c1.text_input("Thêm", placeholder=f"Tên {label}...", label_visibility="collapsed")
-                        add_ok  = c2.form_submit_button("➕", use_container_width=True)
+                        c1, c2 = st.columns([5, 1])
+                        new_val = c1.text_input(label, placeholder=f"Tên {label.lower()}...", label_visibility="collapsed")
+                        add_ok  = c2.form_submit_button("+", use_container_width=True)
                     if add_ok:
                         v = new_val.strip()
                         if not v:
@@ -56,23 +57,23 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
 
                     if not db.empty:
                         with st.form(f"form_del_{file}"):
-                            d1, d2 = st.columns([2.5, 1.5])
+                            d1, d2 = st.columns([4, 1])
                             sel_del = d1.selectbox("Xóa", db["Name"].astype(str).tolist(), label_visibility="collapsed")
-                            del_ok  = d2.form_submit_button("🗑️", use_container_width=True)
+                            del_ok  = d2.form_submit_button("×", use_container_width=True)
                         if del_ok:
                             db = db[db["Name"].astype(str) != sel_del].reset_index(drop=True)
                             save_csv(db, file)
                             st.cache_data.clear()
                             st.rerun()
 
-        manage_category(cat_cols[0], "Pet",       pet_db,   PET_LIST_FILE, "🐾")
-        manage_category(cat_cols[1], "NameStock", ns_db,    NS_LIST_FILE,  "🏷️")
-        manage_category(cat_cols[2], "Trait",     trait_db, TRAIT_LIST,    "🧬")
+        manage_category(cat_cols[0], "Pet",       pet_db,   PET_LIST_FILE)
+        manage_category(cat_cols[1], "NameStock", ns_db,    NS_LIST_FILE)
+        manage_category(cat_cols[2], "Trait",     trait_db, TRAIT_LIST)
 
         # ── Sua Auto Title sai dinh dang ──
         if USE_SUPABASE:
             st.markdown("---")
-            st.markdown("### 🛠️ Sửa Auto Title (Trait)")
+            st.markdown(f"### Sửa Auto Title (Trait)")
             st.caption("Tìm các dòng có auto_title dạng `[1]` thay vì `[1 Trait]` và cập nhật lại.")
             if st.button("Chạy Sửa Auto Title", use_container_width=True):
                 try:
@@ -106,8 +107,8 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
         # ── Kiem tra trung lap ──
         if USE_SUPABASE:
             st.markdown("---")
-            st.markdown("### 🔍 Kiểm tra trùng lặp Database")
-            st.caption("⚠️ Hệ thống chỉ phát hiện và báo cáo — việc xóa do bạn quyết định trực tiếp trong bảng.")
+            st.markdown(f"### Kiểm tra trùng lặp Database")
+            st.caption(f"! Hệ thống chỉ phát hiện và báo cáo — việc xóa do bạn quyết định trực tiếp trong bảng.")
             c_m1, c_m2 = st.columns(2)
             run_inv  = c_m1.button("Kiểm Tra Hàng Lẻ",  use_container_width=True)
             run_bulk = c_m2.button("Kiểm Tra Lô Hàng", use_container_width=True)
@@ -141,7 +142,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
                 else:
                     st.warning("Chưa kết nối Eldorado.gg")
 
-                with st.expander("🍪 Paste Cookie từ Browser DevTools", expanded=not (eld_client and eld_client.logged_in)):
+                with st.expander(f"🔑 Paste Cookie từ Browser DevTools", expanded=not (eld_client and eld_client.logged_in)):
                     st.caption("F12 → Application → Cookies → eldorado.gg → Copy all cookies as string")
                     cookie_input = st.text_area(
                         "Cookie String",
@@ -153,7 +154,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
                     )
                     c_conn, c_disc = st.columns(2)
                     with c_conn:
-                        if st.button("🔗 Kết Nối", type="primary", use_container_width=True,
+                        if st.button("⇄ Kết Nối", type="primary", use_container_width=True,
                                      disabled=not cookie_input.strip(),
                                      key="btn_eld_connect"):
                             with st.spinner("Đang xác thực..."):
@@ -167,7 +168,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
                                 st.error(f"Lỗi xác thực: {auth_result.get('error', 'unknown')}")
 
                     with c_disc:
-                        if st.button("🔌 Ngắt Kết Nối", use_container_width=True,
+                        if st.button("⊘ Ngắt Kết Nối", use_container_width=True,
                                      disabled=not (eld_client and eld_client.logged_in),
                                      key="btn_eld_disconnect"):
                             eld_client.disconnect()
@@ -177,7 +178,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
                 # Push defaults
                 if eld_client and eld_client.logged_in:
                     st.markdown("---")
-                    st.markdown("**⚙️ Push Defaults**")
+                    st.markdown(f"**Push Defaults**")
                     _eld_s = st.session_state.get("eld_settings", {})
 
                     d1, d2, d3 = st.columns(3)
@@ -199,7 +200,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
                         key="eld_default_desc"
                     )
 
-                    if st.button("💾 Lưu Eldorado Settings", use_container_width=True,
+                    if st.button(f"✓ Lưu Eldorado Settings", use_container_width=True,
                                  key="btn_eld_save_settings"):
                         settings = {
                             "default_price": default_price,
@@ -212,7 +213,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
 
                 # ── Owner -> NameStock Mapping ──
                 st.markdown("---")
-                st.markdown("**🏷️ Owner → NameStock Mapping**")
+                st.markdown(f"**Owner → NameStock Mapping**")
                 st.caption("JSON có `owner: bjn8th` → tự động map NameStock = `#B8`. Format txt: `username:NameStock` mỗi dòng.")
 
                 _on_map = st.session_state.get("_owner_ns_map", {})
@@ -223,7 +224,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
                 oc1, oc2 = st.columns([3, 1])
                 _new_owner = oc1.text_input("Thêm owner", placeholder="username:NameStock (VD: bjn8th:#B8)",
                                              key="new_owner_ns_input", label_visibility="collapsed")
-                if oc2.button("➕ Thêm", key="btn_add_owner_ns"):
+                if oc2.button("+ Thêm", key="btn_add_owner_ns"):
                     if ":" in _new_owner.strip():
                         _k, _v = _new_owner.strip().split(":", 1)
                         _k, _v = _k.strip().lower(), _v.strip()
@@ -239,7 +240,7 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
                 if _on_map:
                     _del_owner = st.selectbox("Xóa mapping", list(_on_map.keys()),
                                               key="del_owner_ns", label_visibility="collapsed")
-                    if st.button("🗑️ Xóa", key="btn_del_owner_ns"):
+                    if st.button("× Xóa", key="btn_del_owner_ns"):
                         _on_map.pop(_del_owner, None)
                         _save_owner_ns_map(_on_map)
                         st.session_state["_owner_ns_map"] = _on_map
@@ -284,24 +285,24 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
         _rc1, _rc2, _rc3, _rc4 = st.columns(4)
 
         if _has_psutil:
-            _rc1.metric("💾 RAM Process (RSS)", f"{_rss_mb:.1f} MB", delta=f"VMS {_vms_mb:.0f} MB")
-            _rc2.metric("⚙️ CPU Process", f"{_cpu_p:.1f}%")
-            _rc3.metric("🖥️ RAM Hệ Thống", f"{_sys_used:.2f} / {_sys_total:.2f} GB", delta=f"{_sys_pct:.0f}% dùng")
+            _rc1.metric("RAM Process (RSS)", f"{_rss_mb:.1f} MB", delta=f"VMS {_vms_mb:.0f} MB")
+            _rc2.metric("CPU Process", f"{_cpu_p:.1f}%")
+            _rc3.metric("RAM Hệ Thống", f"{_sys_used:.2f} / {_sys_total:.2f} GB", delta=f"{_sys_pct:.0f}% dùng")
         else:
-            _rc1.metric("💾 RAM Process", "N/A", delta="Cài psutil để đo")
-            _rc2.metric("⚙️ CPU Process", "N/A")
-            _rc3.metric("🖥️ RAM Hệ Thống", "N/A")
+            _rc1.metric("RAM Process", "N/A", delta="Cài psutil để đo")
+            _rc2.metric("CPU Process", "N/A")
+            _rc3.metric("RAM Hệ Thống", "N/A")
 
-        _rc4.metric("🗂️ Session State", f"{_ss_mb:.2f} MB", delta=f"{len(_ss_keys)} keys")
+        _rc4.metric("Session State", f"{_ss_mb:.2f} MB", delta=f"{len(_ss_keys)} keys")
 
         _rd1, _rd2, _rd3, _rd4 = st.columns(4)
-        _rd1.metric("📋 Tồn kho lẻ",    f"{len(_df_inv):,} hàng",  delta=f"~{_est_size_bytes(_df_inv)//1024} KB")
-        _rd2.metric("📦 Lô hàng",        f"{len(_df_bulk):,} lô",   delta=f"~{_est_size_bytes(_df_bulk)//1024} KB")
-        _rd3.metric("📜 Lịch sử lô",     f"{len(_df_hist):,} giao dịch", delta=f"~{_est_size_bytes(_df_hist)//1024} KB")
+        _rd1.metric("Tồn kho lẻ",    f"{len(_df_inv):,} hàng",  delta=f"~{_est_size_bytes(_df_inv)//1024} KB")
+        _rd2.metric("Lô hàng",        f"{len(_df_bulk):,} lô",   delta=f"~{_est_size_bytes(_df_bulk)//1024} KB")
+        _rd3.metric("Lịch sử lô",     f"{len(_df_hist):,} giao dịch", delta=f"~{_est_size_bytes(_df_hist)//1024} KB")
         _gc_objs = gc.get_count()
-        _rd4.metric("♻️ GC Objects",     f"{sum(_gc_objs):,}", delta=f"gen {_gc_objs[0]}/{_gc_objs[1]}/{_gc_objs[2]}")
+        _rd4.metric("GC Objects",     f"{sum(_gc_objs):,}", delta=f"gen {_gc_objs[0]}/{_gc_objs[1]}/{_gc_objs[2]}")
 
-        with st.expander("🔍 Chi tiết Session State Keys"):
+        with st.expander("Chi tiết Session State Keys"):
             _ss_rows = []
             for _k in sorted(_ss_keys):
                 try:
@@ -317,11 +318,11 @@ def render_tab_caidat(pet_db, ns_db, trait_db, eld_client):
                          column_config={"Size (bytes)": st.column_config.NumberColumn(format="%,d")})
 
         _rb1, _rb2 = st.columns(2)
-        if _rb1.button("♻️ Chạy Garbage Collector", use_container_width=True):
+        if _rb1.button("↻ Chạy Garbage Collector", use_container_width=True):
             _before = sum(gc.get_count())
             _collected = gc.collect()
             st.success(f"GC: thu hồi {_collected} objects · còn {sum(gc.get_count())} (trước: {_before})")
-        if _rb2.button("🧹 Xoá Cache Streamlit", use_container_width=True):
+        if _rb2.button("⊘ Xoá Cache Streamlit", use_container_width=True):
             st.cache_data.clear()
             st.cache_resource.clear()
             st.success("Đã xoá toàn bộ cache @st.cache_data và @st.cache_resource.")

@@ -14,6 +14,8 @@ from _helpers import (
     token_search, _clear_searches, _sv,
 )
 from _database import _load_pinned_resell_from_supabase, _save_pinned_resell_to_supabase
+import _icons as IC
+from _icons import icon_text
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -88,8 +90,8 @@ def render_bulk_sell(df):
             if st.session_state.bulk_cart:
                 st.markdown("---")
                 _ch1, _ch2 = st.columns([3, 1])
-                _ch1.markdown(f"**🛒 Giỏ bán: {len(st.session_state.bulk_cart)} pet**")
-                if _ch2.button("🗑️ Xóa giỏ", key="bs_clear_cart", use_container_width=True):
+                _ch1.markdown(f"**Giỏ bán: {len(st.session_state.bulk_cart)} pet**")
+                if _ch2.button("× Xóa giỏ", key="bs_clear_cart", use_container_width=True):
                     st.session_state.bulk_cart = {}
                     st.rerun()
 
@@ -202,7 +204,7 @@ def render_bulk_sell(df):
 def render_resell(df):
     # ── RE-SELL (bán lại pet khách không lấy) ──
     _resell_src = df[df["Trạng Thái"].astype(str).str.contains("Đã bán", na=False)]
-    with st.expander("🔄 Bán lại (Re-sell)", expanded=False):
+    with st.expander(f"↻ Bán lại (Re-sell)", expanded=False):
         # ── Init session states ──
         if "pinned_resell" not in st.session_state:
             st.session_state.pinned_resell = _load_pinned_resell_from_supabase()
@@ -216,8 +218,8 @@ def render_resell(df):
             '<div style="display:inline-flex;align-items:center;gap:6px;'
             'background:rgba(161,161,170,0.18);border:1px solid rgba(161,161,170,0.25);'
             'border-radius:6px;padding:4px 10px;margin-bottom:8px;">'
-            '<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
-            'color:#a1a1aa;font-weight:600;">📌 Danh sách Pin</span>'
+            f'<span style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;'
+            f'color:#a1a1aa;font-weight:600;">📌 Danh sách Pin</span>'
             '<span style="font-size:0.72rem;color:#777777;">— nhấn Re-sell khi chắc chắn khách không lấy</span>'
             '</div>',
             unsafe_allow_html=True,
@@ -227,15 +229,15 @@ def render_resell(df):
             st.markdown(
                 '<div style="text-align:center;padding:16px 8px;color:#777777;'
                 'font-size:0.82rem;border:1px dashed #1f1f1f;border-radius:8px;">'
-                '📌 Chưa có pet nào được pin<br>'
+                f'📌 Chưa có pet nào được pin<br>'
                 '<span style="font-size:0.8rem;">Dùng ô tìm kiếm bên dưới để thêm</span>'
                 '</div>',
                 unsafe_allow_html=True,
             )
         else:
             _rsp1, _rsp2 = st.columns([3, 1])
-            _rsp1.caption(f"📌 {len(st.session_state.pinned_resell)} đang pin · ✅ {len(st.session_state.resell_cart)} sẵn sàng re-sell")
-            if _rsp2.button("🗑️ Xóa tất cả", key="rs_clear_pin", use_container_width=True):
+            _rsp1.caption(f"{len(st.session_state.pinned_resell)} đang pin · {len(st.session_state.resell_cart)} sẵn sàng re-sell")
+            if _rsp2.button("× Xóa tất cả", key="rs_clear_pin", use_container_width=True):
                 st.session_state.pinned_resell = {}
                 st.session_state.resell_cart = {}
                 _save_pinned_resell_to_supabase({})
@@ -251,7 +253,7 @@ def render_resell(df):
                 _pv_ms_str  = f" · <b>{_pv_ms}M/s</b>" if _pv_ms else ""
                 _pv_ns_str  = f" · <span style='color:#777777'>{_pv_ns}</span>" if _pv_ns else ""
                 _pv_ban_str = f" · <span style='color:#f87171'>{_pv_ban}</span>" if _pv_ban and _pv_ban != "-" else ""
-                _rs_badge   = " · <span style='color:#a1a1aa;font-weight:600;'>✅ Re-sell</span>" if _already_in_rcart else ""
+                _rs_badge   = f" · <span style='color:#a1a1aa;font-weight:600;'>✓ Re-sell</span>" if _already_in_rcart else ""
                 st.markdown(
                     f'<div style="font-size:0.82rem;padding:4px 0 2px 0;">'
                     f'<b style="color:#a1a1aa">#{int(float(_pv.get("STT", 0) or 0))}</b> · '
@@ -262,14 +264,14 @@ def render_resell(df):
                 )
                 _pc1, _pc2 = st.columns(2)
                 if _already_in_rcart:
-                    if _pc1.button("↩️ Hoàn tác", key=f"rs_undo_{_pid}", use_container_width=True):
+                    if _pc1.button("↩ Hoàn tác", key=f"rs_undo_{_pid}", use_container_width=True):
                         st.session_state.resell_cart.pop(_pid, None)
                         st.rerun()
                 else:
-                    if _pc1.button("🔄 Re-sell", key=f"rs_move_{_pid}", use_container_width=True, type="primary"):
+                    if _pc1.button("↻ Re-sell", key=f"rs_move_{_pid}", use_container_width=True, type="primary"):
                         st.session_state.resell_cart[_pid] = _pv
                         st.rerun()
-                if _pc2.button("❌ Bỏ pin", key=f"rs_del_{_pid}", use_container_width=True):
+                if _pc2.button("× Bỏ pin", key=f"rs_del_{_pid}", use_container_width=True):
                     st.session_state.pinned_resell.pop(_pid, None)
                     st.session_state.resell_cart.pop(_pid, None)
                     _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
@@ -279,7 +281,7 @@ def render_resell(df):
         # ════════════════════════════════════════════════════
         # PHẦN 2: TÌM & THÊM PIN (sub-expander, nằm dưới)
         # ════════════════════════════════════════════════════
-        with st.expander("🔍 Tìm & thêm pin", expanded=False):
+        with st.expander("Tìm & thêm pin", expanded=False):
             if _resell_src.empty:
                 st.info("Chưa có pet nào được đánh dấu 'Đã bán'.")
             else:
@@ -316,9 +318,9 @@ def render_resell(df):
                         _rr_ns_str  = f" · <span style='color:#777777'>{_rr_ns}</span>" if _rr_ns else ""
                         _rr_ban_str = f" · <span style='color:#f87171'>Bán: {_rr_ngayban}</span>" if _rr_ngayban and _rr_ngayban != "-" else ""
                         if _is_in_rcart:
-                            _status_badge = " · <span style='color:#a1a1aa;font-weight:600;'>✅ Re-sell</span>"
+                            _status_badge = f" · <span style='color:#a1a1aa;font-weight:600;'>✓ Re-sell</span>"
                         elif _is_pinned:
-                            _status_badge = " · <span style='color:#a1a1aa;font-weight:600;'>📌 Đã pin</span>"
+                            _status_badge = f" · <span style='color:#a1a1aa;font-weight:600;'>📌 Đã pin</span>"
                         else:
                             _status_badge = ""
                         st.markdown(
@@ -336,7 +338,7 @@ def render_resell(df):
                                 _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
                                 st.rerun()
                         else:
-                            if st.button("📌 Pin", key=f"rs_pin_{_rrid}", use_container_width=True, type="primary"):
+                            if st.button("⊙ Pin", key=f"rs_pin_{_rrid}", use_container_width=True, type="primary"):
                                 st.session_state.pinned_resell[_rrid] = _rr.to_dict()
                                 _save_pinned_resell_to_supabase(st.session_state.pinned_resell)
                                 st.rerun()
@@ -381,13 +383,13 @@ def render_resell(df):
             )
 
             st.warning(
-                f"⚠️ Xác nhận sẽ tạo **{len(st.session_state.resell_cart)} bản ghi mới** "
+                f"! Xác nhận sẽ tạo **{len(st.session_state.resell_cart)} bản ghi mới** "
                 f"với giá nhập **1₫** và trạng thái **Còn hàng**. "
                 f"Bản ghi gốc (lần bán 1) sẽ **không bị thay đổi**.",
                 icon="🔄",
             )
             if st.button(
-                f"✅ Xác Nhận Re-sell {len(st.session_state.resell_cart)} Pet",
+                f"✓ Xác Nhận Re-sell {len(st.session_state.resell_cart)} Pet",
                 type="primary",
                 key="confirm_resell",
                 use_container_width=True,
@@ -432,7 +434,7 @@ def render_resell(df):
                         if _inserted_row:
                             _rs_inserted += 1
                         else:
-                            st.toast(f"❌ Lỗi khi tạo bản ghi cho {_pet_name}", icon="❌")
+                            st.toast(f"Lỗi khi tạo bản ghi cho {_pet_name}", icon="❌")
                     else:
                         _new_row = {
                             "id": 0, "STT": _rs_max_stt,
@@ -458,6 +460,6 @@ def render_resell(df):
                     st.session_state.pinned_resell.pop(_k, None)
                 st.session_state.resell_cart = {}
                 st.session_state.editor_inv_ver = st.session_state.get("editor_inv_ver", 0) + 1
-                st.toast(f"✅ Đã tạo {_rs_inserted} bản ghi re-sell mới trong kho!", icon="🔄")
+                st.toast(f"Đã tạo {_rs_inserted} bản ghi re-sell mới trong kho!", icon="🔄")
                 _clear_searches()
                 st.rerun()

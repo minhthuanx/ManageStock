@@ -7,6 +7,7 @@ import streamlit as st
 
 from _timezone import now_vn
 from _helpers import fmt_vnd, fmt_ngay_ton, apply_ngay_ton
+import _icons as IC
 
 
 def render_tab_tonlau(df, bulk_df, bulk_history):
@@ -19,7 +20,7 @@ def render_tab_tonlau(df, bulk_df, bulk_history):
             age_max     = _fc2.number_input("Tối đa (ngày, 0=∞)", min_value=0, max_value=3650, value=0, step=1)
             loai_filter = _fc3.selectbox("Loại hàng", ["Tất cả", "Pet Lẻ", "Lô (Pack)"])
             sort_by     = _fc4.selectbox("Sắp xếp theo", ["Ngày Tồn (giảm)", "Giá trị vốn (giảm)", "Tên Pet"])
-            st.form_submit_button("🔍 Lọc", use_container_width=False)
+            st.form_submit_button("Lọc", use_container_width=False)
 
         # Pet le
         single_old = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)].copy()

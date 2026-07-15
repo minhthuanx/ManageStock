@@ -15,6 +15,7 @@ from _helpers import (
     fmt_ngay_ton, normalize_df, reindex, generate_auto_title,
     apply_ngay_ton, token_search, _clear_searches, _sv,
 )
+import _icons as IC
 
 
 def render_inventory_table(df):
@@ -32,7 +33,7 @@ def render_inventory_table(df):
                 label_visibility="collapsed",
             )
             inv_search = _tb2.text_input(
-                "🔍 Tìm kiếm",
+                "Tìm kiếm",
                 placeholder="STT, tên pet, mutation, title...",
                 label_visibility="collapsed",
                 key=f"inv_table_search_{_sv()}",
@@ -92,7 +93,7 @@ def render_inventory_table(df):
             if not view_df.empty:
                 csv_inv = view_df[view_cols].to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
                 st.download_button(
-                    "⬇️ Xuất CSV",
+                    "↓ Xuất CSV",
                     data=csv_inv,
                     file_name=f"kho_le_{now_vn().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
@@ -197,7 +198,7 @@ def render_inventory_table(df):
 
         # ── XÓA DÒNG KHO LẺ ──
         if USE_SUPABASE and not df.empty:
-            with st.expander("🗑️ Xóa dòng khỏi Kho Lẻ", expanded=False):
+            with st.expander("Xóa dòng khỏi Kho Lẻ", expanded=False):
                 def _safe_int(v, default=0):
                     try: return int(float(v)) if v not in (None, "", "nan", "None") else default
                     except: return default
@@ -214,8 +215,8 @@ def render_inventory_table(df):
                     key="inv_del_multiselect",
                 )
                 if _sel_del:
-                    st.warning(f"⚠️ Sẽ xóa vĩnh viễn **{len(_sel_del)} dòng** khỏi Supabase. Không thể hoàn tác!")
-                    if st.button("🗑️ Xác nhận Xóa", key="inv_del_confirm", type="primary", use_container_width=True):
+                    st.warning(f"! Sẽ xóa vĩnh viễn **{len(_sel_del)} dòng** khỏi Supabase. Không thể hoàn tác!")
+                    if st.button("× Xác nhận Xóa", key="inv_del_confirm", type="primary", use_container_width=True):
                         _del_ids = [_del_id_map[_lbl] for _lbl in _sel_del]
                         for _did in _del_ids:
                             sb_delete("inventory", "id", _did)
@@ -233,7 +234,7 @@ def render_inventory_table(df):
         _copy_src = df[df["Trạng Thái"].astype(str).str.contains("Còn hàng", na=False)]
         if not _copy_src.empty:
             with st.expander("Sao chép Auto Title", expanded=False):
-                _cp_q = st.text_input("🔍 Tìm pet", placeholder="Tên, STT, mutation...", key=f"copy_title_search_{_sv()}", label_visibility="collapsed")
+                _cp_q = st.text_input("Tìm pet", placeholder="Tên, STT, mutation...", key=f"copy_title_search_{_sv()}", label_visibility="collapsed")
 
                 _cp_base = _copy_src.copy()
 
@@ -275,7 +276,7 @@ def render_inventory_table(df):
                     else:
                         st.caption("Chưa có pet nào được nhập trong 1 giờ qua. Dùng ô tìm kiếm để tìm bất kỳ pet nào.")
                 else:
-                    st.caption(f"📌 {_cp_mode_label}")
+                    st.caption(f"{_cp_mode_label}")
                     for _ci, (_, _crow) in enumerate(_cp_filtered.iterrows()):
                         # Luôn regen để đảm bảo định dạng mới (Trait/Traits) dù DB chưa cập nhật
                         _display_title = generate_auto_title(
@@ -299,8 +300,8 @@ def render_inventory_table(df):
                                 _bid = "cpShop" + str(_ci)
                                 _cmp.html(
                                     '<button id="' + _bid + '" style="width:100%;padding:8px 4px;border:none;'
-                                    'border-radius:8px;cursor:pointer;background:#f0f0f0;'
-                                    'color:#000000;font-weight:600;font-size:11px;">&#x1F47B; M&#xF4; t&#x1EA3;</button>'
+                                    'border-radius:8px;cursor:pointer;background:#f1f5f9;'
+                                    'color:#0b1120;font-weight:600;font-size:11px;">&#x1F47B; M&#xF4; t&#x1EA3;</button>'
                                     '<script>(function(){'
                                     'var btn=document.getElementById("' + _bid + '");'
                                     'var b64="' + _b64_desc + '";'

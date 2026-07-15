@@ -51,7 +51,7 @@ def render_manual_import(df, pet_db, ns_db, trait_db):
         if cost <= 0:        errs.append("Giá nhập phải > 0")
         if not p_ns.strip(): errs.append("Chọn NameStock")
         if errs:
-            for e in errs: st.error(f"❌ {e}")
+            for e in errs: st.error(f"{e}")
         else:
             # Guard chống double-submit: kiểm tra xem dữ liệu y hệt đã lưu chưa
             submit_key = f"nhap_le_{p_name}_{ms}_{cost}_{p_ns}"

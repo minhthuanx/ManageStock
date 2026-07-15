@@ -5,6 +5,7 @@ import streamlit as st
 from _timezone import now_vn, VN_TZ
 from _helpers import fmt_vnd, fmt_short
 from _config import EXCHANGE_RATE
+import _icons as IC
 
 
 def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cost, total_rev, net_profit, total_stock):
@@ -12,10 +13,10 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
     with st.container(border=True):
         st.markdown('<div class="sec-heading">Tổng Quan</div>', unsafe_allow_html=True)
         k1, k2, k3, k4 = st.columns(4)
-        k1.metric("💰 Lợi nhuận ròng",   fmt_vnd(net_profit))
-        k2.metric("📈 Tổng doanh thu",   fmt_vnd(total_rev))
-        k3.metric("📥 Tổng vốn nhập",    fmt_vnd(total_cost))
-        k4.metric("📦 Pet đang tồn",     f"{total_stock:,}")
+        k1.metric("Lợi nhuận ròng",   fmt_vnd(net_profit))
+        k2.metric("Tổng doanh thu",   fmt_vnd(total_rev))
+        k3.metric("Tổng vốn nhập",    fmt_vnd(total_cost))
+        k4.metric("Pet đang tồn",     f"{total_stock:,}")
 
     # ── Thống kê theo tháng — biểu đồ ──
     if has_data and not pbd.empty:
@@ -44,21 +45,21 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                     for v, c in zip(_mo_df["_ln"], _mo_df["_cnt"])
                 ],
                 textposition="outside",
-                textfont=dict(color="#f0f0f0", size=11),
+                textfont=dict(color="#f1f5f9", size=11),
                 hovertemplate="<b>%{x}</b><br>Lợi nhuận: %{y:,.0f}₫<extra></extra>",
             ))
             _fig_mo.update_layout(
-                paper_bgcolor="#000000",
-                plot_bgcolor="#000000",
-                font=dict(family="Inter", color="#999999", size=11),
+                paper_bgcolor="#0b1120",
+                plot_bgcolor="#0b1120",
+                font=dict(family="Space Grotesk", color="#94a3b8", size=11),
                 xaxis=dict(
-                    gridcolor="#141414",
-                    tickfont=dict(color="#f0f0f0", size=10),
+                    gridcolor="#1e293b",
+                    tickfont=dict(color="#f1f5f9", size=10),
                     tickangle=0,
                 ),
                 yaxis=dict(
-                    gridcolor="#141414",
-                    tickfont=dict(color="#999999", size=10),
+                    gridcolor="#1e293b",
+                    tickfont=dict(color="#94a3b8", size=10),
                     tickformat=",.0f",
                     zeroline=True,
                     zerolinecolor="#1f1f1f",
@@ -83,13 +84,13 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                 _mo_last_ln  = float(_mo_cur_rows["_ln"].iloc[0]) if not _mo_cur_rows.empty else 0.0
                 _mo_last_cnt = int(_mo_cur_rows["_cnt"].iloc[0]) if not _mo_cur_rows.empty else 0
                 _mc1, _mc2, _mc3 = st.columns(3)
-                _mc1.metric("📅 Tháng hiện tại",
+                _mc1.metric("Tháng hiện tại",
                             fmt_vnd(_mo_last_ln),
                             delta=f"{_mo_last_cnt} giao dịch", delta_color="off")
-                _mc2.metric("🏆 Tháng tốt nhất",
+                _mc2.metric("Tháng tốt nhất",
                             f"{_mo_best_mo}",
                             delta=fmt_vnd(_mo_best_ln), delta_color="off")
-                _mc3.metric("📊 TB / tháng",
+                _mc3.metric("TB / tháng",
                             fmt_vnd(float(_mo_df["_ln"].mean())),
                             delta=f"{int(_mo_df['_cnt'].mean())} GD/tháng", delta_color="off")
 
@@ -135,11 +136,11 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
         _dn_delta_str = f"{_dn_delta:+,.0f} ₫ vs TB"
 
         _dm1, _dm2, _dm3, _dm4 = st.columns(4)
-        _dm1.metric("🛒 Giao dịch",   f"{_dn_cnt}")
-        _dm2.metric("💰 Lợi nhuận",   fmt_vnd(_dn_ln),
+        _dm1.metric("Giao dịch",   f"{_dn_cnt}")
+        _dm2.metric("Lợi nhuận",   fmt_vnd(_dn_ln),
                     delta=_dn_delta_str, delta_color="normal")
-        _dm3.metric("📈 Doanh thu",   fmt_vnd(_dn_rev))
-        _dm4.metric("📊 ROI ngày",    f"{_dn_roi:.1f}%")
+        _dm3.metric("Doanh thu",   fmt_vnd(_dn_rev))
+        _dm4.metric("ROI ngày",    f"{_dn_roi:.1f}%")
 
         # Bảng chi tiết — title · giờ bán · tồn · giá nhập · giá bán · lợi nhuận
         _dn_rows = []
@@ -195,7 +196,7 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                 _dn_best  = _dn_le_only.loc[_dn_ln_col.idxmax()]
                 _dn_worst = _dn_le_only.loc[_dn_ln_col.idxmin()]
                 _gb, _gw = st.columns(2)
-                _gb.success(f"🏆 **Tốt nhất:** {_dn_best['Title']} → {fmt_vnd(float(_dn_best['Lợi Nhuận ₫']))}")
-                _gw.warning(f"📉 **Thấp nhất:** {_dn_worst['Title']} → {fmt_vnd(float(_dn_worst['Lợi Nhuận ₫']))}")
+                _gb.success(f"**Tốt nhất:** {_dn_best['Title']} → {fmt_vnd(float(_dn_best['Lợi Nhuận ₫']))}")
+                _gw.warning(f"**Thấp nhất:** {_dn_worst['Title']} → {fmt_vnd(float(_dn_worst['Lợi Nhuận ₫']))}")
         else:
             st.caption("Chưa có giao dịch nào hôm nay.")

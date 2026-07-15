@@ -5,6 +5,7 @@ import streamlit as st
 
 from _timezone import now_vn
 from _helpers import _sv
+import _icons as IC
 
 try:
     from _eldorado_helpers import (
@@ -32,15 +33,15 @@ def render_tab_eldorado(eld_client):
                 <div style="text-align:center;padding:1.2rem 0 0.8rem;">
                     <div style="width:80px;height:80px;border-radius:50%;background:#1f1f1f;
                     display:inline-flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;
-                    color:#f0f0f0;border:3px solid #a1a1aa;">{_initial}</div>
-                    <div style="font-size:1.6rem;font-weight:700;color:#f0f0f0;margin-top:10px;">{eld_client.username}</div>
+                    color:#f1f5f9;border:3px solid #a1a1aa;">{_initial}</div>
+                    <div style="font-size:1.6rem;font-weight:700;color:#f1f5f9;margin-top:10px;">{eld_client.username}</div>
                     <div style="font-size:1rem;color:#777777;margin-top:6px;">
-                        👍 {eld_client.pos} &nbsp;&nbsp; 👎 {eld_client.neg} &nbsp;&nbsp; | &nbsp;&nbsp; {eld_client.pos + eld_client.neg} giao dịch
+                        ✓ {eld_client.pos} &nbsp;&nbsp; ✕ {eld_client.neg} &nbsp;&nbsp; | &nbsp;&nbsp; {eld_client.pos + eld_client.neg} giao dịch
                     </div>
                 </div>
                 ''', unsafe_allow_html=True)
 
-                if st.button("🔌 Logout", key="eldo_logout_top", use_container_width=True):
+                if st.button(f"⊘ Logout", key="eldo_logout_top", use_container_width=True):
                     eld_client.disconnect()
                     _clear_eld_cookie_from_sb()
                     st.toast("Đã đăng xuất Eldorado")
@@ -50,7 +51,7 @@ def render_tab_eldorado(eld_client):
                     st.caption("F12 → Application → Cookies → eldorado.gg → Copy all as string")
                     cookie_str = st.text_area("Cookie", height=80, label_visibility="collapsed",
                                                placeholder="__Host-XSRF-TOKEN=...; __Host-EldoradoIdToken=...")
-                    login_ok = st.form_submit_button("🔗 Đăng Nhập Eldorado", type="primary", use_container_width=True)
+                    login_ok = st.form_submit_button(f"⇄ Đăng Nhập Eldorado", type="primary", use_container_width=True)
                 if login_ok and cookie_str.strip():
                     with st.spinner("Đang xác thực..."):
                         eld_client.set_cookies(cookie_str.strip())
@@ -69,7 +70,7 @@ def render_tab_eldorado(eld_client):
                 st.markdown('<div class="sec-heading">Listing Của Tôi</div>', unsafe_allow_html=True)
 
                 # ── Load ALL listings ──
-                _eldo_reload = st.button("🔄 Tải lại", key="eldo_refresh_listings")
+                _eldo_reload = st.button(f"↻ Tải lại", key="eldo_refresh_listings")
                 if _eldo_reload:
                     st.session_state._eldo_all = []
                     st.session_state["_eldo_states_loaded"] = False
@@ -105,11 +106,11 @@ def render_tab_eldorado(eld_client):
 
                 _listings = _all_data
                 if not _listings:
-                    st.info("Không có listing nào. Nhấn 🔄 Tải lại.")
+                    st.info("Không có listing nào. Nhấn Tải lại.")
                 else:
                     # ── Filters ──
                     fl1, fl2, fl3 = st.columns([2, 1.5, 1])
-                    _eldo_search = fl1.text_input("🔍 Tìm kiếm", placeholder="Tên listing...",
+                    _eldo_search = fl1.text_input("Tìm kiếm", placeholder="Tên listing...",
                                                    key="eldo_search_q", label_visibility="collapsed")
                     _eldo_sort = fl2.selectbox("Sắp xếp", ["Mới nhất", "Giá thấp→cao", "Giá cao→thấp",
                                                 "Tên A→Z"], key="eldo_sort", label_visibility="collapsed")
@@ -131,7 +132,7 @@ def render_tab_eldorado(eld_client):
                         _flt.sort(key=lambda x: (x.get("offerTitle") or "").lower())
 
                     # ── Bulk actions ──
-                    with st.expander("⚡ Thao Tác Hàng Loạt", expanded=False):
+                    with st.expander("Thao Tác Hàng Loạt", expanded=False):
                         _bulk_state = st.selectbox("Chọn state", ["Active", "Paused", "Closed"],
                                                     key="eldo_bulk_state")
                         _bulk_items = [x for x in _listings if x.get("offerState") == _bulk_state]
@@ -139,7 +140,7 @@ def render_tab_eldorado(eld_client):
 
                         if _bulk_items:
                             ba1, ba2 = st.columns(2)
-                            if ba2.button(f"🗑️ Xoá tất cả {len(_bulk_items)} {_bulk_state}",
+                            if ba2.button(f"× Xoá tất cả {len(_bulk_items)} {_bulk_state}",
                                           type="primary", use_container_width=True, key="btn_bulk_delete"):
                                 _dprog = st.progress(0)
                                 _dok = 0
@@ -150,12 +151,12 @@ def render_tab_eldorado(eld_client):
                                         _dok += 1
                                     _time.sleep(0.3)
                                 _dprog.progress(1.0)
-                                st.success(f"✅ Đã xoá: {_dok}/{len(_bulk_items)}")
+                                st.success(f"Đã xoá: {_dok}/{len(_bulk_items)}")
                                 st.session_state._eldo_all = []
                                 st.rerun()
 
                             if _bulk_state in ("Active", "Closed"):
-                                _pause_label = "⏸️ Pause" if _bulk_state == "Active" else "⏸️ Pause (nếu có thể)"
+                                _pause_label = "Pause" if _bulk_state == "Active" else "Pause (nếu có thể)"
                                 if ba1.button(_pause_label, use_container_width=True, key="btn_bulk_pause"):
                                     _pok = 0
                                     for _br in _bulk_items:
@@ -168,7 +169,7 @@ def render_tab_eldorado(eld_client):
                                     st.session_state._eldo_all = []
                                     st.rerun()
                             elif _bulk_state == "Paused":
-                                if ba1.button("▶️ Resume tất cả", use_container_width=True, key="btn_bulk_resume"):
+                                if ba1.button(f"↻ Resume tất cả", use_container_width=True, key="btn_bulk_resume"):
                                     _rok = 0
                                     for _br in _bulk_items:
                                         _r = eld_client.change_state(_br.get("id", ""), "Active")
@@ -180,7 +181,7 @@ def render_tab_eldorado(eld_client):
                                     st.rerun()
 
                     # ── Giảm giá toàn bộ ──
-                    with st.expander("📉 Giảm giá toàn bộ (Active)", expanded=False):
+                    with st.expander("Giảm giá toàn bộ (Active)", expanded=False):
                         _act = [x for x in _listings if x.get("offerState") == "Active"]
                         if not _act:
                             st.info("Không có listing Active.")
@@ -207,7 +208,7 @@ def render_tab_eldorado(eld_client):
                             if _prev:
                                 st.dataframe(pd.DataFrame(_prev)[["Title", "Cũ", "Mới"]],
                                              use_container_width=True, hide_index=True, height=200)
-                                if st.button(f"📉 Xác nhận giảm {len(_prev)} listings",
+                                if st.button(f"Xác nhận giảm {len(_prev)} listings",
                                              type="primary", use_container_width=True, key="btn_eldo_disc"):
                                     _dprog = st.progress(0)
                                     _dok = 0
@@ -218,7 +219,7 @@ def render_tab_eldorado(eld_client):
                                             _dok += 1
                                         _time.sleep(0.3)
                                     _dprog.progress(1.0)
-                                    st.success(f"✅ Đã giảm: {_dok}/{len(_prev)}")
+                                    st.success(f"Đã giảm: {_dok}/{len(_prev)}")
                                     st.session_state._eldo_all = []
                                     st.rerun()
                             else:
@@ -246,7 +247,7 @@ def render_tab_eldorado(eld_client):
                                         _oimg = f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
                                     st.markdown(f'<img src="{_oimg}" width="42" height="42" style="border-radius:8px;object-fit:cover;">', unsafe_allow_html=True)
                                 else:
-                                    st.markdown(f'<div style="width:42px;height:42px;border-radius:8px;background:#1f1f1f;display:flex;align-items:center;justify-content:center;font-size:18px;">📦</div>', unsafe_allow_html=True)
+                                    st.markdown(f'<div style="width:42px;height:42px;border-radius:8px;background:#1f1f1f;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:1.2rem;">📦</div>', unsafe_allow_html=True)
                             with rc2:
                                 st.markdown(f"**{_otitle}**")
                                 st.caption(f"**${_oprice:.2f}**")
@@ -260,7 +261,7 @@ def render_tab_eldorado(eld_client):
                                 with st.container():
                                     ac1, ac2, ac3, ac4 = st.columns([2, 1, 1, 1])
                                     _np_val = ac1.number_input("Giá mới ($)", 0.01, 9999.0, _oprice, 0.05, format="%.2f", key="eldo_price_edit")
-                                    if ac2.button("💰", key="btn_upd_price", use_container_width=True, help="Đổi giá"):
+                                    if ac2.button("✓", key="btn_upd_price", use_container_width=True, help="Đổi giá"):
                                         _r = eld_client.change_price(_oid, _np_val)
                                         if _r and not _r.get("error"):
                                             st.toast("Đã đổi giá")
@@ -269,12 +270,12 @@ def render_tab_eldorado(eld_client):
                                             st.rerun()
                                         else:
                                             st.error(_r.get("error", "Lỗi"))
-                                    if ac3.button("⏸️", key="btn_pause_one", use_container_width=True, help="Tạm dừng"):
+                                    if ac3.button("⏸", key="btn_pause_one", use_container_width=True, help="Tạm dừng"):
                                         eld_client.change_state(_oid, "Paused")
                                         st.session_state._eldo_all = []
                                         st.session_state.pop("_eldo_expanded_id", None)
                                         st.rerun()
-                                    if ac4.button("🗑️", key="btn_del_one", use_container_width=True, help="Xoá"):
+                                    if ac4.button("×", key="btn_del_one", use_container_width=True, help="Xoá"):
                                         eld_client.delete_listing(_oid)
                                         st.session_state._eldo_all = []
                                         st.session_state.pop("_eldo_expanded_id", None)
@@ -287,7 +288,7 @@ def render_tab_eldorado(eld_client):
             with st.container(border=True):
                 st.markdown('<div class="sec-heading">Đơn Hàng</div>', unsafe_allow_html=True)
 
-                _eldo_reload_orders = st.button("🔄 Tải đơn hàng", key="eldo_refresh_orders")
+                _eldo_reload_orders = st.button(f"↻ Tải đơn hàng", key="eldo_refresh_orders")
                 if _eldo_reload_orders:
                     st.session_state._eldo_orders = None
                     st.session_state._eldo_notifications = None
@@ -315,21 +316,21 @@ def render_tab_eldorado(eld_client):
                 _unread_count = sum(1 for n in _notif_list if not n.get("isRead", True))
 
                 oc1, oc2, oc3, oc4 = st.columns(4)
-                oc1.metric("⏳ Pending", _pending_count)
-                oc2.metric("🔄 Active", _active_count)
-                oc3.metric("✅ Delivered", _delivered_count)
-                oc4.metric("🔔 Thông báo mới", _unread_count)
+                oc1.metric("Pending", _pending_count)
+                oc2.metric("Active", _active_count)
+                oc3.metric("Delivered", _delivered_count)
+                oc4.metric("Thông báo mới", _unread_count)
 
                 # ── Notifications feed ──
                 if _notif_list:
-                    with st.expander(f"🔔 Thông báo ({len(_notif_list)})", expanded=False):
+                    with st.expander(f"Thông báo ({len(_notif_list)})", expanded=False):
                         for _n in _notif_list[:10]:
                             _nread = _n.get("isRead", True)
                             _ntitle = _n.get("title", "") or _n.get("message", "") or str(_n.get("type", ""))
-                            _ncard = f"{'🔵' if not _nread else '⚪'} {_ntitle}"
+                            _ncard = f"• {_ntitle}" if not _nread else f"{_ntitle}"
                             st.caption(_ncard)
                         if _unread_count > 0:
-                            if st.button("✅ Đánh dấu tất cả đã đọc", key="btn_mark_read"):
+                            if st.button(f"✓ Đánh dấu tất cả đã đọc", key="btn_mark_read"):
                                 eld_client.mark_notifications_read()
                                 st.session_state._eldo_notifications = None
                                 st.rerun()
@@ -349,7 +350,7 @@ def render_tab_eldorado(eld_client):
                         _game = _o.get("augmentedGame", {})
                         _pet = (_game.get("offerAttributes") or [{}])[0].get("value", "") if _game.get("offerAttributes") else ""
 
-                        _state_colors = {"Pending": ("#f59e0b", "⏳ Pending"), "Active": ("#a1a1aa", "🔄 Active"), "Delivered": ("#3b82f6", "✅ Delivered"), "Cancelled": ("#ef4444", "❌ Cancelled")}
+                        _state_colors = {"Pending": ("#f59e0b", "⏳ Pending"), "Active": ("#a1a1aa", "↻ Active"), "Delivered": ("#3b82f6", "✓ Delivered"), "Cancelled": ("#ef4444", "× Cancelled")}
                         _sc, _sl = _state_colors.get(_ostate, ("#6b7280", _ostate))
 
                         with st.container():
@@ -357,22 +358,22 @@ def render_tab_eldorado(eld_client):
                             with _o1:
                                 st.markdown(f"**{_otitle}**")
                                 if _buyer:
-                                    st.caption(f"👤 {_buyer} · 📅 {_created}")
+                                    st.caption(f"{_buyer} · {_created}")
                             with _o2:
                                 st.markdown(f"**${_oprice:.2f}**")
                                 st.caption(f"{_sl}")
                             with _o3:
-                                st.caption(f"⏱ {_deliver}" if _deliver else "")
+                                st.caption(f"{_deliver}" if _deliver else "")
                                 if _pet:
-                                    st.caption(f"🎮 {str(_pet)[:20]}")
+                                    st.caption(f"{str(_pet)[:20]}")
                             with _o4:
                                 if _ostate == "Pending":
-                                    if st.button("✅ Xác nhận", key=f"od_{_oid}", use_container_width=True, type="primary"):
+                                    if st.button(f"✓ Xác nhận", key=f"od_{_oid}", use_container_width=True, type="primary"):
                                         eld_client.mark_delivered(_oid)
                                         st.session_state._eldo_orders = None
                                         st.rerun()
                                 elif _ostate == "Active":
-                                    if st.button("📦 Đã giao", key=f"od_{_oid}", use_container_width=True):
+                                    if st.button("Đã giao", key=f"od_{_oid}", use_container_width=True):
                                         eld_client.mark_delivered(_oid)
                                         st.session_state._eldo_orders = None
                                         st.rerun()

@@ -12,6 +12,8 @@ from _helpers import (
     parse_usd, fmt_vnd, fmt_short, normalize_df, apply_ngay_ton,
     token_search, _clear_searches, _sv,
 )
+import _icons as IC
+from _icons import icon_text
 
 
 def render_sell_single(df):
@@ -19,8 +21,8 @@ def render_sell_single(df):
     if st.session_state.get("last_sale_undo", {}).get("type") == "single":
         _undo = st.session_state["last_sale_undo"]
         _ub1, _ub2 = st.columns([3, 1])
-        _ub1.info(f"↩️ Vừa bán: **{_undo['label']}**  —  Bán nhầm? Hoàn tác ngay!")
-        if _ub2.button("↩️ Hoàn tác", key="undo_single_btn", use_container_width=True):
+        _ub1.info(f"↩ Vừa bán: **{_undo['label']}**  —  Bán nhầm? Hoàn tác ngay!")
+        if _ub2.button(f"↩ Hoàn tác", key="undo_single_btn", use_container_width=True):
             _ud = st.session_state.pop("last_sale_undo")
             _df2 = st.session_state.df.copy()
             _uid_col = "id" if _ud["sell_id"] > 0 else "stt"
@@ -128,13 +130,13 @@ def render_sell_single(df):
                 _rev_prev = _pnd_single["s_price"] * EXCHANGE_RATE
                 _ln_prev  = _rev_prev - _pnd_single["gia_nhap"]
                 st.warning(
-                    f"⚠️ **Xác nhận bán** · {_pnd_single['auto_title']}\n\n"
+                    f"! **Xác nhận bán** · {_pnd_single['auto_title']}\n\n"
                     f"Giá: **${_pnd_single['s_price']}** → {fmt_vnd(_rev_prev)} · "
                     f"Lợi nhuận: **{fmt_vnd(_ln_prev)}**"
                 )
                 _cf1, _cf2 = st.columns(2)
-                _do_confirm = _cf1.button("✅ Xác nhận bán", key="confirm_sell_single", type="primary", use_container_width=True)
-                _do_cancel  = _cf2.button("❌ Hủy", key="cancel_sell_single", use_container_width=True)
+                _do_confirm = _cf1.button(f"✓ Xác nhận bán", key="confirm_sell_single", type="primary", use_container_width=True)
+                _do_cancel  = _cf2.button(f"× Hủy", key="cancel_sell_single", use_container_width=True)
 
                 if _do_cancel:
                     st.session_state.pop("pending_single_sale", None)
@@ -188,10 +190,10 @@ def render_sell_single(df):
                             "old_place":     _pnd["old_place"],
                             "old_ngay_ton":  _pnd["old_ngay_ton"],
                         }
-                        st.toast("✅ Giao dịch hoàn tất · Nhấn Hoàn Tác nếu bán nhầm", icon="✅")
+                        st.toast("Giao dịch hoàn tất · Nhấn Hoàn Tác nếu bán nhầm", icon="✅")
                         _clear_searches()
                         st.rerun()
         else:
-            st.markdown('<div class="empty-state"><div class="es-icon">🔍</div><div class="es-title">Không tìm thấy kết quả</div><div class="es-sub">Thử điều chỉnh từ khoá tìm kiếm</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="empty-state"><div class="es-icon" style="color:#64748b;">🔍</div><div class="es-title">Không tìm thấy kết quả</div><div class="es-sub">Thử điều chỉnh từ khoá tìm kiếm</div></div>', unsafe_allow_html=True)
     else:
-        st.markdown('<div class="empty-state"><div class="es-icon">📦</div><div class="es-title">Kho trống</div><div class="es-sub">Nhấn "Nhập Kho" bên trái để thêm hàng</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="empty-state"><div class="es-icon" style="color:#64748b;">📦</div><div class="es-title">Kho trống</div><div class="es-sub">Nhấn "Nhập Kho" bên trái để thêm hàng</div></div>', unsafe_allow_html=True)

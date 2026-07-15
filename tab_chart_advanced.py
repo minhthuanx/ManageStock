@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from _timezone import VN_TZ, now_vn
 from _helpers import fmt_vnd, fmt_short, fmt_ngay_ton
+from _colors import PAL, GOLD, BG, BG_PLOT, GRID, MUTED, FG
 
 
 def render_advanced(sold_df, pbd, has_data):
@@ -61,7 +62,7 @@ def render_advanced(sold_df, pbd, has_data):
                 _hour_count["Đơn"] = _hour_count["Đơn"].astype(int)
 
                 _peak_hour = int(_hour_count.loc[_hour_count["Đơn"].idxmax(), "Giờ"])
-                _colors = ["#a1a1aa" if h == _peak_hour else "#a1a1aa" for h in _hour_count["Giờ"]]
+                _colors = [GOLD if h == _peak_hour else PAL[0] for h in _hour_count["Giờ"]]
 
                 fig_hour = go.Figure(go.Bar(
                     x=[f"{h:02d}:00" for h in _hour_count["Giờ"]],

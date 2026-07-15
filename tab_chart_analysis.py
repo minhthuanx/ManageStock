@@ -4,6 +4,7 @@ import streamlit as st
 
 from _helpers import fmt_vnd, fmt_short
 import _icons as IC
+from _colors import PAL, MUT_COLORS, PP_PAL, NEUTRAL, BG, BG_PLOT, GRID, GRID_ZERO, FG, MUTED
 
 
 def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
@@ -30,10 +31,10 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
             fig_cmp = go.Figure(go.Bar(
                 x=_compare_df["Hạng mục"],
                 y=_compare_df["Giá trị"],
-                marker_color=["#a1a1aa", "#a1a1aa"],
+                marker_color=[NEUTRAL, PAL[2]],
                 text=_compare_df["Giá trị"].apply(fmt_short),
                 textposition="outside",
-                textfont=dict(color="#f1f5f9", size=11),
+                textfont=dict(color=FG, size=11),
             ))
             fig_cmp.update_layout(
                 paper_bgcolor="#0b1120",
@@ -64,10 +65,10 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=top_pets["Lợi Nhuận"],
                     y=top_pets["Tên Pet"],
                     orientation="h",
-                    marker=dict(color="#a1a1aa"),
+                    marker=dict(color=PAL[0]),
                     text=top_pets["Lợi Nhuận"].apply(fmt_short),
                     textposition="outside",
-                    textfont=dict(color="#f1f5f9", size=11),
+                    textfont=dict(color=FG, size=11),
                 ))
                 fig_bar.update_layout(
                     paper_bgcolor="#0b1120",
@@ -106,15 +107,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 _med_x = float(_tm_grp["Count"].median())
                 _med_y = float(_tm_grp["LN_per_unit"].median())
 
-                # Color palette per mutation (distinct vivid colors)
-                _MUT_PALETTE = {
-                    "Normal":"#71717a","Gold":"#d4d4d8","Diamond":"#a1a1aa",
-                    "Bloodrot":"#ef4444","Candy":"#e4e4e7","Divine":"#e4e4e7",
-                    "Lava":"#f97316","Galaxy":"#a1a1aa","Yin-Yang":"#e2e8f0",
-                    "Radioactive":"#22c55e","Cursed":"#4ade80","Rainbow":"#d4d4d8",
-                    "Không rõ":"#52525b",
-                }
-                _dot_colors = [_MUT_PALETTE.get(m, "#a1a1aa") for m in _tm_grp["_mut"]]
+                _dot_colors = [MUT_COLORS.get(m, PAL[i % len(PAL)]) for i, m in enumerate(_tm_grp["_mut"])]
 
                 _fig_bub = go.Figure()
 
@@ -143,7 +136,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
                 # Bubbles
                 for _, _row in _tm_grp.iterrows():
-                    _col = _MUT_PALETTE.get(str(_row["_mut"]), "#d4d4d8")
+                    _col = MUT_COLORS.get(str(_row["_mut"]), PAL[0])
                     _sz  = max(24, min(90, _row["DT"] / (_tm_grp["DT"].max() or 1) * 80 + 14))
                     _fig_bub.add_trace(go.Scatter(
                         x=[_row["Count"]],
@@ -233,12 +226,7 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                         showarrow=False, font=dict(color="#64748b", size=11), xanchor="left"
                     )
 
-                _PP_PALETTE = [
-                    "#a1a1aa","#d4d4d8","#71717a","#e4e4e7","#a1a1aa",
-                    "#d4d4d8","#71717a","#a1a1aa","#d4d4d8","#71717a",
-                    "#a1a1aa","#d4d4d8","#71717a","#a1a1aa","#d4d4d8",
-                    "#a1a1aa","#d4d4d8","#71717a","#a1a1aa","#d4d4d8",
-                ]
+                _PP_PALETTE = PP_PAL
                 for _pi, (_, _pr) in enumerate(_pp_grp.iterrows()):
                     _sz2 = max(16, min(68, _pr["Count"] / max(float(_pp_grp["Count"].max()), 1) * 52 + 16))
                     _m2  = float(_pr["Margin"])
@@ -312,10 +300,10 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=_spd_by_pet["Ngày Tồn"],
                     y=_spd_by_pet["Tên Pet"],
                     orientation="h",
-                    marker=dict(color="#a1a1aa"),
+                    marker=dict(color=NEG),
                     text=_spd_by_pet["Ngày Tồn"].apply(lambda v: f"{int(round(v))}d"),
                     textposition="outside",
-                    textfont=dict(color="#f1f5f9", size=10),
+                    textfont=dict(color=FG, size=10),
                 ))
                 fig_spd.update_layout(
                     paper_bgcolor="#0b1120", plot_bgcolor="#0b1120",
@@ -344,10 +332,10 @@ def render_analysis(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     x=_mut_perf["LN_mean"],
                     y=_mut_perf["Mutation"],
                     orientation="h",
-                    marker=dict(color="#a1a1aa"),
+                    marker=dict(color=[MUT_COLORS.get(m, PAL[i % len(PAL)]) for i, m in enumerate(_mut_perf["Mutation"])]),
                     text=_mut_perf["LN_mean"].apply(fmt_short),
                     textposition="outside",
-                    textfont=dict(color="#f1f5f9", size=10),
+                    textfont=dict(color=FG, size=10),
                     customdata=_mut_perf[["LN_total","Count"]].values,
                     hovertemplate="<b>%{y}</b><br>TB/con: %{x:,.0f}₫<br>Tổng: %{customdata[0]:,.0f}₫<br>Số con: %{customdata[1]}<extra></extra>",
                 ))

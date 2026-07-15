@@ -8,6 +8,7 @@ from _timezone import VN_TZ
 from _helpers import fmt_vnd, fmt_short
 from _config import EXCHANGE_RATE
 import _icons as IC
+from _colors import PAL, POS, NEG, GOLD, NEUTRAL, BG, BG_PLOT, GRID, GRID_ZERO, FG, MUTED
 
 
 def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cost, total_rev, net_profit):
@@ -42,7 +43,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
 
             _wf_labels = ["Tổng Doanh Thu", "Tổng Vốn", "Lợi Nhuận Ròng"]
             _wf_vals   = [total_rev, total_cost, abs(net_profit)]
-            _wf_colors = ["#a1a1aa", "#f87171", "#a1a1aa" if net_profit >= 0 else "#f87171"]
+            _wf_colors = [NEUTRAL, NEG, POS if net_profit >= 0 else NEG]
 
             _fig_wf = go.Figure(go.Bar(
                 x=_wf_labels,
@@ -59,7 +60,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                 x="Lợi Nhuận Ròng", y=abs(net_profit),
                 text=f"<b>{'+ ' if net_profit >= 0 else '- '}{fmt_short(abs(net_profit))}</b>",
                 showarrow=False, yshift=24,
-                font=dict(color="#a1a1aa" if net_profit >= 0 else "#f87171", size=12)
+                font=dict(color=POS if net_profit >= 0 else NEG, size=12)
             )
             _fig_wf.update_layout(
                 paper_bgcolor="#0b1120", plot_bgcolor="#0b1120",
@@ -145,8 +146,8 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                 textposition="outside",
                 textfont=dict(size=11, color="#f1f5f9", family="Space Grotesk"),
                 marker=dict(
-                    color="#a1a1aa",
-                    line=dict(color="#a1a1aa", width=0),
+                    color=PAL[0],
+                    line=dict(color=PAL[0], width=0),
                 ),
                 cliponaxis=False,
             ))
@@ -245,7 +246,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                         ax=0, ay=-32,
                     ))
 
-            _bar_colors = ["#a1a1aa" if v >= 0 else "#f87171" for v in _cum_daily["Lợi Nhuận"]]
+            _bar_colors = [PAL[0] if v >= 0 else NEG for v in _cum_daily["Lợi Nhuận"]]
 
             _fig_cum = go.Figure()
             _fig_cum.add_trace(go.Bar(
@@ -259,8 +260,8 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                 x=_cum_daily["Ngày DT"], y=_cum_daily["Tích Lũy"],
                 mode="lines",
                 fill="tozeroy",
-                fillcolor="rgba(161,161,170,0.22)",
-                line=dict(color="#a1a1aa", width=2.5),
+                fillcolor="rgba(56,189,248,0.22)",
+                line=dict(color=PAL[0], width=2.5),
                 name="Tích lũy",
                 hovertemplate="%{x|%d/%m/%Y}<br>Tích lũy: <b>%{y:,.0f}₫</b><extra></extra>",
             ))

@@ -316,8 +316,8 @@ Return ONLY valid JSON, no markdown:
                             r_ns = global_ns_val
                             _ns_display = global_ns_val if global_ns_val else "—"
                             c5d.markdown(
-                                f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#a5b4fc;">'
-                                f'NS: <b>{_ns_display}</b> <span style="color:#64748b;">(chung)</span></div>',
+                                f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#d46aa6;">'
+                                f'NS: <b>{_ns_display}</b> <span style="color:#6b8a9e;">(chung)</span></div>',
                                 unsafe_allow_html=True,
                             )
                         else:

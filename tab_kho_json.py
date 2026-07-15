@@ -214,8 +214,8 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                         r_ns = global_ns_val
                         _ns_display = global_ns_val if global_ns_val else "—"
                         c5d.markdown(
-                            f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#a5b4fc;">'
-                            f'NS: <b>{_ns_display}</b> <span style="color:#64748b;">(chung)</span></div>',
+                            f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#d46aa6;">'
+                            f'NS: <b>{_ns_display}</b> <span style="color:#6b8a9e;">(chung)</span></div>',
                             unsafe_allow_html=True,
                         )
                         effective_ns = global_ns_val
@@ -223,8 +223,8 @@ def render_json_import(df, pet_db, ns_db, trait_db, eld_client=None):
                         r_ns = _ns_raw
                         _source = f"({_ns_owner})" if _ns_owner else ""
                         c5d.markdown(
-                            f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#a5b4fc;">'
-                            f'NS: <b>{_ns_raw}</b> <span style="color:#64748b;">{_source}</span></div>',
+                            f'<div style="padding-top:1.8rem;font-size:0.82rem;color:#d46aa6;">'
+                            f'NS: <b>{_ns_raw}</b> <span style="color:#6b8a9e;">{_source}</span></div>',
                             unsafe_allow_html=True,
                         )
                         effective_ns = _ns_raw

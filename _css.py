@@ -1,34 +1,34 @@
 """
-Global CSS string — Refined Dark theme with Violet/Indigo accent.
-Pure black background, modern premium feel.
+Global CSS string — Neon Dark theme with warm accent palette.
+Palette: #00202e → #ffd380
 """
 CSS_STRING = """<style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-/* ── Root — Refined Dark / Violet ── */
+/* ── Root — Neon Dark Palette ── */
 :root {
-  --bg:        #000000;
-  --surface:   #0a0a0a;
-  --surface2:  #111111;
-  --surface3:  #1a1a1a;
-  --border:    #1e1e1e;
-  --border-h:  #2a2a2a;
-  --accent:    #818cf8;
-  --accent-h:  #a5b4fc;
-  --accent-bg: rgba(129,140,248,0.08);
-  --pink:      #fb7185;
-  --pink-bg:   rgba(251,113,133,0.08);
-  --purple:    #a78bfa;
-  --purple-bg: rgba(167,139,250,0.08);
-  --green:     #34d399;
-  --green-bg:  rgba(52,211,153,0.08);
-  --red:       #fb7185;
-  --red-bg:    rgba(251,113,133,0.08);
-  --yellow:    #fbbf24;
-  --yellow-bg: rgba(251,191,36,0.08);
-  --text:      #f1f5f9;
-  --text2:     #94a3b8;
-  --text3:     #64748b;
+  --bg:        #00202e;
+  --surface:   #003042;
+  --surface2:  #003f5c;
+  --surface3:  #2c4875;
+  --border:    #1a3a50;
+  --border-h:  #2c4875;
+  --accent:    #bc5090;
+  --accent-h:  #d46aa6;
+  --accent-bg: rgba(188,80,144,0.1);
+  --pink:      #ff8531;
+  --pink-bg:   rgba(255,133,49,0.1);
+  --purple:    #8a508f;
+  --purple-bg: rgba(138,80,143,0.1);
+  --green:     #ffa600;
+  --green-bg:  rgba(255,166,0,0.1);
+  --red:       #ff6361;
+  --red-bg:    rgba(255,99,97,0.1);
+  --yellow:    #ffd380;
+  --yellow-bg: rgba(255,211,128,0.1);
+  --text:      #e8e0e8;
+  --text2:     #9aafc4;
+  --text3:     #6b8a9e;
   --radius:    8px;
   --radius-sm: 6px;
   --mono:      'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
@@ -45,13 +45,13 @@ html, body, [data-testid="stAppViewContainer"] {
   text-rendering: optimizeLegibility;
 }
 
-/* ── Background — pure black ── */
+/* ── Background ── */
 [data-testid="stAppViewContainer"] {
-  background: #000000 !important;
+  background: var(--bg) !important;
 }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] {
-  background: #000000 !important;
+  background: var(--bg) !important;
   border-right: 1px solid var(--border) !important;
 }
 .block-container {
@@ -100,15 +100,12 @@ div[data-testid="stMetricLabel"] {
   background: var(--surface3) !important;
   border-color: var(--border-h) !important;
 }
-.stButton > button:active {
-  transform: scale(0.985);
-}
+.stButton > button:active { transform: scale(0.985); }
 .stButton > button[kind="primary"] {
   background: var(--accent) !important;
-  color: #000000 !important;
+  color: #ffffff !important;
   border: none !important;
   font-weight: 700 !important;
-  letter-spacing: 0.02em !important;
 }
 .stButton > button[kind="primary"]:hover {
   background: var(--accent-h) !important;
@@ -117,11 +114,9 @@ div[data-testid="stMetricLabel"] {
   background: transparent !important;
   color: var(--text2) !important;
   border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
 }
 .stButton > button[kind="secondary"]:hover {
   background: var(--surface2) !important;
-  border-color: var(--border-h) !important;
   color: var(--accent) !important;
 }
 .stButton > button[kind="tertiary"] {
@@ -147,7 +142,6 @@ div[data-testid="stMetricLabel"] {
   padding: 0.65rem 1rem !important;
   font-weight: 500 !important;
   font-size: 0.82rem !important;
-  letter-spacing: 0.01em !important;
   color: var(--text3) !important;
   border: none !important;
   background: transparent !important;
@@ -163,7 +157,6 @@ div[data-testid="stMetricLabel"] {
   left: 0 !important;
   width: 100% !important;
   height: 2px !important;
-  border-radius: 1px !important;
   background: var(--accent) !important;
   opacity: 0 !important;
   transform: scaleX(0) !important;
@@ -172,7 +165,6 @@ div[data-testid="stMetricLabel"] {
 [data-testid="stTab"][aria-selected="true"] {
   color: var(--text) !important;
   font-weight: 600 !important;
-  background: transparent !important;
 }
 [data-testid="stTab"][aria-selected="true"]::after {
   opacity: 1 !important;
@@ -180,7 +172,6 @@ div[data-testid="stMetricLabel"] {
 }
 [data-testid="stTab"]:hover:not([aria-selected="true"]) {
   color: var(--text2) !important;
-  background: transparent !important;
 }
 
 /* ── Inputs ── */
@@ -193,7 +184,7 @@ div[data-testid="stMetricLabel"] {
 }
 .stTextInput input:focus, .stNumberInput input:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(129,140,248,0.15) !important;
+  box-shadow: 0 0 0 2px rgba(188,80,144,0.15) !important;
 }
 
 /* ── Containers ── */
@@ -229,7 +220,6 @@ div[data-testid="stMetricLabel"] {
   background: transparent !important;
   border: none !important;
   padding: 0.5rem 0 2rem 0 !important;
-  box-shadow: none !important;
 }
 
 /* ── DataFrames ── */
@@ -261,13 +251,9 @@ div[data-testid="stMetricLabel"] {
   display: flex;
   align-items: center;
   gap: 1rem;
-  position: relative;
   overflow: hidden;
 }
-.hero-banner .logo {
-  font-size: 1.6rem;
-  opacity: 0.95;
-}
+.hero-banner .logo { font-size: 1.6rem; opacity: 0.95; }
 .hero-banner h1 {
   margin: 0;
   font-size: clamp(1.05rem, 2.5vw, 1.35rem);
@@ -297,9 +283,7 @@ div[data-testid="stMetricLabel"] {
   text-align: center;
   transition: border-color 0.2s ease;
 }
-.stat-card:hover {
-  border-color: var(--border-h);
-}
+.stat-card:hover { border-color: var(--border-h); }
 .stat-card .val {
   font-size: 1.1rem;
   font-weight: 700;
@@ -352,9 +336,7 @@ div[data-testid="stMetricLabel"] {
   margin-bottom: 0.75rem;
   transition: border-color 0.2s ease;
 }
-.stat-panel:hover {
-  border-color: var(--border-h);
-}
+.stat-panel:hover { border-color: var(--border-h); }
 
 /* ── Metric cards ── */
 div[data-testid="stMetric"] {
@@ -378,16 +360,13 @@ div[data-testid="stMetric"]:hover {
   overflow: hidden !important;
   transition: border-color 0.2s ease !important;
 }
-[data-testid="stExpander"]:hover {
-  border-color: var(--border-h) !important;
-}
+[data-testid="stExpander"]:hover { border-color: var(--border-h) !important; }
 [data-testid="stExpander"] summary {
   padding: 0.65rem 0.9rem !important;
   font-weight: 600 !important;
   font-size: 0.82rem !important;
   color: var(--text) !important;
   background: transparent !important;
-  border: none !important;
 }
 [data-testid="stExpander"] summary:hover { color: var(--accent) !important; }
 
@@ -407,7 +386,7 @@ div[data-testid="stMetric"]:hover {
 ::-webkit-scrollbar-thumb { background: var(--border-h); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
 
-/* ── Form container ── */
+/* ── Form ── */
 [data-testid="stForm"] {
   background: var(--surface) !important;
   border: 1px solid var(--border) !important;
@@ -424,7 +403,7 @@ div[data-testid="stMetric"]:hover {
 }
 [data-baseweb="select"] > div:first-child:focus-within {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(129,140,248,0.15) !important;
+  box-shadow: 0 0 0 2px rgba(188,80,144,0.15) !important;
 }
 [data-baseweb="popover"] [data-baseweb="menu"] {
   background: var(--surface2) !important;
@@ -454,7 +433,7 @@ hr {
   margin: 0.75rem 0 !important;
 }
 
-/* ── Sidebar section headings ── */
+/* ── Sidebar headings ── */
 [data-testid="stSidebar"] .sidebar-heading {
   font-size: 0.7rem;
   font-weight: 600;
@@ -480,7 +459,7 @@ hr {
 }
 [data-testid="stRadio"] label:has(input:checked) {
   background: var(--accent-bg) !important;
-  border-color: rgba(129,140,248,0.3) !important;
+  border-color: rgba(188,80,144,0.3) !important;
   color: var(--accent) !important;
   font-weight: 600 !important;
 }
@@ -491,11 +470,11 @@ hr {
 [data-testid="stRadio"] label input[type="radio"] { display: none !important; }
 [data-testid="stRadio"] label > div:first-child { display: none !important; }
 
-/* ── Ton lau badge ── */
+/* ── Badge warn ── */
 .badge-warn {
-  background: var(--pink-bg);
-  color: var(--pink);
-  border: 1px solid rgba(251,113,133,0.2);
+  background: var(--red-bg);
+  color: var(--red);
+  border: 1px solid rgba(255,99,97,0.2);
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 0.7rem;
@@ -513,44 +492,42 @@ hr {
   padding: 0.6rem 0.85rem !important;
 }
 [data-testid="stAlert"][kind="info"], div[data-testid="stInfo"] > div {
-  background: rgba(96,165,250,0.08) !important;
-  border-color: rgba(96,165,250,0.2) !important;
+  background: rgba(44,72,117,0.2) !important;
+  border-color: rgba(44,72,117,0.4) !important;
   color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="success"], div[data-testid="stSuccess"] > div {
   background: var(--green-bg) !important;
-  border-color: rgba(52,211,153,0.2) !important;
+  border-color: rgba(255,166,0,0.25) !important;
   color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="warning"], div[data-testid="stWarning"] > div {
   background: var(--yellow-bg) !important;
-  border-color: rgba(251,191,36,0.2) !important;
+  border-color: rgba(255,211,128,0.25) !important;
   color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="error"], div[data-testid="stError"] > div {
   background: var(--red-bg) !important;
-  border-color: rgba(251,113,133,0.2) !important;
+  border-color: rgba(255,99,97,0.25) !important;
   color: var(--text) !important;
 }
 
-/* ── Plotly chart containers ── */
+/* ── Plotly ── */
 .js-plotly-plot {
   border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
   overflow: hidden !important;
 }
 
-/* ── Copy description button ── */
+/* ── Copy button ── */
 .copy-desc-btn {
   background: var(--accent) !important;
-  color: #000000 !important;
+  color: #ffffff !important;
   border: none !important;
   border-radius: var(--radius) !important;
   font-weight: 700 !important;
 }
-.copy-desc-btn:hover {
-  background: var(--accent-h) !important;
-}
+.copy-desc-btn:hover { background: var(--accent-h) !important; }
 
 /* ── Toast ── */
 [data-testid="stToast"] {
@@ -565,54 +542,32 @@ hr {
 
 /* ── Empty state ── */
 .empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2.5rem 1rem;
-  gap: 0.4rem;
-  text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 2.5rem 1rem; gap: 0.4rem; text-align: center;
 }
 .empty-state .es-icon { font-size: 2rem; opacity: 0.3; }
 .empty-state .es-title { font-size: 0.85rem; font-weight: 500; color: var(--text3); }
 .empty-state .es-sub { font-size: 0.75rem; color: var(--text3); opacity: 0.6; }
 
-/* ── Button load spinner ── */
-.btn-busy {
-  opacity: 0.5 !important;
-  pointer-events: none !important;
-  cursor: wait !important;
-}
-
-/* ── Hide Streamlit branding ── */
+/* ── Utilities ── */
+.btn-busy { opacity: 0.5 !important; pointer-events: none !important; }
 #MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
-
-/* ── Neon text utility (mapped to new colors) ── */
 .neon-cyan   { color: var(--accent); }
 .neon-pink   { color: var(--pink); }
 .neon-green  { color: var(--green); }
 .neon-purple { color: var(--purple); }
 .neon-yellow { color: var(--yellow); }
-.cyber-line {
-  height: 1px;
-  background: var(--border);
-  margin: 1rem 0;
-}
+.cyber-line { height: 1px; background: var(--border); margin: 1rem 0; }
 
 /* ── Hero stat dot ── */
-.hero-stat-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
+.hero-stat-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .hero-stat-dot.cyan   { background: var(--accent); }
 .hero-stat-dot.pink   { background: var(--pink); }
 .hero-stat-dot.green  { background: var(--green); }
 .hero-stat-dot.purple { background: var(--purple); }
 .hero-stat-dot.muted  { background: var(--text3); }
 
-/* ── Mobile responsive ── */
+/* ── Mobile ── */
 @media (max-width: 768px) {
   .block-container { padding: 0.5rem 0.75rem 3rem !important; }
   div[data-testid="stMetricValue"] { font-size: 0.95rem !important; }
@@ -643,9 +598,7 @@ hr {
   [data-testid="stHorizontalBlock"]:has(.stForm) > [data-testid="stColumn"],
   [data-testid="stHorizontalBlock"]:has(
     > [data-testid="stColumn"] > [data-testid="stHorizontalBlock"]
-  ) > [data-testid="stColumn"] {
-    flex: 1 1 100% !important; min-width: 100% !important;
-  }
+  ) > [data-testid="stColumn"] { flex: 1 1 100% !important; min-width: 100% !important; }
   .stForm { padding: 0.5rem !important; }
   .stButton > button { padding: 0.45rem 0.75rem !important; font-size: 0.8rem !important; }
   .stDataFrame { max-height: 350px !important; }

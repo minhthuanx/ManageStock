@@ -18,12 +18,12 @@ def render_tab_chart(df, bulk_df, bulk_history):
     _start_date_str = min(_all_dates).strftime("%d/%m/%Y") if _all_dates else "—"
     st.markdown(
         f'<div style="display:inline-flex;align-items:center;gap:8px;'
-        'background:linear-gradient(135deg,rgba(139,92,246,0.22),rgba(0,200,255,0.08));'
-        'border:1px solid rgba(139,92,246,0.35);border-radius:8px;'
+        'background:linear-gradient(135deg,rgba(161,161,170,0.22),rgba(0,200,255,0.08));'
+        'border:1px solid rgba(161,161,170,0.35);border-radius:8px;'
         'padding:6px 14px;margin-bottom:12px;">'
         '<span style="font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;'
         'color:#777777;font-weight:500;">Ngày bắt đầu</span>'
-        f'<span style="font-size:0.88rem;font-weight:600;color:#a78bfa;letter-spacing:0.02em;">{_start_date_str}</span>'
+        f'<span style="font-size:0.88rem;font-weight:600;color:#d4d4d8;letter-spacing:0.02em;">{_start_date_str}</span>'
         '</div>',
         unsafe_allow_html=True,
     )

@@ -61,7 +61,7 @@ def render_advanced(sold_df, pbd, has_data):
                 _hour_count["Đơn"] = _hour_count["Đơn"].astype(int)
 
                 _peak_hour = int(_hour_count.loc[_hour_count["Đơn"].idxmax(), "Giờ"])
-                _colors = ["#8b5cf6" if h == _peak_hour else "#8b5cf6" for h in _hour_count["Giờ"]]
+                _colors = ["#a1a1aa" if h == _peak_hour else "#a1a1aa" for h in _hour_count["Giờ"]]
 
                 fig_hour = go.Figure(go.Bar(
                     x=[f"{h:02d}:00" for h in _hour_count["Giờ"]],
@@ -221,10 +221,10 @@ def render_advanced(sold_df, pbd, has_data):
             _done = _total_sold_ch >= _an
             _ach_track_cols[_ai].markdown(
                 f"<div style='text-align:center;padding:6px 2px;border-radius:6px;"
-                f"background:{'rgba(139,92,246,0.22)' if _done else 'rgba(255,255,255,0.03)'};"
-                f"border:1px solid {'rgba(139,92,246,0.3)' if _done else 'rgba(255,255,255,0.06)'};'>"
+                f"background:{'rgba(161,161,170,0.22)' if _done else 'rgba(255,255,255,0.03)'};"
+                f"border:1px solid {'rgba(161,161,170,0.3)' if _done else 'rgba(255,255,255,0.06)'};'>"
                 f"<div style='font-size:1.1rem;'>{'✅' if _done else '⬜'}</div>"
-                f"<div style='font-size:0.65rem;color:{'#8b5cf6' if _done else '#555555'};font-weight:600;'>{_ab}</div>"
+                f"<div style='font-size:0.65rem;color:{'#a1a1aa' if _done else '#555555'};font-weight:600;'>{_ab}</div>"
                 f"<div style='font-size:0.6rem;color:#777777;'>{_an}</div></div>",
                 unsafe_allow_html=True,
             )
@@ -305,10 +305,10 @@ def render_advanced(sold_df, pbd, has_data):
                 _is_next = (_nxt_ln_ms is not None and _ms == _nxt_ln_ms)
                 _row_cols[_ci].markdown(
                     f"<div style='text-align:center;padding:5px 2px;border-radius:6px;"
-                    f"background:{'rgba(139,92,246,0.22)' if _done else ('rgba(139,92,246,0.10)' if _is_next else 'rgba(255,255,255,0.03)')};"
-                    f"border:1px solid {'rgba(139,92,246,0.3)' if _done else ('rgba(139,92,246,0.3)' if _is_next else 'rgba(255,255,255,0.06)')};"
+                    f"background:{'rgba(161,161,170,0.22)' if _done else ('rgba(161,161,170,0.10)' if _is_next else 'rgba(255,255,255,0.03)')};"
+                    f"border:1px solid {'rgba(161,161,170,0.3)' if _done else ('rgba(161,161,170,0.3)' if _is_next else 'rgba(255,255,255,0.06)')};"
                     f"{'font-weight:700;' if _is_next else ''}'>"
-                    f"<div style='font-size:0.75rem;color:{'#8b5cf6' if _done else ('#8b5cf6' if _is_next else '#555555')};'>"
+                    f"<div style='font-size:0.75rem;color:{'#a1a1aa' if _done else ('#a1a1aa' if _is_next else '#555555')};'>"
                     f"{'✅' if _done else ('🎯' if _is_next else '⬜')} {_ms}M</div></div>",
                     unsafe_allow_html=True,
                 )

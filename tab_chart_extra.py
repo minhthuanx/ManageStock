@@ -36,12 +36,12 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     _sk_src.append(1 + _i); _sk_tgt.append(_sk_n_stock); _sk_val.append(_v_stock)
 
         if _sk_src:
-            _mut_palette = ["#8b5cf6","#8b5cf6","#f472b6","#a78bfa","#fbbf24",
-                            "#f87171","#38bdf8","#ff6b35","#4ade80","#f9a8d4"]
+            _mut_palette = ["#a1a1aa","#d4d4d8","#71717a","#e4e4e7","#a1a1aa",
+                            "#71717a","#d4d4d8","#a1a1aa","#e4e4e7","#71717a"]
             _sk_node_colors = (
-                ["#8b5cf6"]
+                ["#d4d4d8"]
                 + [_mut_palette[i % len(_mut_palette)] for i in range(len(_sk_muts))]
-                + ["#8b5cf6", "#8b5cf6"]
+                + ["#d4d4d8", "#d4d4d8"]
             )
             fig_sk = go.Figure(go.Sankey(
                 arrangement="snap",
@@ -55,7 +55,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                     source=_sk_src,
                     target=_sk_tgt,
                     value=_sk_val,
-                    color="rgba(139,92,246,0.18)",
+                    color="rgba(161,161,170,0.18)",
                 ),
             ))
             fig_sk.update_layout(
@@ -118,7 +118,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 text=_text_cal,
                 hovertemplate="%{text}<extra></extra>",
                 colorscale=[
-                    [0.0,  "#110f1a"],
+                    [0.0,  "#0c0c12"],
                     [0.01, "#0e4429"],
                     [0.3,  "#006d32"],
                     [0.6,  "#26a641"],
@@ -215,10 +215,10 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 except (np.linalg.LinAlgError, ValueError):
                     _m_coef, _b_coef = 0.0, float(_y.mean()) if len(_y) else 0.0
                 _trend_y = _m_coef * _x + _b_coef
-                _trend_color = "#8b5cf6" if _m_coef >= 0 else "#f87171"
+                _trend_color = "#a1a1aa" if _m_coef >= 0 else "#f87171"
                 _trend_label = f"Xu hướng {'↑ tăng' if _m_coef >= 0 else '↓ giảm'} {abs(_m_coef / max(abs(_y.mean()), 1) * 100):.1f}%/tuần"
 
-                _bar_colors = ["#8b5cf6" if v >= 0 else "#f87171" for v in _wk_merged["Lợi Nhuận"]]
+                _bar_colors = ["#a1a1aa" if v >= 0 else "#f87171" for v in _wk_merged["Lợi Nhuận"]]
                 _fig_wk = go.Figure()
                 _fig_wk.add_trace(go.Bar(
                     x=_wk_merged["_label"], y=_wk_merged["Lợi Nhuận"],
@@ -231,8 +231,8 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                 _fig_wk.add_trace(go.Scatter(
                     x=_wk_merged["_label"], y=_wk_merged["Số con"],
                     name="Số con bán", mode="lines+markers",
-                    line=dict(color="#8b5cf6", width=2.5),
-                    marker=dict(size=7, color="#8b5cf6"),
+                    line=dict(color="#a1a1aa", width=2.5),
+                    marker=dict(size=7, color="#a1a1aa"),
                     hovertemplate="<b>%{x}</b><br>Số con: %{y:,.0f}<extra></extra>",
                     yaxis="y2",
                 ))
@@ -250,7 +250,7 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
                                tickfont=dict(color="#999999", size=10), tickformat=",.0f",
                                zeroline=True, zerolinecolor="#1f1f1f"),
                     yaxis2=dict(title="Số con", overlaying="y", side="right",
-                                tickfont=dict(color="#8b5cf6", size=10), zeroline=False, showgrid=False),
+                                tickfont=dict(color="#a1a1aa", size=10), zeroline=False, showgrid=False),
                     legend=dict(orientation="h", x=0, y=1.1, font=dict(color="#999999", size=10)),
                     margin=dict(l=10, r=55, t=45, b=10),
                     height=430, barmode="overlay",
@@ -295,9 +295,9 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
 
             _trc1, _trc2 = st.columns(2)
             with _trc1:
-                _tr_colors = ["#888888" if t == "None" else
-                              "#8b5cf6" if i % 3 == 1 else
-                              "#a78bfa" if i % 3 == 2 else "#f472b6"
+                _tr_colors = ["#52525b" if t == "None" else
+                              "#a1a1aa" if i % 3 == 1 else
+                              "#d4d4d8" if i % 3 == 2 else "#71717a"
                               for i, t in enumerate(_tr_grp["_trait"])]
                 _fig_tr = go.Figure(go.Bar(
                     x=_tr_grp["_trait"], y=_tr_grp["LN_mean"],
@@ -395,18 +395,18 @@ def render_extra(df, bulk_df, bulk_history, sold_df, pbd, has_data):
         _fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number+delta",
             value=_recovery_pct,
-            delta={"reference": 80, "suffix": "%", "increasing": {"color": "#8b5cf6"}, "decreasing": {"color": "#f87171"}},
+            delta={"reference": 80, "suffix": "%", "increasing": {"color": "#a1a1aa"}, "decreasing": {"color": "#f87171"}},
             number={"suffix": "%", "font": {"size": 42, "color": "#f0f0f0", "family": "Inter"}},
             gauge={
                 "axis": {"range": [0, 100], "tickcolor": "#1f1f1f",
                          "tickfont": {"color": "#888888", "size": 12}},
-                "bar":  {"color": "#8b5cf6", "thickness": 0.25},
+                "bar":  {"color": "#a1a1aa", "thickness": 0.25},
                 "bgcolor": "#000000",
                 "bordercolor": "#141414",
                 "steps": [
                     {"range": [0,  40], "color": "rgba(248,113,113,0.12)"},
                     {"range": [40, 70], "color": "rgba(251,191,36,0.10)"},
-                    {"range": [70,100], "color": "rgba(139,92,246,0.10)"},
+                    {"range": [70,100], "color": "rgba(161,161,170,0.10)"},
                 ],
                 "threshold": {
                     "line": {"color": "#fbbf24", "width": 2.5},

@@ -32,7 +32,7 @@ def render_tab_eldorado(eld_client):
                 <div style="text-align:center;padding:1.2rem 0 0.8rem;">
                     <div style="width:80px;height:80px;border-radius:50%;background:#1f1f1f;
                     display:inline-flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;
-                    color:#f0f0f0;border:3px solid #8b5cf6;">{_initial}</div>
+                    color:#f0f0f0;border:3px solid #a1a1aa;">{_initial}</div>
                     <div style="font-size:1.6rem;font-weight:700;color:#f0f0f0;margin-top:10px;">{eld_client.username}</div>
                     <div style="font-size:1rem;color:#777777;margin-top:6px;">
                         👍 {eld_client.pos} &nbsp;&nbsp; 👎 {eld_client.neg} &nbsp;&nbsp; | &nbsp;&nbsp; {eld_client.pos + eld_client.neg} giao dịch
@@ -349,7 +349,7 @@ def render_tab_eldorado(eld_client):
                         _game = _o.get("augmentedGame", {})
                         _pet = (_game.get("offerAttributes") or [{}])[0].get("value", "") if _game.get("offerAttributes") else ""
 
-                        _state_colors = {"Pending": ("#f59e0b", "⏳ Pending"), "Active": ("#8b5cf6", "🔄 Active"), "Delivered": ("#3b82f6", "✅ Delivered"), "Cancelled": ("#ef4444", "❌ Cancelled")}
+                        _state_colors = {"Pending": ("#f59e0b", "⏳ Pending"), "Active": ("#a1a1aa", "🔄 Active"), "Delivered": ("#3b82f6", "✅ Delivered"), "Cancelled": ("#ef4444", "❌ Cancelled")}
                         _sc, _sl = _state_colors.get(_ostate, ("#6b7280", _ostate))
 
                         with st.container():

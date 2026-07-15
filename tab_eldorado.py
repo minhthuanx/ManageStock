@@ -30,11 +30,11 @@ def render_tab_eldorado(eld_client):
                 _initial = (eld_client.username or "?")[0].upper()
                 st.markdown(f'''
                 <div style="text-align:center;padding:1.2rem 0 0.8rem;">
-                    <div style="width:80px;height:80px;border-radius:50%;background:#2c4875;
+                    <div style="width:80px;height:80px;border-radius:50%;background:#1f1f1f;
                     display:inline-flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;
-                    color:#e8e0e8;border:3px solid #bc5090;">{_initial}</div>
-                    <div style="font-size:1.6rem;font-weight:700;color:#e8e0e8;margin-top:10px;">{eld_client.username}</div>
-                    <div style="font-size:1rem;color:#6b8a9e;margin-top:6px;">
+                    color:#f0f0f0;border:3px solid #22d3ee;">{_initial}</div>
+                    <div style="font-size:1.6rem;font-weight:700;color:#f0f0f0;margin-top:10px;">{eld_client.username}</div>
+                    <div style="font-size:1rem;color:#555555;margin-top:6px;">
                         👍 {eld_client.pos} &nbsp;&nbsp; 👎 {eld_client.neg} &nbsp;&nbsp; | &nbsp;&nbsp; {eld_client.pos + eld_client.neg} giao dịch
                     </div>
                 </div>
@@ -246,7 +246,7 @@ def render_tab_eldorado(eld_client):
                                         _oimg = f"https://assetsdelivery.eldorado.gg/v7/_offers-v2_/{_oimg}"
                                     st.markdown(f'<img src="{_oimg}" width="42" height="42" style="border-radius:8px;object-fit:cover;">', unsafe_allow_html=True)
                                 else:
-                                    st.markdown(f'<div style="width:42px;height:42px;border-radius:8px;background:#2c4875;display:flex;align-items:center;justify-content:center;font-size:18px;">📦</div>', unsafe_allow_html=True)
+                                    st.markdown(f'<div style="width:42px;height:42px;border-radius:8px;background:#1f1f1f;display:flex;align-items:center;justify-content:center;font-size:18px;">📦</div>', unsafe_allow_html=True)
                             with rc2:
                                 st.markdown(f"**{_otitle}**")
                                 st.caption(f"**${_oprice:.2f}**")
@@ -349,7 +349,7 @@ def render_tab_eldorado(eld_client):
                         _game = _o.get("augmentedGame", {})
                         _pet = (_game.get("offerAttributes") or [{}])[0].get("value", "") if _game.get("offerAttributes") else ""
 
-                        _state_colors = {"Pending": ("#f59e0b", "⏳ Pending"), "Active": ("#ffa600", "🔄 Active"), "Delivered": ("#3b82f6", "✅ Delivered"), "Cancelled": ("#ef4444", "❌ Cancelled")}
+                        _state_colors = {"Pending": ("#f59e0b", "⏳ Pending"), "Active": ("#22d3ee", "🔄 Active"), "Delivered": ("#3b82f6", "✅ Delivered"), "Cancelled": ("#ef4444", "❌ Cancelled")}
                         _sc, _sl = _state_colors.get(_ostate, ("#6b7280", _ostate))
 
                         with st.container():

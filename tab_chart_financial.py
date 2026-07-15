@@ -41,7 +41,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
 
             _wf_labels = ["Tổng Doanh Thu", "Tổng Vốn", "Lợi Nhuận Ròng"]
             _wf_vals   = [total_rev, total_cost, abs(net_profit)]
-            _wf_colors = ["#ffa600", "#ff6361", "#bc5090" if net_profit >= 0 else "#ff6361"]
+            _wf_colors = ["#22d3ee", "#f87171", "#22d3ee" if net_profit >= 0 else "#f87171"]
 
             _fig_wf = go.Figure(go.Bar(
                 x=_wf_labels,
@@ -49,7 +49,7 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                 marker_color=_wf_colors,
                 text=[fmt_short(v) for v in _wf_vals],
                 textposition="outside",
-                textfont=dict(color="#e8e0e8", size=11, family="Inter"),
+                textfont=dict(color="#f0f0f0", size=11, family="Inter"),
                 hovertemplate="<b>%{x}</b><br>%{y:,.0f}₫<extra></extra>",
                 width=[0.45, 0.45, 0.45],
             ))
@@ -58,13 +58,13 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                 x="Lợi Nhuận Ròng", y=abs(net_profit),
                 text=f"<b>{'+ ' if net_profit >= 0 else '- '}{fmt_short(abs(net_profit))}</b>",
                 showarrow=False, yshift=24,
-                font=dict(color="#bc5090" if net_profit >= 0 else "#ff6361", size=12)
+                font=dict(color="#22d3ee" if net_profit >= 0 else "#f87171", size=12)
             )
             _fig_wf.update_layout(
-                paper_bgcolor="#00202e", plot_bgcolor="#00202e",
-                font=dict(family="Inter", color="#9aafc4", size=11),
-                xaxis=dict(tickfont=dict(color="#e8e0e8", size=10), gridcolor="#003f5c", zeroline=False),
-                yaxis=dict(tickfont=dict(color="#9aafc4", size=10), gridcolor="#003f5c",
+                paper_bgcolor="#000000", plot_bgcolor="#000000",
+                font=dict(family="Inter", color="#888888", size=11),
+                xaxis=dict(tickfont=dict(color="#f0f0f0", size=10), gridcolor="#141414", zeroline=False),
+                yaxis=dict(tickfont=dict(color="#888888", size=10), gridcolor="#141414",
                            tickformat=",.0f", zeroline=False),
                 margin=dict(l=10, r=10, t=55, b=10),
                 height=300,
@@ -142,28 +142,28 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                 y=agg["Lợi Nhuận"],
                 text=agg["Label"],
                 textposition="outside",
-                textfont=dict(size=11, color="#e8e0e8", family="Inter"),
+                textfont=dict(size=11, color="#f0f0f0", family="Inter"),
                 marker=dict(
-                    color="#bc5090",
-                    line=dict(color="#bc5090", width=0),
+                    color="#22d3ee",
+                    line=dict(color="#22d3ee", width=0),
                 ),
                 cliponaxis=False,
             ))
             fig.update_layout(
-                paper_bgcolor="#00202e",
-                plot_bgcolor="#00202e",
-                font=dict(family="Inter", color="#9aafc4", size=11),
+                paper_bgcolor="#000000",
+                plot_bgcolor="#000000",
+                font=dict(family="Inter", color="#888888", size=11),
                 xaxis=dict(
                     type="category",
-                    tickfont=dict(size=10, color="#9aafc4"),
-                    gridcolor="#003f5c",
-                    linecolor="#003f5c",
+                    tickfont=dict(size=10, color="#888888"),
+                    gridcolor="#141414",
+                    linecolor="#141414",
                 ),
                 yaxis=dict(
                     title="Lợi nhuận (VNĐ)",
-                    tickfont=dict(size=10, color="#9aafc4"),
-                    gridcolor="#003f5c",
-                    linecolor="#003f5c",
+                    tickfont=dict(size=10, color="#888888"),
+                    gridcolor="#141414",
+                    linecolor="#141414",
                     tickformat=",.0f",
                 ),
                 margin=dict(l=10, r=10, t=35, b=10),
@@ -239,12 +239,12 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                     _annotations.append(dict(
                         x=_ms_row["Ngày DT"], y=_ms_val,
                         text=f"🏆 {_ms_val//1_000_000}M",
-                        showarrow=True, arrowhead=2, arrowcolor="#ffd380",
-                        font=dict(color="#ffd380", size=10),
+                        showarrow=True, arrowhead=2, arrowcolor="#fbbf24",
+                        font=dict(color="#fbbf24", size=10),
                         ax=0, ay=-32,
                     ))
 
-            _bar_colors = ["#ffa600" if v >= 0 else "#ff6361" for v in _cum_daily["Lợi Nhuận"]]
+            _bar_colors = ["#22d3ee" if v >= 0 else "#f87171" for v in _cum_daily["Lợi Nhuận"]]
 
             _fig_cum = go.Figure()
             _fig_cum.add_trace(go.Bar(
@@ -258,28 +258,28 @@ def render_financial(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_co
                 x=_cum_daily["Ngày DT"], y=_cum_daily["Tích Lũy"],
                 mode="lines",
                 fill="tozeroy",
-                fillcolor="rgba(188,80,144,0.12)",
-                line=dict(color="#bc5090", width=2.5),
+                fillcolor="rgba(34,211,238,0.12)",
+                line=dict(color="#22d3ee", width=2.5),
                 name="Tích lũy",
                 hovertemplate="%{x|%d/%m/%Y}<br>Tích lũy: <b>%{y:,.0f}₫</b><extra></extra>",
             ))
 
             _fig_cum.update_layout(
-                paper_bgcolor="#00202e", plot_bgcolor="#00202e",
-                font=dict(family="Inter", color="#9aafc4", size=11),
+                paper_bgcolor="#000000", plot_bgcolor="#000000",
+                font=dict(family="Inter", color="#888888", size=11),
                 annotations=_annotations,
-                xaxis=dict(gridcolor="#003f5c", tickfont=dict(color="#9aafc4", size=10), showgrid=False),
+                xaxis=dict(gridcolor="#141414", tickfont=dict(color="#888888", size=10), showgrid=False),
                 yaxis=dict(
-                    title="Tích lũy (₫)", gridcolor="#003f5c",
-                    tickfont=dict(color="#9aafc4", size=10), tickformat=",.0f",
-                    zeroline=True, zerolinecolor="#2c4875",
+                    title="Tích lũy (₫)", gridcolor="#141414",
+                    tickfont=dict(color="#888888", size=10), tickformat=",.0f",
+                    zeroline=True, zerolinecolor="#1f1f1f",
                 ),
                 yaxis2=dict(
                     title="LN ngày (₫)", overlaying="y", side="right",
-                    showgrid=False, tickfont=dict(color="#9aafc4", size=10),
+                    showgrid=False, tickfont=dict(color="#888888", size=10),
                     tickformat=",.0f",
                 ),
-                legend=dict(orientation="h", x=0, y=1.1, font=dict(color="#9aafc4", size=10)),
+                legend=dict(orientation="h", x=0, y=1.1, font=dict(color="#888888", size=10)),
                 margin=dict(l=10, r=10, t=45, b=10),
                 height=350,
                 hovermode="x unified",

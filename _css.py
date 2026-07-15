@@ -1,34 +1,36 @@
 """
-Global CSS string — Neon Dark theme with warm accent palette.
-Palette: #00202e → #ffd380
+Global CSS string — Pure Black + Cyan theme.
+Background #000000, accent #22d3ee (cyan-400).
 """
 CSS_STRING = """<style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-/* ── Root — Neon Dark Palette ── */
+/* ── Root — Pure Black + Cyan ── */
 :root {
-  --bg:        #00202e;
-  --surface:   #003042;
-  --surface2:  #003f5c;
-  --surface3:  #2c4875;
-  --border:    #1a3a50;
-  --border-h:  #2c4875;
-  --accent:    #bc5090;
-  --accent-h:  #d46aa6;
-  --accent-bg: rgba(188,80,144,0.1);
-  --pink:      #ff8531;
-  --pink-bg:   rgba(255,133,49,0.1);
-  --purple:    #8a508f;
-  --purple-bg: rgba(138,80,143,0.1);
-  --green:     #ffa600;
-  --green-bg:  rgba(255,166,0,0.1);
-  --red:       #ff6361;
-  --red-bg:    rgba(255,99,97,0.1);
-  --yellow:    #ffd380;
-  --yellow-bg: rgba(255,211,128,0.1);
-  --text:      #e8e0e8;
-  --text2:     #9aafc4;
-  --text3:     #6b8a9e;
+  --bg:        #000000;
+  --surface:   #0a0a0a;
+  --surface2:  #141414;
+  --surface3:  #1f1f1f;
+  --border:    #1a1a1a;
+  --border-h:  #2a2a2a;
+  --accent:    #22d3ee;
+  --accent-h:  #67e8f9;
+  --accent-bg: rgba(34,211,238,0.08);
+  --green:     #34d399;
+  --green-bg:  rgba(52,211,153,0.08);
+  --red:       #f87171;
+  --red-bg:    rgba(248,113,113,0.08);
+  --purple:    #a78bfa;
+  --purple-bg: rgba(167,139,250,0.08);
+  --yellow:    #fbbf24;
+  --yellow-bg: rgba(251,191,36,0.08);
+  --pink:      #f472b6;
+  --pink-bg:   rgba(244,114,182,0.08);
+  --blue:      #60a5fa;
+  --blue-bg:   rgba(96,165,250,0.08);
+  --text:      #f0f0f0;
+  --text2:     #888888;
+  --text3:     #555555;
   --radius:    8px;
   --radius-sm: 6px;
   --mono:      'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
@@ -45,13 +47,13 @@ html, body, [data-testid="stAppViewContainer"] {
   text-rendering: optimizeLegibility;
 }
 
-/* ── Background ── */
+/* ── Background — pure black ── */
 [data-testid="stAppViewContainer"] {
-  background: var(--bg) !important;
+  background: #000000 !important;
 }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] {
-  background: var(--bg) !important;
+  background: #000000 !important;
   border-right: 1px solid var(--border) !important;
 }
 .block-container {
@@ -103,7 +105,7 @@ div[data-testid="stMetricLabel"] {
 .stButton > button:active { transform: scale(0.985); }
 .stButton > button[kind="primary"] {
   background: var(--accent) !important;
-  color: #ffffff !important;
+  color: #000000 !important;
   border: none !important;
   font-weight: 700 !important;
 }
@@ -184,7 +186,7 @@ div[data-testid="stMetricLabel"] {
 }
 .stTextInput input:focus, .stNumberInput input:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(188,80,144,0.15) !important;
+  box-shadow: 0 0 0 2px rgba(34,211,238,0.15) !important;
 }
 
 /* ── Containers ── */
@@ -403,7 +405,7 @@ div[data-testid="stMetric"]:hover {
 }
 [data-baseweb="select"] > div:first-child:focus-within {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(188,80,144,0.15) !important;
+  box-shadow: 0 0 0 2px rgba(34,211,238,0.15) !important;
 }
 [data-baseweb="popover"] [data-baseweb="menu"] {
   background: var(--surface2) !important;
@@ -459,7 +461,7 @@ hr {
 }
 [data-testid="stRadio"] label:has(input:checked) {
   background: var(--accent-bg) !important;
-  border-color: rgba(188,80,144,0.3) !important;
+  border-color: rgba(34,211,238,0.3) !important;
   color: var(--accent) !important;
   font-weight: 600 !important;
 }
@@ -474,7 +476,7 @@ hr {
 .badge-warn {
   background: var(--red-bg);
   color: var(--red);
-  border: 1px solid rgba(255,99,97,0.2);
+  border: 1px solid rgba(248,113,113,0.2);
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 0.7rem;
@@ -492,23 +494,23 @@ hr {
   padding: 0.6rem 0.85rem !important;
 }
 [data-testid="stAlert"][kind="info"], div[data-testid="stInfo"] > div {
-  background: rgba(44,72,117,0.2) !important;
-  border-color: rgba(44,72,117,0.4) !important;
+  background: var(--blue-bg) !important;
+  border-color: rgba(96,165,250,0.2) !important;
   color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="success"], div[data-testid="stSuccess"] > div {
   background: var(--green-bg) !important;
-  border-color: rgba(255,166,0,0.25) !important;
+  border-color: rgba(52,211,153,0.2) !important;
   color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="warning"], div[data-testid="stWarning"] > div {
   background: var(--yellow-bg) !important;
-  border-color: rgba(255,211,128,0.25) !important;
+  border-color: rgba(251,191,36,0.2) !important;
   color: var(--text) !important;
 }
 [data-testid="stAlert"][kind="error"], div[data-testid="stError"] > div {
   background: var(--red-bg) !important;
-  border-color: rgba(255,99,97,0.25) !important;
+  border-color: rgba(248,113,113,0.2) !important;
   color: var(--text) !important;
 }
 
@@ -522,7 +524,7 @@ hr {
 /* ── Copy button ── */
 .copy-desc-btn {
   background: var(--accent) !important;
-  color: #ffffff !important;
+  color: #000000 !important;
   border: none !important;
   border-radius: var(--radius) !important;
   font-weight: 700 !important;

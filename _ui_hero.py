@@ -1,5 +1,5 @@
 """
-Hero banner — Neon Dark theme with warm palette dots.
+Hero banner — Pure Black + Cyan theme.
 """
 import pandas as pd
 import streamlit as st
@@ -32,29 +32,29 @@ def render_hero_banner(df, bulk_df, bulk_history):
         <div class="logo">👻</div>
         <div>
           <h1 style="margin:0;">ManageStock{_badge_html}</h1>
-          <p style="margin:0;color:#6b8a9e;font-size:0.7rem;letter-spacing:0.02em;">Inventory Management · MINHTHUAN · 2026</p>
+          <p style="margin:0;color:#555;font-size:0.7rem;letter-spacing:0.02em;">Inventory Management · MINHTHUAN · 2026</p>
         </div>
       </div>
       <div style="display:flex;gap:0.55rem;flex-wrap:wrap;align-items:center;">
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(188,80,144,0.1);border:1px solid rgba(188,80,144,0.25);border-radius:8px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#bc5090;flex-shrink:0;"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.15);border-radius:8px;padding:0.5rem 1rem;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#22d3ee;flex-shrink:0;"></div>
           <div>
-            <div style="font-size:1.15rem;font-weight:700;color:#e8e0e8;line-height:1.2;">{_hb_con_hang_count}</div>
-            <div style="font-size:0.65rem;color:#6b8a9e;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;">Còn hàng</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#f0f0f0;line-height:1.2;">{_hb_con_hang_count}</div>
+            <div style="font-size:0.65rem;color:#555;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;">Còn hàng</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.03);border:1px solid #1a3a50;border-radius:8px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#6b8a9e;flex-shrink:0;"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,255,255,0.03);border:1px solid #1a1a1a;border-radius:8px;padding:0.5rem 1rem;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#555;flex-shrink:0;"></div>
           <div>
-            <div style="font-size:1.15rem;font-weight:700;color:#e8e0e8;line-height:1.2;">{_hb_da_ban}</div>
-            <div style="font-size:0.65rem;color:#6b8a9e;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;">Đã bán</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#f0f0f0;line-height:1.2;">{_hb_da_ban}</div>
+            <div style="font-size:0.65rem;color:#555;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;">Đã bán</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(255,166,0,0.08);border:1px solid rgba(255,166,0,0.2);border-radius:8px;padding:0.5rem 1rem;">
-          <div style="width:9px;height:9px;border-radius:50%;background:#ffa600;flex-shrink:0;"></div>
+        <div style="display:flex;align-items:center;gap:0.55rem;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.15);border-radius:8px;padding:0.5rem 1rem;">
+          <div style="width:9px;height:9px;border-radius:50%;background:#34d399;flex-shrink:0;"></div>
           <div>
-            <div style="font-size:1.15rem;font-weight:700;color:#e8e0e8;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
-            <div style="font-size:0.65rem;color:#6b8a9e;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;">Hôm nay</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#f0f0f0;line-height:1.2;">{fmt_vnd(_hb_profit_today)}</div>
+            <div style="font-size:0.65rem;color:#555;letter-spacing:0.04em;text-transform:uppercase;font-weight:500;">Hôm nay</div>
           </div>
         </div>
       </div>

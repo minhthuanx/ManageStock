@@ -31,7 +31,7 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                 .sort_values("_sk")
             )
             _mo_colors = [
-                "#ffa600" if v >= 0 else "#ff6361"
+                "#22d3ee" if v >= 0 else "#f87171"
                 for v in _mo_df["_ln"]
             ]
             _fig_mo = go.Figure(go.Bar(
@@ -40,28 +40,28 @@ def render_overview(df, bulk_df, bulk_history, sold_df, pbd, has_data, total_cos
                 marker_color=_mo_colors,
                 marker_line_width=0,
                 text=[
-                    f"{fmt_short(v)}<br><span style='font-size:11px;color:#9aafc4'>{c} GD</span>"
+                    f"{fmt_short(v)}<br><span style='font-size:11px;color:#888888'>{c} GD</span>"
                     for v, c in zip(_mo_df["_ln"], _mo_df["_cnt"])
                 ],
                 textposition="outside",
-                textfont=dict(color="#e8e0e8", size=11),
+                textfont=dict(color="#f0f0f0", size=11),
                 hovertemplate="<b>%{x}</b><br>Lợi nhuận: %{y:,.0f}₫<extra></extra>",
             ))
             _fig_mo.update_layout(
-                paper_bgcolor="#00202e",
-                plot_bgcolor="#00202e",
-                font=dict(family="Inter", color="#9aafc4", size=11),
+                paper_bgcolor="#000000",
+                plot_bgcolor="#000000",
+                font=dict(family="Inter", color="#888888", size=11),
                 xaxis=dict(
-                    gridcolor="#003f5c",
-                    tickfont=dict(color="#e8e0e8", size=10),
+                    gridcolor="#141414",
+                    tickfont=dict(color="#f0f0f0", size=10),
                     tickangle=0,
                 ),
                 yaxis=dict(
-                    gridcolor="#003f5c",
-                    tickfont=dict(color="#9aafc4", size=10),
+                    gridcolor="#141414",
+                    tickfont=dict(color="#888888", size=10),
                     tickformat=",.0f",
                     zeroline=True,
-                    zerolinecolor="#2c4875",
+                    zerolinecolor="#1f1f1f",
                 ),
                 margin=dict(l=10, r=10, t=45, b=10),
                 height=260,

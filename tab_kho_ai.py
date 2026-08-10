@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import time
 import base64
 import pandas as pd
@@ -30,9 +31,33 @@ except ImportError:
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "qwen/qwen3.6-27b")
 
 
+def _get_key() -> str:
+    return (os.environ.get("GROQ_API_KEY")
+            or st.secrets.get("GROQ_API_KEY", "")
+            or str(st.session_state.get("ai_groq_key", "")))
+
+
+def _save_key(key: str) -> None:
+    """Lưu key vào .streamlit/secrets.toml local để dùng lại lần sau (file đã bị .gitignore)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".streamlit", "secrets.toml")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "r", encoding="utf-8") as f:
+            data = f.read()
+    except OSError:
+        data = ""
+    lines = [ln for ln in data.splitlines() if not ln.strip().startswith("GROQ_API_KEY")]
+    lines.append(f"GROQ_API_KEY = \"{key}\"")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines).strip() + "\n")
+    except OSError:
+        pass
+
+
 def _groq_client():
     """Groq client đọc key từ env GROQ_API_KEY (hoặc st.secrets nếu có)."""
-    key = os.environ.get("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY", "")
+    key = _get_key()
     if not key:
         return None
     return Groq(api_key=key)
@@ -170,13 +195,31 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
 
     with st.expander("AI Vision — Đọc ảnh tự động", expanded=st.session_state.get("ai_expander", False)):
 
-        # ── UPLOAD ẢNH → AI VISION ──
+        # ── KEY GROQ (nhập trực tiếp tại đây) ──
+        _key_now = _get_key()
+        _key_set = bool(_key_now)
+        _c1k, _c2k = st.columns([4, 1])
+        _new_key = _c1k.text_input(
+            "GROQ_API_KEY",
+            value="" if _key_set else "",
+            placeholder="gsk_...  (dán key tại đây)",
+            type="password",
+            key="ai_groq_key_input",
+            help="Lấy key tại https://console.groq.com/keys",
+        )
+        if _key_set:
+            _c1k.caption("✓ Key đã cài — model đang dùng: `%s`" % GROQ_MODEL)
+        if _new_key.strip() and (not _key_set or _new_key.strip() != _key_now):
+            st.session_state.ai_groq_key = _new_key.strip()
+            _save_key(_new_key.strip())
+            st.success("Đã cài GROQ_API_KEY — có thể quét ảnh ngay.")
+            st.rerun()
+        if _c2k.button("Xoá key", use_container_width=True):
+            st.session_state.pop("ai_groq_key", None)
+            _save_key("")
+            st.rerun()
+
         st.markdown("**Tải lên ảnh sản phẩm**")
-        _groq_ready = _groq_client() is not None
-        if _groq_ready:
-            st.caption(f"Đang dùng **Groq AI Vision** — model `{GROQ_MODEL}`")
-        else:
-            st.caption("⚠️ Chưa có **GROQ_API_KEY** — vào tab **Cài đặt** để nhập key rồi quay lại.")
         if "ai_uploader_key" not in st.session_state:
             st.session_state.ai_uploader_key = 0
 
@@ -204,7 +247,7 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
 
                 if _groq_client() is None:
                     progress.empty()
-                    st.error("Thiếu GROQ_API_KEY — vào tab Cài đặt để nhập key rồi thử lại.")
+                    st.error("Thiếu GROQ_API_KEY — dán key vào ô phía trên rồi thử lại.")
                     st.stop()
 
                 # ── AI VISION: đọc tên + M/s từ từng ảnh ──

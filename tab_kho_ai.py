@@ -1,4 +1,5 @@
 import json
+import io
 import os
 import re
 import time
@@ -8,6 +9,7 @@ import requests
 import pandas as pd
 import streamlit as st
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from PIL import Image
 
 from _timezone import now_vn, now_str, now_iso
 import _icons as IC
@@ -163,6 +165,25 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
                     results = []
                     progress = st.progress(0, text="Đang khởi tạo...")
 
+                    def _prep_image_bytes(raw: bytes, mime: str) -> tuple[bytes, str]:
+                        """Nén/resize ảnh về tối đa 1024px để gửi API nhanh (ảnh gốc full-HD quá lớn)."""
+                        if len(raw) <= 2_500_000:
+                            return raw, mime
+                        try:
+                            if mime == "image/png":
+                                im = Image.open(io.BytesIO(raw)).convert("RGBA")
+                                bg = Image.new("RGB", im.size, (0, 0, 0))
+                                bg.paste(im, mask=im.split()[-1])
+                                im = bg
+                            else:
+                                im = Image.open(io.BytesIO(raw)).convert("RGB")
+                            im.thumbnail((1024, 1024), Image.LANCZOS)
+                            buf = io.BytesIO()
+                            im.save(buf, format="JPEG", quality=88)
+                            return buf.getvalue(), "image/jpeg"
+                        except Exception:
+                            return raw, mime
+
                     prompt = f"""Screenshot from Roblox game "Steal a Brainrot". Find the dark rounded INFO CARD near the pet.
 The card has the pet NAME at the top and the large $M/s speed value is OUTSIDE the card.
 The pet name MUST be chosen from this exact list (pick the closest match, do NOT invent names):
@@ -199,20 +220,20 @@ Return ONLY valid JSON, no markdown:
                         st.error(f"Không thể kết nối Groq API: {_m_err}")
                         st.stop()
 
-                    # Model vision đã biết (Groq gỡ llama-4 cũ, hiện dùng qwen3.6-27b; có thể thêm mới theo thời gian)
+                    # Model vision đã biết (ưu tiên llama-4-scout — nhanh; qwen3.6-27b là preview model chậm hơn)
                     _KNOWN_VISION = [
-                        "qwen/qwen3.6-27b",
-                        "qwen3.6-27b",
                         "meta-llama/llama-4-scout-17b-16e-instruct",
                         "llama-4-scout-17b-16e-instruct",
                         "meta-llama/llama-4-maverick-17b-128e-instruct",
+                        "qwen/qwen3.6-27b",
+                        "qwen3.6-27b",
                     ]
                     vision_models = [
                         m for m in all_models
                         if any(k in m.lower() for k in ["qwen3", "qwen-3", "scout", "maverick", "pixtral", "vl", "vision"])
                     ]
                     target_model = (
-                        next((m for m in vision_models if "qwen" in m.lower()), vision_models[0])
+                        next((m for m in vision_models if "scout" in m.lower() or "maverick" in m.lower()), vision_models[0])
                         if vision_models
                         else next((m for m in _KNOWN_VISION if m in all_models), None)
                     )
@@ -223,14 +244,16 @@ Return ONLY valid JSON, no markdown:
 
                     st.toast(f"Model: {target_model}", icon="🦙")
 
-                    # Đọc và encode tất cả ảnh trước (I/O)
+                    # Đọc, nén và encode tất cả ảnh trước (I/O — ảnh nén giúp gửi nhanh hơn nhiều)
                     _img_data = []
                     for img_f in batch_imgs:
                         img_f.seek(0)
+                        _raw = img_f.read()
+                        _data, _mime = _prep_image_bytes(_raw, img_f.type or "image/jpeg")
                         _img_data.append({
                             "name": img_f.name,
-                            "b64": base64.b64encode(img_f.read()).decode("utf-8"),
-                            "mime": img_f.type or "image/jpeg",
+                            "b64": base64.b64encode(_data).decode("utf-8"),
+                            "mime": _mime,
                         })
 
                     _lock = threading.Lock()
@@ -253,7 +276,7 @@ Return ONLY valid JSON, no markdown:
                                 }
                             ],
                             "temperature": 0.0,
-                            "max_tokens": 128
+                            "max_tokens": 256
                         }
                         MAX_RETRY = 3
                         last_err = ""
@@ -261,10 +284,13 @@ Return ONLY valid JSON, no markdown:
                             try:
                                 resp = requests.post(
                                     "https://api.groq.com/openai/v1/chat/completions",
-                                    json=_payload, headers=headers, timeout=30
+                                    json=_payload, headers=headers, timeout=90
                                 )
                                 if resp.status_code == 429:
                                     time.sleep(15 + _attempt * 5)
+                                    continue
+                                if resp.status_code == 500 or resp.status_code == 503:
+                                    time.sleep(5 + _attempt * 5)
                                     continue
                                 if resp.status_code != 200:
                                     last_err = f"API {resp.status_code}: {resp.text[:150]}"
@@ -306,9 +332,9 @@ Return ONLY valid JSON, no markdown:
                             "Số Trait": "None", "NameStock": "", "Giá Nhập": "",
                         }
 
-                    # Chạy song song, tối đa 4 luồng
+                    # Chạy song song — model vision chậm (qwen preview) chỉ nên dùng 2 luồng để tránh nghẽn
                     _futures_map = {}
-                    with ThreadPoolExecutor(max_workers=4) as _pool:
+                    with ThreadPoolExecutor(max_workers=2) as _pool:
                         for _item in _img_data:
                             _futures_map[_pool.submit(_analyze_one, _item)] = _item["name"]
                         for _fut in as_completed(_futures_map):

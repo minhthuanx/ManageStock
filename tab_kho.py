@@ -10,6 +10,7 @@ import streamlit as st
 from tab_kho_ai import render_ai_vision
 from tab_kho_json import render_json_import
 from tab_kho_form import render_manual_import
+from tab_kho_manual import render_manual_multi
 from tab_kho_sell import render_sell_single
 from tab_kho_table import render_inventory_table
 from tab_kho_bulk import render_bulk_sell, render_resell
@@ -42,6 +43,9 @@ def render_tab_kho(df, bulk_df, bulk_history, pet_db, ns_db, trait_db, eld_clien
 
             # Manual form — always visible
             render_manual_import(df, pet_db, ns_db, trait_db)
+
+            # Manual multi-row form — giống dialog JSON nhưng nhập tay + push Eldorado
+            render_manual_multi(df, pet_db, ns_db, trait_db, eld_client)
 
     # ── BAN LE (right column) ──
     with col_sell:

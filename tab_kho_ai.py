@@ -335,7 +335,9 @@ Return ONLY valid JSON, no markdown:
 
         @st.dialog("Kết Quả AI — Xem trước & Chỉnh sửa", width="large")
         def ai_preview_dialog():
-            pet_opts_dlg   = get_name_options(pet_db)
+            # pet_db là biến local để không vô tình ghi đè tham số hàm ngoài (tránh UnboundLocalError)
+            pet_db_local   = pet_db
+            pet_opts_dlg   = get_name_options(pet_db_local)
             # Số Trait là con số đếm (1-15), không phụ thuộc vào file CSV
             trait_opts_dlg = ["None"] + [str(n) for n in range(1, 16)]
             ns_opts_dlg    = [""] + get_name_options(ns_db, fallback="")
@@ -498,10 +500,10 @@ Return ONLY valid JSON, no markdown:
                     for r in edited_rows:
                         if not r["_valid"]:
                             continue
-                        existing_lower = [x.lower() for x in get_name_options(pet_db)]
+                        existing_lower = [x.lower() for x in get_name_options(pet_db_local)]
                         if r["Tên Pet"].lower() not in existing_lower:
-                            pet_db = append_row(pet_db, {"Name": r["Tên Pet"]}, LIST_SCHEMA)
-                            save_csv(pet_db, PET_LIST_FILE)
+                            pet_db_local = append_row(pet_db_local, {"Name": r["Tên Pet"]}, LIST_SCHEMA)
+                            save_csv(pet_db_local, PET_LIST_FILE)
 
                         stt = next_id(current_df, "STT")
                         new_row = {

@@ -199,18 +199,20 @@ Return ONLY valid JSON, no markdown:
                         st.error(f"Không thể kết nối Groq API: {_m_err}")
                         st.stop()
 
-                    # Model vision đã biết (Groq gỡ llama-3.2-90b cũ, có thể thêm mới theo thời gian)
+                    # Model vision đã biết (Groq gỡ llama-4 cũ, hiện dùng qwen3.6-27b; có thể thêm mới theo thời gian)
                     _KNOWN_VISION = [
+                        "qwen/qwen3.6-27b",
+                        "qwen3.6-27b",
                         "meta-llama/llama-4-scout-17b-16e-instruct",
                         "llama-4-scout-17b-16e-instruct",
                         "meta-llama/llama-4-maverick-17b-128e-instruct",
                     ]
                     vision_models = [
                         m for m in all_models
-                        if any(k in m.lower() for k in ["scout", "maverick", "pixtral", "vision", "vl"])
+                        if any(k in m.lower() for k in ["qwen3", "qwen-3", "scout", "maverick", "pixtral", "vl", "vision"])
                     ]
                     target_model = (
-                        next((m for m in vision_models if "scout" in m.lower() or "maverick" in m.lower()), vision_models[0])
+                        next((m for m in vision_models if "qwen" in m.lower()), vision_models[0])
                         if vision_models
                         else next((m for m in _KNOWN_VISION if m in all_models), None)
                     )

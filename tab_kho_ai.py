@@ -9,7 +9,13 @@ import requests
 import pandas as pd
 import streamlit as st
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from PIL import Image
+from PIL import Image, ImageOps, ImageEnhance
+
+try:
+    import pytesseract
+    HAS_TESSERACT = True
+except ImportError:
+    HAS_TESSERACT = False
 
 from _timezone import now_vn, now_str, now_iso
 import _icons as IC
@@ -56,6 +62,64 @@ def _verify_groq_key(key: str) -> tuple[bool, str]:
         return False, f"Không kết nối được: {e}"
 
 
+def _ocr_extract(raw: bytes) -> dict:
+    """OCR cục bộ (Tesseract): đọc tên pet + tốc độ $M/s từ ảnh — nhanh, miễn phí, không cần key."""
+    try:
+        im = Image.open(io.BytesIO(raw))
+    except Exception:
+        return {"_ok": False, "_error": "Ảnh không đọc được"}
+    if not HAS_TESSERACT:
+        return {"_ok": False, "_error": "Chưa cài pytesseract"}
+    try:
+        # Tiền xử lý: ảnh xám, tăng tương phản, đảo màu nếu nền sáng
+        g = ImageOps.grayscale(im)
+        g = ImageEnhance.Contrast(g).enhance(2.0)
+        g = g.point(lambda p: 0 if p < 160 else 255)
+        hist = g.histogram()
+        bright = sum(hist[200:]) / max(sum(hist), 1)
+        if bright > 0.5:
+            g = ImageOps.invert(g)
+        cfg = "--psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$./- "
+        txt = pytesseract.image_to_string(g, config=cfg)
+    except Exception as e:
+        return {"_ok": False, "_error": f"OCR lỗi: {e}"}
+
+    lines = [l.strip() for l in txt.splitlines() if l.strip()]
+    # Tốc độ: dòng/đoạn chứa $ ... M/s (ưu tiên ký tự $)
+    ms = ""
+    for l in lines:
+        if re.search(r"\$", l) and re.search(r"[Mm]/s", l, re.IGNORECASE):
+            ms = l
+            break
+    if not ms:
+        for l in lines:
+            if re.search(r"[Mm]/s", l, re.IGNORECASE):
+                ms = l
+                break
+    ms_num = ""
+    if ms:
+        m = re.search(r"\$?\s*([\d.,]+)\s*[Mm]/s", ms, re.IGNORECASE)
+        if m:
+            v = m.group(1).replace(",", "")
+            ms_num = str(float(v) / 1000) if v.count(".") > 1 else v
+    # Tên: dòng có chữ, không phải dòng tốc độ, không phải số
+    name = ""
+    for l in lines:
+        if l == ms:
+            continue
+        if re.search(r"\d", l) and not re.search(r"[A-Za-z]", l):
+            continue
+        if re.fullmatch(r"[\W_]+", l):
+            continue
+        if re.search(r"[A-Za-z]", l):
+            name = l
+            break
+    name = re.sub(r"[^\w\s&']", "", name).strip()
+    if not name or not ms_num:
+        return {"_ok": False, "_error": f"OCR không đọc đủ (name='{name}' ms='{ms_num}')"}
+    return {"_ok": True, "Tên Pet": name, "M/s": ms_num}
+
+
 class _FakeUploadedFile:
     """Dùng để lưu ảnh listing tạm trong session_state (giống tab_kho_json)."""
     def __init__(self, data: bytes, name: str, mime: str):
@@ -81,7 +145,7 @@ class _FakeUploadedFile:
 
 
 def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
-    """Render the AI Vision expander section for auto-scanning pet images via Groq API."""
+    """Render the AI Vision expander section for auto-scanning pet images (OCR local + AI fallback)."""
 
     # =========================================================
     # AI VISION – Key setup + multi-image + dialog preview
@@ -164,6 +228,8 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
                 if scan_btn:
                     results = []
                     progress = st.progress(0, text="Đang khởi tạo...")
+                    # OCR local được thử trước (nếu có) — nhanh, không tốn API
+                    _use_ocr = HAS_TESSERACT and bool(batch_imgs)
 
                     def _prep_image_bytes(raw: bytes, mime: str) -> tuple[bytes, str]:
                         """Nén/resize ảnh về tối đa 1024px để gửi API nhanh (ảnh gốc full-HD quá lớn)."""
@@ -255,6 +321,16 @@ Return ONLY valid JSON, no markdown:
                             "b64": base64.b64encode(_data).decode("utf-8"),
                             "mime": _mime,
                         })
+                    _ocr_inputs = [(d["name"], d["b64"], d["mime"]) for d in _img_data]
+                    for img_f in batch_imgs:
+                        img_f.seek(0)
+                        _raw = img_f.read()
+                        _data, _mime = _prep_image_bytes(_raw, img_f.type or "image/jpeg")
+                        _img_data.append({
+                            "name": img_f.name,
+                            "b64": base64.b64encode(_data).decode("utf-8"),
+                            "mime": _mime,
+                        })
 
                     _lock = threading.Lock()
                     _done_count = [0]
@@ -332,21 +408,46 @@ Return ONLY valid JSON, no markdown:
                             "Số Trait": "None", "NameStock": "", "Giá Nhập": "",
                         }
 
+                    # ── OCR LOCAL TRƯỚC (nhanh, miễn phí); ảnh nào OCR fail mới gửi AI ──
+                    _ocr_results = {}
+                    if _use_ocr:
+                        for _i, (_nm, _b64, _mime) in enumerate(_ocr_inputs):
+                            try:
+                                _r = _ocr_extract(base64.b64decode(_b64))
+                                _ocr_results[_nm] = _r
+                            except Exception:
+                                _ocr_results[_nm] = {"_ok": False, "_error": "OCR exception"}
+                            progress.progress(
+                                int((_i + 1) / len(_ocr_inputs) * 45),
+                                text=f"OCR {_i+1}/{len(_ocr_inputs)} ảnh..."
+                            )
+
                     # Chạy song song — model vision chậm (qwen preview) chỉ nên dùng 2 luồng để tránh nghẽn
                     _futures_map = {}
+                    _need_ai = [d for d in _img_data if not _ocr_results.get(d["name"], {}).get("_ok")]
                     with ThreadPoolExecutor(max_workers=2) as _pool:
-                        for _item in _img_data:
+                        for _item in _need_ai:
                             _futures_map[_pool.submit(_analyze_one, _item)] = _item["name"]
                         for _fut in as_completed(_futures_map):
-                            results.append(_fut.result())
+                            _r = _fut.result()
+                            if _r["_ok"]:
+                                _ocr_results[_r["_filename"]] = _r
                             _n = _done_count[0]
                             progress.progress(
-                                int(_n / len(_img_data) * 100),
-                                text=f"Đã xong {_n}/{len(_img_data)} ảnh..."
+                                int(45 + _n / max(len(_need_ai), 1) * 55),
+                                text=f"AI {_n}/{len(_need_ai)} ảnh..."
                             )
+                    results = [_ocr_results.get(d["name"], {"_ok": False, "_error": "?"}) for d in _img_data]
                     # Sắp xếp lại theo thứ tự ảnh gốc
                     _order = {d["name"]: i for i, d in enumerate(_img_data)}
                     results.sort(key=lambda r: _order.get(r["_filename"], 999))
+                    for _r in results:
+                        if _r.get("_ok"):
+                            _r["_filename"] = _r.get("_filename") or ""
+                            _r.setdefault("Mutation", "Normal")
+                            _r.setdefault("Số Trait", "None")
+                            _r.setdefault("NameStock", "")
+                            _r.setdefault("Giá Nhập", "")
 
                     progress.progress(100, text="Hoàn thành phân tích!")
                     st.session_state.ai_batch_results = results

@@ -67,9 +67,13 @@ def _encode_image(raw: bytes, mime: str = "image/jpeg") -> str:
     return base64.b64encode(raw).decode("utf-8")
 
 
-def _extract_ms(text_upper: str) -> str:
+def _extract_ms(text: str) -> str:
     """Tách số M/s từ text model trả về → chuẩn hoá: '900' → '0.9', '1.2k' → '1200'."""
-    m = re.search(r"\$?\s*([\d.,]+)\s*[Mm]/s", text_upper)
+    if not text:
+        return ""
+    text_upper = text.upper()
+    # Chấp nhận: "$287.5M/s", "$1.2 M/s", "287.5 M/S", "1.2k M/s"
+    m = re.search(r"\$?\s*([\d.,]+)\s*([kK])?\s*[Mm]/s?", text_upper)
     if not m:
         return ""
     v = m.group(1)
@@ -81,6 +85,8 @@ def _extract_ms(text_upper: str) -> str:
         num = float(v)
     except ValueError:
         return ""
+    if m.group(2):
+        num = num * 1000                # "1.2k M/s" → 1200
     if num >= 100 and not ("." in v or "," in v):
         num = num / 1000                # "900 M/s" → 0.9
     return str(num)
@@ -115,12 +121,15 @@ def _ocr_extract(raw: bytes, mime: str, pet_db: pd.DataFrame) -> dict:
         return {"_ok": False, "_error": "Thiếu GROQ_API_KEY — vào Cài đặt để nhập key."}
     b64 = _encode_image(raw, mime)
     prompt = (
-        "Bạn là trợ lý đọc ảnh pet game. Ảnh này là ảnh chụp màn hình trong game "
-        "(ví dụ Adopt Me) hiển thị một con pet với tên pet (có thể gồm nhiều từ, "
-        "ví dụ 'Garama and Madundung') và tốc độ dạng '$xx M/s' hoặc 'xx M/s'.\n"
-        "Nhiệm vụ: trả về một dòng NGẮN GỌN chứa tên pet và tốc độ M/s, ví dụ: "
-        "'Garama and Madundung $1.2 M/s'. KHÔNG thêm giải thích, KHÔNG dùng markdown, "
-        "KHÔNG xuống dòng. Nếu ảnh không rõ, chỉ trả về 'khong ro'."
+        "Bạn là trợ lý đọc ảnh chụp màn hình game pet (Roblox/Pet Simulator). "
+        "Ảnh hiển thị một con pet với: (1) TÊN PET ở dòng trên cùng (có thể gồm nhiều từ, "
+        "ví dụ 'Garam and Madundung'), (2) TỐC ĐỘ ở dòng dưới, dạng '$287.5M/s', '$1.2 M/s' hoặc 'xx M/s'.\n"
+        "Đọc chính xác 2 giá trị này và trả về ĐÚNG MỘT ĐỐI TƯỢNG JSON, KHÔNG có gì khác:\n"
+        "{\"name\": \"tên pet đọc được\", \"ms\": \"số tốc độ đọc được, kèm đơn vị M/s\"}\n"
+        "Ví dụ: {\"name\": \"Garam and Madundung\", \"ms\": \"287.5M/s\"}\n"
+        "KHÔNG thêm giải thích, KHÔNG dùng markdown (không có dấu ```), KHÔNG xuống dòng thừa, "
+        "KHÔNG in chữ 'json'. Chỉ in JSON thuần. "
+        "Nếu ảnh không rõ hoặc thiếu dữ liệu, trả về {\"name\": \"\", \"ms\": \"\"}."
     )
     try:
         completion = client.chat.completions.create(
@@ -139,16 +148,32 @@ def _ocr_extract(raw: bytes, mime: str, pet_db: pd.DataFrame) -> dict:
     text = (completion.choices[0].message.content or "").strip().strip("`").strip()
     if not text or any(w in text.lower() for w in ["khong ro", "không rõ", "cannot", "unable", "error", "no pet"]):
         return {"_ok": False, "_error": f"Model không đọc được: {text[:80]}"}
-    text_upper = text.upper()
-    ms_str = _extract_ms(text_upper)
+
+    # ── Ưu tiên parse JSON (đúng format prompt) ──
     name = ""
-    if ms_str:
-        name = re.sub(r"\$?\s*[\d.,]+\s*[Mm]/s.*$", "", text, flags=re.IGNORECASE)
-    else:
-        name = text
-    name = re.sub(r"[^A-Za-z0-9&\s']", " ", name)
-    name = re.sub(r"\s+", " ", name).strip()
-    if not name:
+    ms_str = ""
+    try:
+        js = re.search(r"\{.*\}", text, flags=re.DOTALL)
+        if js:
+            data = json.loads(js.group(0))
+            name = str(data.get("name", "")).strip()
+            ms_raw = str(data.get("ms", "")).strip()
+            if ms_raw:
+                ms_str = _extract_ms(ms_raw)
+    except (ValueError, TypeError, AttributeError):
+        name = ""
+        ms_str = ""
+
+    # ── Fallback: model không trả JSON hoặc trả thiếu → tách từ text thường ──
+    if not ms_str or not name:
+        text_upper = text.upper()
+        ms_str = _extract_ms(text_upper) or ms_str
+        if not name:
+            name = re.sub(r"\$?\s*[\d.,]+\s*[Mm]/s.*$", "", text, flags=re.IGNORECASE)
+            name = re.sub(r"[^A-Za-z0-9&\s']", " ", name)
+            name = re.sub(r"\s+", " ", name).strip()
+
+    if not name and ms_str:
         return {"_ok": False, "_error": f"Không tách được tên từ: {text[:80]}"}
     candidate = name
     name = _match_pet_name(name, pet_db)

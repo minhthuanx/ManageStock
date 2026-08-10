@@ -1,17 +1,11 @@
-import io
+import os
 import re
 import time
 import base64
-import threading
 import pandas as pd
 import streamlit as st
-from PIL import Image, ImageOps, ImageEnhance
 
-try:
-    import pytesseract
-    HAS_TESSERACT = True
-except ImportError:
-    HAS_TESSERACT = False
+from groq import Groq
 
 from _timezone import now_vn, now_str, now_iso
 import _icons as IC
@@ -33,80 +27,108 @@ except ImportError:
     DELIVERY_MAP = {}
 
 
-def _ocr_extract(raw: bytes) -> dict:
-    """OCR cục bộ (Tesseract): đọc tên pet + tốc độ $M/s từ ảnh — nhanh, miễn phí, không cần key."""
-    try:
-        im = Image.open(io.BytesIO(raw))
-    except Exception:
-        return {"_ok": False, "_error": "Ảnh không đọc được"}
-    if not HAS_TESSERACT:
-        return {"_ok": False, "_error": "Chưa cài pytesseract"}
-    try:
-        # Tiền xử lý giúp Tesseract đọc chuẩn:
-        # 1) Phóng to 2x nếu ảnh nhỏ (chữ nhỏ đọc rõ hơn)
-        w, h = im.size
-        if max(w, h) < 1600:
-            im = im.resize((w * 2, h * 2), Image.LANCZOS)
-        # 2) Xám + tự tăng tương phản + ngưỡng
-        g = ImageOps.grayscale(im)
-        g = ImageOps.autocontrast(g)
-        g = g.point(lambda p: 0 if p < 150 else 255)
-        # 3) LUÔN đảo màu → chữ ĐEN trên nền TRẮNG (polarity Tesseract đọc tốt nhất,
-        #    tránh chữ trắng trên nền đen bị dính, mất dấu cách)
-        g = ImageOps.invert(g)
-        # 4) PSM 3 (tự động phân đoạn) + giữ khoảng cách giữa các từ
-        cfg = ("--psm 3 -c preserve_interword_spaces=1 "
-               "-c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$./&- ")
-        txt = pytesseract.image_to_string(g, config=cfg)
-        lines = [l.strip() for l in txt.splitlines() if l.strip()]
-        # 5) Fallback PSM 11 (text rải rác) nếu chưa thấy dòng M/s
-        if not any(re.search(r"[Mm]/s", l, re.IGNORECASE) for l in lines):
-            txt2 = pytesseract.image_to_string(
-                g,
-                config="--psm 11 -c preserve_interword_spaces=1 "
-                       "-c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$./&- ",
-            )
-            lines2 = [l.strip() for l in txt2.splitlines() if l.strip()]
-            if any(re.search(r"[Mm]/s", l, re.IGNORECASE) for l in lines2):
-                lines = lines2
-    except Exception as e:
-        return {"_ok": False, "_error": f"OCR lỗi: {e}"}
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "qwen/qwen3.6-27b")
 
-    # Tốc độ: dòng/đoạn chứa $ ... M/s (ưu tiên ký tự $)
-    ms = ""
-    for l in lines:
-        if re.search(r"\$", l) and re.search(r"[Mm]/s", l, re.IGNORECASE):
-            ms = l
-            break
-    if not ms:
-        for l in lines:
-            if re.search(r"[Mm]/s", l, re.IGNORECASE):
-                ms = l
-                break
-    ms_num = ""
-    if ms:
-        m = re.search(r"\$?\s*([\d.,]+)\s*[Mm]/s", ms, re.IGNORECASE)
-        if m:
-            v = m.group(1).replace(",", "")
-            ms_num = str(float(v) / 1000) if v.count(".") > 1 else v
-    # Tên: ưu tiên dòng có chữ + số như "Garama and Madundung" (tên ghép + dấu cách)
+
+def _groq_client():
+    """Groq client đọc key từ env GROQ_API_KEY (hoặc st.secrets nếu có)."""
+    key = os.environ.get("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY", "")
+    if not key:
+        return None
+    return Groq(api_key=key)
+
+
+def _encode_image(raw: bytes, mime: str = "image/jpeg") -> str:
+    return base64.b64encode(raw).decode("utf-8")
+
+
+def _extract_ms(text_upper: str) -> str:
+    """Tách số M/s từ text model trả về → chuẩn hoá: '900' → '0.9', '1.2k' → '1200'."""
+    m = re.search(r"\$?\s*([\d.,]+)\s*[Mm]/s", text_upper)
+    if not m:
+        return ""
+    v = m.group(1)
+    if v.count(".") > 1:
+        v = v.replace(",", "")          # "1.234.5" → "1234.5"
+    else:
+        v = v.replace(",", ".")
+    try:
+        num = float(v)
+    except ValueError:
+        return ""
+    if num >= 100 and not ("." in v or "," in v):
+        num = num / 1000                # "900 M/s" → 0.9
+    return str(num)
+
+
+def _match_pet_name(candidate: str, pet_db: pd.DataFrame) -> str:
+    """So khớp mềm tên model trả về với pet list hiện có.
+    Trả về tên chuẩn nếu trùng (về cơ bản), ngược lại trả về tên model."""
+    c = candidate.lower()
+    _words = set(re.findall(r"[a-z0-9]+", c))
+    best, best_score = candidate, 0.0
+    for n in get_name_options(pet_db, fallback=""):
+        if not n:
+            continue
+        nw = set(re.findall(r"[a-z0-9]+", n.lower()))
+        inter = _words & nw
+        if inter:
+            _s = len(inter) / max(len(_words | nw), 1)
+            same_words = bool(_words) and _words == nw
+            atomic = (" " not in c.strip() and " " not in n.strip())
+            if same_words or _s >= 0.6 or atomic:
+                _w = 1.0 if (same_words or atomic) else _s
+                if _w > best_score:
+                    best, best_score = n, _w
+    return best
+
+
+def _ocr_extract(raw: bytes, mime: str, pet_db: pd.DataFrame) -> dict:
+    """AI Vision (Groq): đọc tên pet + M/s từ ảnh → text thuần, tự tách + so khớp tên."""
+    client = _groq_client()
+    if client is None:
+        return {"_ok": False, "_error": "Thiếu GROQ_API_KEY — vào Cài đặt để nhập key."}
+    b64 = _encode_image(raw, mime)
+    prompt = (
+        "Bạn là trợ lý đọc ảnh pet game. Ảnh này là ảnh chụp màn hình trong game "
+        "(ví dụ Adopt Me) hiển thị một con pet với tên pet (có thể gồm nhiều từ, "
+        "ví dụ 'Garama and Madundung') và tốc độ dạng '$xx M/s' hoặc 'xx M/s'.\n"
+        "Nhiệm vụ: trả về một dòng NGẮN GỌN chứa tên pet và tốc độ M/s, ví dụ: "
+        "'Garama and Madundung $1.2 M/s'. KHÔNG thêm giải thích, KHÔNG dùng markdown, "
+        "KHÔNG xuống dòng. Nếu ảnh không rõ, chỉ trả về 'khong ro'."
+    )
+    try:
+        completion = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+                ],
+            }],
+            temperature=0,
+        )
+    except Exception as e:
+        return {"_ok": False, "_error": f"Groq API lỗi: {e}"}
+    text = (completion.choices[0].message.content or "").strip().strip("`").strip()
+    if not text or any(w in text.lower() for w in ["khong ro", "không rõ", "cannot", "unable", "error", "no pet"]):
+        return {"_ok": False, "_error": f"Model không đọc được: {text[:80]}"}
+    text_upper = text.upper()
+    ms_str = _extract_ms(text_upper)
     name = ""
-    for l in lines:
-        if l == ms:
-            continue
-        if re.search(r"\d", l) and not re.search(r"[A-Za-z]", l):
-            continue
-        if re.fullmatch(r"[\W_]+", l):
-            continue
-        if re.search(r"[A-Za-z]", l):
-            name = l
-            break
-    # Làm sạch: chỉ giữ chữ cái, chữ số, khoảng trắng, ký tự & và ' (không gộp từ)
-    name = re.sub(r"[^\w\s&']", "", name)
+    if ms_str:
+        name = re.sub(r"\$?\s*[\d.,]+\s*[Mm]/s.*$", "", text, flags=re.IGNORECASE)
+    else:
+        name = text
+    name = re.sub(r"[^A-Za-z0-9&\s']", " ", name)
     name = re.sub(r"\s+", " ", name).strip()
-    if not name or not ms_num:
-        return {"_ok": False, "_error": f"OCR không đọc đủ (name='{name}' ms='{ms_num}')"}
-    return {"_ok": True, "Tên Pet": name, "M/s": ms_num}
+    if not name:
+        return {"_ok": False, "_error": f"Không tách được tên từ: {text[:80]}"}
+    candidate = name
+    name = _match_pet_name(name, pet_db)
+    msg = name if name != candidate else f"{name} (tên mới)"
+    return {"_ok": True, "Tên Pet": name, "M/s": ms_str, "_new_name": name != candidate, "_match_note": msg}
 
 
 class _FakeUploadedFile:
@@ -134,7 +156,7 @@ class _FakeUploadedFile:
 
 
 def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
-    """Render the OCR section for auto-scanning pet images (Tesseract local — không cần API)."""
+    """Render the AI Vision section for auto-scanning pet images (Groq qwen vision — không cần Tesseract)."""
 
     # =========================================================
     # OCR – upload ảnh + dialog preview
@@ -146,10 +168,15 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
     if _ai_has_files or _ai_has_results:
         st.session_state.ai_expander = True
 
-    with st.expander("OCR — Đọc ảnh tự động", expanded=st.session_state.get("ai_expander", False)):
+    with st.expander("AI Vision — Đọc ảnh tự động", expanded=st.session_state.get("ai_expander", False)):
 
-        # ── UPLOAD ẢNH → OCR ──
+        # ── UPLOAD ẢNH → AI VISION ──
         st.markdown("**Tải lên ảnh sản phẩm**")
+        _groq_ready = _groq_client() is not None
+        if _groq_ready:
+            st.caption(f"Đang dùng **Groq AI Vision** — model `{GROQ_MODEL}`")
+        else:
+            st.caption("⚠️ Chưa có **GROQ_API_KEY** — vào tab **Cài đặt** để nhập key rồi quay lại.")
         if "ai_uploader_key" not in st.session_state:
             st.session_state.ai_uploader_key = 0
 
@@ -175,24 +202,25 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
                 results = []
                 progress = st.progress(0, text="Đang khởi tạo...")
 
-                if not HAS_TESSERACT:
+                if _groq_client() is None:
                     progress.empty()
-                    st.error("Chưa cài đặt OCR (pytesseract) trên môi trường này — kiểm tra requirements.txt/apt.txt.")
+                    st.error("Thiếu GROQ_API_KEY — vào tab Cài đặt để nhập key rồi thử lại.")
                     st.stop()
 
-                # ── OCR LOCAL: đọc tên + M/s từ từng ảnh ──
+                # ── AI VISION: đọc tên + M/s từ từng ảnh ──
                 _ocr_results = {}
                 for _i, img_f in enumerate(batch_imgs):
                     try:
+                        _mime = img_f.type or ("image/png" if img_f.name.lower().endswith(".png") else "image/jpeg")
                         img_f.seek(0)
-                        _r = _ocr_extract(img_f.read())
+                        _r = _ocr_extract(img_f.read(), _mime, pet_db)
                     except Exception as _e:
-                        _r = {"_ok": False, "_error": f"OCR exception: {_e}"}
+                        _r = {"_ok": False, "_error": f"AI Vision exception: {_e}"}
                     _r["_filename"] = img_f.name
                     _ocr_results[img_f.name] = _r
                     progress.progress(
                         int((_i + 1) / len(batch_imgs) * 100),
-                        text=f"Đang đọc {_i+1}/{len(batch_imgs)} ảnh..."
+                        text=f"Đang phân tích {_i+1}/{len(batch_imgs)} ảnh..."
                     )
 
                 results = [_ocr_results[f.name] for f in batch_imgs]
@@ -202,6 +230,8 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
                         _r.setdefault("Số Trait", "None")
                         _r.setdefault("NameStock", "")
                         _r.setdefault("Giá Nhập", "")
+                        _r["_name_locked"] = True
+                        _r["_name_matched"] = not _r.get("_new_name", False)
 
                 progress.progress(100, text="Hoàn thành!")
                 st.session_state.ai_batch_results = results
@@ -247,13 +277,17 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
                 fname = res.get("_filename", f"Image {i+1}")
                 is_ok = res.get("_ok", False)
 
+                _extra = (" — Lỗi nhận dạng" if not is_ok
+                          else "" if res.get("_name_matched") else " — tên mới")
                 _expander_label = (
                     f"× {fname} — Lỗi nhận dạng" if not is_ok
-                    else f"✓ {fname} — {str(res.get('Tên Pet','?'))} · {str(res.get('Mutation','Normal'))} · {str(res.get('M/s','?'))}M/s"
+                    else f"✓ {fname} — {str(res.get('Tên Pet','?'))} · {str(res.get('Mutation','Normal'))} · {str(res.get('M/s','?'))}M/s{_extra}"
                 )
                 with st.expander(_expander_label, expanded=True):
                     if not is_ok:
                         st.warning(f"Không thể đọc ảnh này · {res.get('_error','')} · Có thể nhập thủ công.")
+                    elif not res.get("_name_matched"):
+                        st.info(f"Tên pet **mới** — sẽ được thêm vào danh sách khi lưu. {res.get('_match_note','')}")
 
                     img_col, form_col = st.columns([1, 3.5])
 
@@ -275,19 +309,21 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
                         pi = next((j for j, x in enumerate(pet_opts_dlg) if x.lower() == ai_name.lower()), 0)
                         r_name = c1d.selectbox(f"Tên Pet", pet_opts_dlg, index=pi, key=f"dlg_name_{i}")
 
-                        ai_mut_v = str(res.get("Mutation") or "Normal")
-                        mi = next((j for j, m in enumerate(MUTATION_OPTIONS) if m.lower() == ai_mut_v.lower()), 0)
-                        r_mut = c2d.selectbox(f"Mutation", MUTATION_OPTIONS, index=mi, key=f"dlg_mut_{i}")
+                        r_ms_raw = c2d.text_input(f"M/s", value=str(res.get("M/s") or ""), key=f"dlg_ms_{i}")
 
-                        r_ms_raw = c3d.text_input(f"M/s", value=str(res.get("M/s") or ""), key=f"dlg_ms_{i}")
+                        r_cost = c3d.text_input(f"Giá nhập", placeholder="150k / 1.5tr / 1500000", key=f"dlg_cost_{i}")
 
                         c4d, c5d, c6d = st.columns(3)
+                        ai_mut_v = str(res.get("Mutation") or "Normal")
+                        mi = next((j for j, m in enumerate(MUTATION_OPTIONS) if m.lower() == ai_mut_v.lower()), 0)
+                        r_mut = c4d.selectbox(f"Mutation", MUTATION_OPTIONS, index=mi, key=f"dlg_mut_{i}")
+
                         ai_trait = str(res.get("Số Trait") or "None").strip()
                         # Tự thêm vào list nếu model trả giá trị ngoài 1-15
                         if ai_trait not in trait_opts_dlg:
                             trait_opts_dlg = trait_opts_dlg + [ai_trait]
                         ti = next((j for j, t in enumerate(trait_opts_dlg) if t.lower() == ai_trait.lower()), 0)
-                        r_trait = c4d.selectbox(f"Số Trait", trait_opts_dlg, index=ti, key=f"dlg_trait_{i}")
+                        r_trait = c5d.selectbox(f"Số Trait", trait_opts_dlg, index=ti, key=f"dlg_trait_{i}")
 
                         # NameStock: dùng global nếu checkbox bật, ngược lại dùng per-row
                         if use_global_ns:
@@ -300,8 +336,6 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
                             )
                         else:
                             r_ns = c5d.selectbox(f"NameStock", ns_opts_dlg, key=f"dlg_ns_{i}")
-
-                        r_cost = c6d.text_input(f"Giá nhập", placeholder="150k / 1.5tr / 1500000", key=f"dlg_cost_{i}")
 
                         # ── Giá bán $ + tái sử dụng ảnh đã upload (Eldorado) ──
                         if _HAS_ELDORADO and eld_client and eld_client.logged_in:

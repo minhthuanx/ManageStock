@@ -34,7 +34,7 @@ def render_tab_kho(df, bulk_df, bulk_history, pet_db, ns_db, trait_db, eld_clien
         with st.container(border=True):
             st.markdown('<div class="sec-heading">Nhập Kho</div>', unsafe_allow_html=True)
 
-            # OCR — đọc ảnh tự động (Tesseract local)
+            # AI Vision — đọc ảnh tự động (Groq)
             render_ai_vision(df, pet_db, ns_db, trait_db, eld_client)
 
             # JSON Import — paste JSON from game

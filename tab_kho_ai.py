@@ -1,14 +1,10 @@
-import json
 import io
-import os
 import re
 import time
 import base64
 import threading
-import requests
 import pandas as pd
 import streamlit as st
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image, ImageOps, ImageEnhance
 
 try:
@@ -27,39 +23,14 @@ from _helpers import (
 from _config import MAIN_SCHEMA, LIST_SCHEMA, MUTATION_OPTIONS, PET_LIST_FILE, DB_FILE
 from _database import (
     USE_SUPABASE, sb_insert, sb_insert_batch,
-    load_inventory, load_csv, save_csv, supabase_client,
-    to_db, _save_groq_key_to_supabase,
+    load_inventory, load_csv, save_csv, supabase_client, to_db,
 )
 from _eldorado_helpers import _HAS_ELDORADO
-from _wiki import get_pet_list, normalize_pet_name
 
 try:
     from eldorado_client import DELIVERY_MAP, OTHER_TRADE_ENV_ID
 except ImportError:
     DELIVERY_MAP = {}
-
-
-def _clean_groq_key(raw: str) -> str:
-    """Loại bỏ ký tự ẩn (zero-width space ​, BOM...) — nguyên nhân 401 dù key nhìn đúng."""
-    if not raw:
-        return ""
-    cleaned = re.sub(r"[​‌‍⁠﻿]", "", raw)
-    return re.sub(r"[^A-Za-z0-9_\-]", "", cleaned)
-
-
-def _verify_groq_key(key: str) -> tuple[bool, str]:
-    """Gọi thử GET /models: 200 = key hoạt động; ngược lại trả thông báo lỗi cụ thể."""
-    try:
-        r = requests.get(
-            "https://api.groq.com/openai/v1/models",
-            headers={"Authorization": f"Bearer {key}"},
-            timeout=15,
-        )
-        if r.status_code == 200:
-            return True, ""
-        return False, f"HTTP {r.status_code}: {r.text[:200]}"
-    except Exception as e:
-        return False, f"Không kết nối được: {e}"
 
 
 def _ocr_extract(raw: bytes) -> dict:
@@ -145,10 +116,10 @@ class _FakeUploadedFile:
 
 
 def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
-    """Render the AI Vision expander section for auto-scanning pet images (OCR local + AI fallback)."""
+    """Render the OCR section for auto-scanning pet images (Tesseract local — không cần API)."""
 
     # =========================================================
-    # AI VISION – Key setup + multi-image + dialog preview
+    # OCR – upload ảnh + dialog preview
     # =========================================================
     # Giữ expander mở khi có file đã upload hoặc có kết quả đang hiển thị
     _ai_ukey = st.session_state.get("ai_uploader_key", 0)
@@ -157,299 +128,64 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
     if _ai_has_files or _ai_has_results:
         st.session_state.ai_expander = True
 
-    with st.expander("AI Vision — Nhập tự động", expanded=st.session_state.get("ai_expander", False)):
+    with st.expander("OCR — Đọc ảnh tự động", expanded=st.session_state.get("ai_expander", False)):
 
-        # ── STEP 1: API KEY ──
-        ai_key = st.session_state.get("groq_key", "")
-        if ai_key:
-            # Key đã được cấu hình — hiển thị masked + nút cập nhật
-            _masked = ai_key[:6] + "*" * (len(ai_key) - 10) + ai_key[-4:] if len(ai_key) > 10 else "****"
-            _kc1, _kc2 = st.columns([3, 1])
-            _kc1.success(f"API đã kết nối · {_masked}")
-            if _kc2.button("Thay đổi", use_container_width=True, key="btn_change_groq"):
-                st.session_state.groq_key = ""
-                st.rerun()
-        else:
-            ai_key_input = st.text_input(
-                "🔑 Groq API Key",
-                type="password",
-                value="",
-                placeholder="gsk_...",
-                help="Lấy miễn phí tại console.groq.com/keys",
+        # ── UPLOAD ẢNH → OCR ──
+        st.markdown("**Tải lên ảnh sản phẩm**")
+        if "ai_uploader_key" not in st.session_state:
+            st.session_state.ai_uploader_key = 0
+
+        batch_imgs = st.file_uploader(
+            "Chọn ảnh",
+            type=["png", "jpg", "jpeg", "webp"],
+            accept_multiple_files=True,
+            label_visibility="collapsed",
+            key=f"ai_batch_upload_{st.session_state.ai_uploader_key}",
+        )
+
+        if batch_imgs:
+            st.caption(f"Đã chọn **{len(batch_imgs)}** ảnh — {', '.join(f.name[:18] for f in batch_imgs[:3])}{'...' if len(batch_imgs) > 3 else ''}")
+
+            scan_btn = st.button(
+                f"Đọc {len(batch_imgs)} ảnh",
+                type="primary",
+                use_container_width=True,
+                key="btn_ai_scan_batch",
             )
-            if ai_key_input and ai_key_input.strip():
-                _raw_key = ai_key_input.strip()
-                _clean = _clean_groq_key(_raw_key)
-                if _clean != _raw_key:
-                    st.warning("Phát hiện ký tự ẩn trong key — đã tự động làm sạch (có thể do paste từ Zalo/Messenger).")
-                if not _clean or not _clean.startswith("gsk_"):
-                    st.error("Key Groq không hợp lệ: phải bắt đầu bằng 'gsk_' và chỉ gồm chữ/số. Vui lòng kiểm tra lại.")
-                else:
-                    _ok, _msg = _verify_groq_key(_clean)
-                    if _ok:
-                        st.session_state.groq_key = _clean
-                        _save_groq_key_to_supabase(_clean)
-                        st.toast("Đã xác minh & lưu Groq Key vĩnh viễn!", icon="🔑")
-                        st.rerun()
-                    else:
-                        st.error(f"❌ Key bị từ chối bởi Groq ({_msg}). Kiểm tra lại key tại console.groq.com/keys — chú ý không dư/mất ký tự khi paste.")
-            st.info("Nhập Groq API Key để bật nhận dạng hình ảnh AI (Llama 3.2 90B Vision · miễn phí).")
-            ai_key = ""
-
-        # ── STEP 2: MULTI-IMAGE UPLOAD ── (hiện khi đã có Groq key)
-        if ai_key:
-            st.markdown("**Tải lên ảnh sản phẩm**")
-            if "ai_uploader_key" not in st.session_state:
-                st.session_state.ai_uploader_key = 0
-
-            batch_imgs = st.file_uploader(
-                "Chọn ảnh",
-                type=["png", "jpg", "jpeg", "webp"],
-                accept_multiple_files=True,
-                label_visibility="collapsed",
-                key=f"ai_batch_upload_{st.session_state.ai_uploader_key}",
-            )
-
-            if batch_imgs:
-                st.caption(f"Đã chọn **{len(batch_imgs)}** ảnh — {', '.join(f.name[:18] for f in batch_imgs[:3])}{'...' if len(batch_imgs) > 3 else ''}")
-
-                # Danh sách tên pet chuẩn từ wiki (cache 7 ngày) — khóa prompt + chuẩn hóa kết quả
-                wiki_pets = get_pet_list()
-                if wiki_pets:
-                    st.caption(f"📚 Wiki: **{len(wiki_pets)}** tên pet hợp lệ")
-
-                scan_btn = st.button(
-                    f"Phân tích {len(batch_imgs)} ảnh",
-                    type="primary",
-                    use_container_width=True,
-                    key="btn_ai_scan_batch",
-                )
 
                 if scan_btn:
                     results = []
                     progress = st.progress(0, text="Đang khởi tạo...")
-                    # OCR local được thử trước (nếu có) — nhanh, không tốn API
-                    _use_ocr = HAS_TESSERACT and bool(batch_imgs)
 
-                    def _prep_image_bytes(raw: bytes, mime: str) -> tuple[bytes, str]:
-                        """Nén/resize ảnh về tối đa 1024px để gửi API nhanh (ảnh gốc full-HD quá lớn)."""
-                        if len(raw) <= 2_500_000:
-                            return raw, mime
-                        try:
-                            if mime == "image/png":
-                                im = Image.open(io.BytesIO(raw)).convert("RGBA")
-                                bg = Image.new("RGB", im.size, (0, 0, 0))
-                                bg.paste(im, mask=im.split()[-1])
-                                im = bg
-                            else:
-                                im = Image.open(io.BytesIO(raw)).convert("RGB")
-                            im.thumbnail((1024, 1024), Image.LANCZOS)
-                            buf = io.BytesIO()
-                            im.save(buf, format="JPEG", quality=88)
-                            return buf.getvalue(), "image/jpeg"
-                        except Exception:
-                            return raw, mime
-
-                    prompt = f"""Screenshot from Roblox game "Steal a Brainrot". Find the dark rounded INFO CARD near the pet.
-The card has the pet NAME at the top and the large $M/s speed value is OUTSIDE the card.
-The pet name MUST be chosen from this exact list (pick the closest match, do NOT invent names):
-{', '.join(wiki_pets) if wiki_pets else '(no pet list available — read the name as-is)'}
-Return ONLY valid JSON, no markdown:
-{{
-  "Tên Pet": "exact pet name from the card",
-  "Mutation": "Gold|Diamond|Divine|Rainbow|Bloodrot|Candy|Lava|Galaxy|Yin-Yang|Radioactive|Cursed|Cyber|Phantom|Crystal|Normal",
-  "Tốc độ": "speed in Millions as plain number: $700M/s→700  $1.2B/s→1200  $55M/s→55  $500K/s→0.5"
-}}"""
-
-                    headers = {
-                        "Authorization": f"Bearer {ai_key}",
-                        "Content-Type": "application/json"
-                    }
-
-                    # ── XÁC THỰC KEY + TÌM MODEL VISION ──
-                    target_model = None
-                    all_models = []
-                    try:
-                        m_resp = requests.get("https://api.groq.com/openai/v1/models",
-                                              headers={"Authorization": f"Bearer {ai_key}"}, timeout=15)
-                        if m_resp.status_code == 200:
-                            m_data = m_resp.json()
-                            all_models = [m["id"] for m in m_data.get("data", [])]
-                        elif m_resp.status_code in (401, 403):
-                            st.error(f"Groq API Key không hợp lệ hoặc đã hết hạn (HTTP {m_resp.status_code}). "
-                                     f"Nhấn 'Thay đổi' để nhập key mới tại console.groq.com/keys")
-                            st.stop()
-                        else:
-                            st.error(f"Groq API trả về lỗi HTTP {m_resp.status_code}: {m_resp.text[:200]}")
-                            st.stop()
-                    except Exception as _m_err:
-                        st.error(f"Không thể kết nối Groq API: {_m_err}")
+                    if not HAS_TESSERACT:
+                        progress.empty()
+                        st.error("Chưa cài đặt OCR (pytesseract) trên môi trường này — kiểm tra requirements.txt/apt.txt.")
                         st.stop()
 
-                    # Model vision đã biết (ưu tiên llama-4-scout — nhanh; qwen3.6-27b là preview model chậm hơn)
-                    _KNOWN_VISION = [
-                        "meta-llama/llama-4-scout-17b-16e-instruct",
-                        "llama-4-scout-17b-16e-instruct",
-                        "meta-llama/llama-4-maverick-17b-128e-instruct",
-                        "qwen/qwen3.6-27b",
-                        "qwen3.6-27b",
-                    ]
-                    vision_models = [
-                        m for m in all_models
-                        if any(k in m.lower() for k in ["qwen3", "qwen-3", "scout", "maverick", "pixtral", "vl", "vision"])
-                    ]
-                    target_model = (
-                        next((m for m in vision_models if "scout" in m.lower() or "maverick" in m.lower()), vision_models[0])
-                        if vision_models
-                        else next((m for m in _KNOWN_VISION if m in all_models), None)
-                    )
-                    if not target_model:
-                        _model_hint = f"Danh sách model hiện tại ({len(all_models)}): {', '.join(all_models[:10])}{'...' if len(all_models) > 10 else ''}" if all_models else "Không lấy được danh sách model."
-                        st.error(f"Không tìm thấy Model Đọc Ảnh nào khả dụng! {_model_hint}")
-                        st.stop()
-
-                    st.toast(f"Model: {target_model}", icon="🦙")
-
-                    # Đọc, nén và encode tất cả ảnh trước (I/O — ảnh nén giúp gửi nhanh hơn nhiều)
-                    _img_data = []
-                    for img_f in batch_imgs:
-                        img_f.seek(0)
-                        _raw = img_f.read()
-                        _data, _mime = _prep_image_bytes(_raw, img_f.type or "image/jpeg")
-                        _img_data.append({
-                            "name": img_f.name,
-                            "b64": base64.b64encode(_data).decode("utf-8"),
-                            "mime": _mime,
-                        })
-                    _ocr_inputs = [(d["name"], d["b64"], d["mime"]) for d in _img_data]
-                    for img_f in batch_imgs:
-                        img_f.seek(0)
-                        _raw = img_f.read()
-                        _data, _mime = _prep_image_bytes(_raw, img_f.type or "image/jpeg")
-                        _img_data.append({
-                            "name": img_f.name,
-                            "b64": base64.b64encode(_data).decode("utf-8"),
-                            "mime": _mime,
-                        })
-
-                    _lock = threading.Lock()
-                    _done_count = [0]
-
-                    def _analyze_one(item):
-                        _payload = {
-                            "model": target_model,
-                            "messages": [
-                                {
-                                    "role": "system",
-                                    "content": "You are a game data extractor. Output ONLY valid JSON, no markdown, no extra text."
-                                },
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {"type": "text", "text": prompt},
-                                        {"type": "image_url", "image_url": {"url": f"data:{item['mime']};base64,{item['b64']}"}}
-                                    ]
-                                }
-                            ],
-                            "temperature": 0.0,
-                            "max_tokens": 256
-                        }
-                        MAX_RETRY = 3
-                        last_err = ""
-                        for _attempt in range(MAX_RETRY):
-                            try:
-                                resp = requests.post(
-                                    "https://api.groq.com/openai/v1/chat/completions",
-                                    json=_payload, headers=headers, timeout=90
-                                )
-                                if resp.status_code == 429:
-                                    time.sleep(15 + _attempt * 5)
-                                    continue
-                                if resp.status_code == 500 or resp.status_code == 503:
-                                    time.sleep(5 + _attempt * 5)
-                                    continue
-                                if resp.status_code != 200:
-                                    last_err = f"API {resp.status_code}: {resp.text[:150]}"
-                                    break
-                                txt = resp.json()["choices"][0]["message"]["content"].strip()
-                                json_str = txt
-                                if "```json" in txt:
-                                    json_str = txt.split("```json")[-1].split("```")[0].strip()
-                                elif "{" in txt:
-                                    json_str = txt[txt.find("{"):txt.rfind("}")+1]
-                                parsed = json.loads(json_str)
-                                with _lock:
-                                    _done_count[0] += 1
-                                # Chuẩn hóa tên pet theo danh sách wiki (sửa lỗi đọc lệch của model)
-                                _ai_name = normalize_pet_name(str(parsed.get("Tên Pet", "")), wiki_pets)
-                                return {
-                                    "_filename": item["name"],
-                                    "_ok": True,
-                                    "Tên Pet":   _ai_name,
-                                    "Mutation":  parsed.get("Mutation", "Normal"),
-                                    "M/s":       parsed.get("Tốc độ", ""),
-                                    "Số Trait":  "None",
-                                    "NameStock": "",
-                                    "Giá Nhập":  "",
-                                }
-                            except (json.JSONDecodeError, KeyError) as _je:
-                                last_err = f"Parse error: {_je}"
-                                if _attempt < MAX_RETRY - 1:
-                                    time.sleep(2)
-                                continue
-                            except Exception as _e:
-                                last_err = str(_e)
-                                break
-                        with _lock:
-                            _done_count[0] += 1
-                        return {
-                            "_filename": item["name"], "_ok": False, "_error": last_err,
-                            "Tên Pet": "", "Mutation": "Normal", "M/s": "",
-                            "Số Trait": "None", "NameStock": "", "Giá Nhập": "",
-                        }
-
-                    # ── OCR LOCAL TRƯỚC (nhanh, miễn phí); ảnh nào OCR fail mới gửi AI ──
+                    # ── OCR LOCAL: đọc tên + M/s từ từng ảnh ──
                     _ocr_results = {}
-                    if _use_ocr:
-                        for _i, (_nm, _b64, _mime) in enumerate(_ocr_inputs):
-                            try:
-                                _r = _ocr_extract(base64.b64decode(_b64))
-                                _ocr_results[_nm] = _r
-                            except Exception:
-                                _ocr_results[_nm] = {"_ok": False, "_error": "OCR exception"}
-                            progress.progress(
-                                int((_i + 1) / len(_ocr_inputs) * 45),
-                                text=f"OCR {_i+1}/{len(_ocr_inputs)} ảnh..."
-                            )
+                    for _i, img_f in enumerate(batch_imgs):
+                        try:
+                            img_f.seek(0)
+                            _r = _ocr_extract(img_f.read())
+                        except Exception as _e:
+                            _r = {"_ok": False, "_error": f"OCR exception: {_e}"}
+                        _r["_filename"] = img_f.name
+                        _ocr_results[img_f.name] = _r
+                        progress.progress(
+                            int((_i + 1) / len(batch_imgs) * 100),
+                            text=f"Đang đọc {_i+1}/{len(batch_imgs)} ảnh..."
+                        )
 
-                    # Chạy song song — model vision chậm (qwen preview) chỉ nên dùng 2 luồng để tránh nghẽn
-                    _futures_map = {}
-                    _need_ai = [d for d in _img_data if not _ocr_results.get(d["name"], {}).get("_ok")]
-                    with ThreadPoolExecutor(max_workers=2) as _pool:
-                        for _item in _need_ai:
-                            _futures_map[_pool.submit(_analyze_one, _item)] = _item["name"]
-                        for _fut in as_completed(_futures_map):
-                            _r = _fut.result()
-                            if _r["_ok"]:
-                                _ocr_results[_r["_filename"]] = _r
-                            _n = _done_count[0]
-                            progress.progress(
-                                int(45 + _n / max(len(_need_ai), 1) * 55),
-                                text=f"AI {_n}/{len(_need_ai)} ảnh..."
-                            )
-                    results = [_ocr_results.get(d["name"], {"_ok": False, "_error": "?"}) for d in _img_data]
-                    # Sắp xếp lại theo thứ tự ảnh gốc
-                    _order = {d["name"]: i for i, d in enumerate(_img_data)}
-                    results.sort(key=lambda r: _order.get(r["_filename"], 999))
+                    results = [_ocr_results[f.name] for f in batch_imgs]
                     for _r in results:
                         if _r.get("_ok"):
-                            _r["_filename"] = _r.get("_filename") or ""
                             _r.setdefault("Mutation", "Normal")
                             _r.setdefault("Số Trait", "None")
                             _r.setdefault("NameStock", "")
                             _r.setdefault("Giá Nhập", "")
 
-                    progress.progress(100, text="Hoàn thành phân tích!")
+                    progress.progress(100, text="Hoàn thành!")
                     st.session_state.ai_batch_results = results
                     st.session_state.ai_show_dialog = True
                     st.rerun()

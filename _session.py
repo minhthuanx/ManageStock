@@ -9,9 +9,8 @@ import streamlit as st
 from _timezone import now_vn
 from _database import (
     USE_SUPABASE, load_inventory, load_bulk, load_bulk_history,
-    _load_groq_key_from_supabase, _load_pinned_resell_from_supabase,
+    _load_pinned_resell_from_supabase,
 )
-from tab_kho_ai import _clean_groq_key, _verify_groq_key
 from _helpers import _load_owner_ns_map, _save_owner_ns_map, normalize_df
 from _config import MAIN_SCHEMA, BULK_SCHEMA, HISTORY_SCHEMA
 
@@ -32,26 +31,20 @@ def init_session():
             '</div>',
             unsafe_allow_html=True,
         )
-        with ThreadPoolExecutor(max_workers=5) as _ex:
+        with ThreadPoolExecutor(max_workers=4) as _ex:
             _f_inv    = _ex.submit(load_inventory)
             _f_bulk   = _ex.submit(load_bulk)
             _f_hist   = _ex.submit(load_bulk_history)
-            _f_groq   = _ex.submit(_load_groq_key_from_supabase)
             _f_pinned = _ex.submit(_load_pinned_resell_from_supabase)
             _inv_df   = _f_inv.result()
             _bulk_r   = _f_bulk.result()
             _hist_r   = _f_hist.result()
-            _groq_r   = _f_groq.result()
             _pinned_r = _f_pinned.result()
 
         from _helpers import apply_ngay_ton
         st.session_state.df           = apply_ngay_ton(_inv_df)
         st.session_state.bulk_df      = _bulk_r
         st.session_state.bulk_history = _hist_r
-        if not st.session_state.get("groq_key") and _groq_r:
-            _candidate = _clean_groq_key(_groq_r)
-            if _candidate and _verify_groq_key(_candidate)[0]:
-                st.session_state.groq_key = _candidate
         if "pinned_resell" not in st.session_state:
             st.session_state.pinned_resell = _pinned_r
         _sk_ph.empty()

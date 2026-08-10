@@ -153,42 +153,42 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
                 key="btn_ai_scan_batch",
             )
 
-                if scan_btn:
-                    results = []
-                    progress = st.progress(0, text="Đang khởi tạo...")
+            if scan_btn:
+                results = []
+                progress = st.progress(0, text="Đang khởi tạo...")
 
-                    if not HAS_TESSERACT:
-                        progress.empty()
-                        st.error("Chưa cài đặt OCR (pytesseract) trên môi trường này — kiểm tra requirements.txt/apt.txt.")
-                        st.stop()
+                if not HAS_TESSERACT:
+                    progress.empty()
+                    st.error("Chưa cài đặt OCR (pytesseract) trên môi trường này — kiểm tra requirements.txt/apt.txt.")
+                    st.stop()
 
-                    # ── OCR LOCAL: đọc tên + M/s từ từng ảnh ──
-                    _ocr_results = {}
-                    for _i, img_f in enumerate(batch_imgs):
-                        try:
-                            img_f.seek(0)
-                            _r = _ocr_extract(img_f.read())
-                        except Exception as _e:
-                            _r = {"_ok": False, "_error": f"OCR exception: {_e}"}
-                        _r["_filename"] = img_f.name
-                        _ocr_results[img_f.name] = _r
-                        progress.progress(
-                            int((_i + 1) / len(batch_imgs) * 100),
-                            text=f"Đang đọc {_i+1}/{len(batch_imgs)} ảnh..."
-                        )
+                # ── OCR LOCAL: đọc tên + M/s từ từng ảnh ──
+                _ocr_results = {}
+                for _i, img_f in enumerate(batch_imgs):
+                    try:
+                        img_f.seek(0)
+                        _r = _ocr_extract(img_f.read())
+                    except Exception as _e:
+                        _r = {"_ok": False, "_error": f"OCR exception: {_e}"}
+                    _r["_filename"] = img_f.name
+                    _ocr_results[img_f.name] = _r
+                    progress.progress(
+                        int((_i + 1) / len(batch_imgs) * 100),
+                        text=f"Đang đọc {_i+1}/{len(batch_imgs)} ảnh..."
+                    )
 
-                    results = [_ocr_results[f.name] for f in batch_imgs]
-                    for _r in results:
-                        if _r.get("_ok"):
-                            _r.setdefault("Mutation", "Normal")
-                            _r.setdefault("Số Trait", "None")
-                            _r.setdefault("NameStock", "")
-                            _r.setdefault("Giá Nhập", "")
+                results = [_ocr_results[f.name] for f in batch_imgs]
+                for _r in results:
+                    if _r.get("_ok"):
+                        _r.setdefault("Mutation", "Normal")
+                        _r.setdefault("Số Trait", "None")
+                        _r.setdefault("NameStock", "")
+                        _r.setdefault("Giá Nhập", "")
 
-                    progress.progress(100, text="Hoàn thành!")
-                    st.session_state.ai_batch_results = results
-                    st.session_state.ai_show_dialog = True
-                    st.rerun()
+                progress.progress(100, text="Hoàn thành!")
+                st.session_state.ai_batch_results = results
+                st.session_state.ai_show_dialog = True
+                st.rerun()
 
     # =========================================================
     # DIALOG PREVIEW + EDIT (hiện khi có kết quả AI)

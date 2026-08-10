@@ -20,7 +20,7 @@ from _config import MAIN_SCHEMA, LIST_SCHEMA, MUTATION_OPTIONS, PET_LIST_FILE, D
 from _database import (
     USE_SUPABASE, sb_insert, sb_insert_batch,
     load_inventory, load_csv, save_csv, supabase_client,
-    to_db, _save_groq_key_to_supabase,
+    to_db, _save_grok_key_to_supabase,
 )
 from _eldorado_helpers import _HAS_ELDORADO
 from _wiki import get_pet_list, normalize_pet_name
@@ -31,19 +31,19 @@ except ImportError:
     DELIVERY_MAP = {}
 
 
-def _clean_groq_key(raw: str) -> str:
-    """Loại bỏ ký tự ẩn (zero-width space ​, BOM...) — nguyên nhân 401 dù key nhìn đúng."""
+def _clean_grok_key(raw: str) -> str:
+    """Loại bỏ ký tự ẩn (zero-width space, BOM...) — nguyên nhân 401 dù key nhìn đúng."""
     if not raw:
         return ""
     cleaned = re.sub(r"[​‌‍⁠﻿]", "", raw)
     return re.sub(r"[^A-Za-z0-9_\-]", "", cleaned)
 
 
-def _verify_groq_key(key: str) -> tuple[bool, str]:
+def _verify_grok_key(key: str) -> tuple[bool, str]:
     """Gọi thử GET /models: 200 = key hoạt động; ngược lại trả thông báo lỗi cụ thể."""
     try:
         r = requests.get(
-            "https://api.groq.com/openai/v1/models",
+            "https://api.x.ai/v1/models",
             headers={"Authorization": f"Bearer {key}"},
             timeout=15,
         )
@@ -79,7 +79,7 @@ class _FakeUploadedFile:
 
 
 def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
-    """Render the AI Vision expander section for auto-scanning pet images via Groq API."""
+    """Render the AI Vision expander section for auto-scanning pet images via Grok (xAI) API."""
 
     # =========================================================
     # AI VISION – Key setup + multi-image + dialog preview
@@ -94,43 +94,43 @@ def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
     with st.expander("AI Vision — Nhập tự động", expanded=st.session_state.get("ai_expander", False)):
 
         # ── STEP 1: API KEY ──
-        ai_key = st.session_state.get("groq_key", "")
+        ai_key = st.session_state.get("grok_key", "")
         if ai_key:
             # Key đã được cấu hình — hiển thị masked + nút cập nhật
             _masked = ai_key[:6] + "*" * (len(ai_key) - 10) + ai_key[-4:] if len(ai_key) > 10 else "****"
             _kc1, _kc2 = st.columns([3, 1])
             _kc1.success(f"API đã kết nối · {_masked}")
-            if _kc2.button("Thay đổi", use_container_width=True, key="btn_change_groq"):
-                st.session_state.groq_key = ""
+            if _kc2.button("Thay đổi", use_container_width=True, key="btn_change_grok"):
+                st.session_state.grok_key = ""
                 st.rerun()
         else:
             ai_key_input = st.text_input(
-                "🔑 Groq API Key",
+                "🔑 Grok API Key",
                 type="password",
                 value="",
-                placeholder="gsk_...",
-                help="Lấy miễn phí tại console.groq.com/keys",
+                placeholder="xai-...",
+                help="Lấy tại console.x.ai (mục API Keys)",
             )
             if ai_key_input and ai_key_input.strip():
                 _raw_key = ai_key_input.strip()
-                _clean = _clean_groq_key(_raw_key)
+                _clean = _clean_grok_key(_raw_key)
                 if _clean != _raw_key:
                     st.warning("Phát hiện ký tự ẩn trong key — đã tự động làm sạch (có thể do paste từ Zalo/Messenger).")
-                if not _clean or not _clean.startswith("gsk_"):
-                    st.error("Key Groq không hợp lệ: phải bắt đầu bằng 'gsk_' và chỉ gồm chữ/số. Vui lòng kiểm tra lại.")
+                if not _clean or not _clean.startswith("xai-"):
+                    st.error("Key Grok không hợp lệ: phải bắt đầu bằng 'xai-' và chỉ gồm chữ/số. Vui lòng kiểm tra lại.")
                 else:
-                    _ok, _msg = _verify_groq_key(_clean)
+                    _ok, _msg = _verify_grok_key(_clean)
                     if _ok:
-                        st.session_state.groq_key = _clean
-                        _save_groq_key_to_supabase(_clean)
-                        st.toast("Đã xác minh & lưu Groq Key vĩnh viễn!", icon="🔑")
+                        st.session_state.grok_key = _clean
+                        _save_grok_key_to_supabase(_clean)
+                        st.toast("Đã xác minh & lưu Grok Key vĩnh viễn!", icon="🔑")
                         st.rerun()
                     else:
-                        st.error(f"❌ Key bị từ chối bởi Groq ({_msg}). Kiểm tra lại key tại console.groq.com/keys — chú ý không dư/mất ký tự khi paste.")
-            st.info("Nhập Groq API Key để bật nhận dạng hình ảnh AI (Llama 3.2 90B Vision · miễn phí).")
+                        st.error(f"❌ Key bị từ chối bởi xAI ({_msg}). Kiểm tra lại key tại console.x.ai — chú ý không dư/mất ký tự khi paste.")
+            st.info("Nhập Grok API Key để bật nhận dạng hình ảnh AI (mô hình vision của xAI — https://console.x.ai).")
             ai_key = ""
 
-        # ── STEP 2: MULTI-IMAGE UPLOAD ── (hiện khi đã có Groq key)
+        # ── STEP 2: MULTI-IMAGE UPLOAD ── (hiện khi đã có Grok key)
         if ai_key:
             st.markdown("**Tải lên ảnh sản phẩm**")
             if "ai_uploader_key" not in st.session_state:
@@ -183,34 +183,34 @@ Return ONLY valid JSON, no markdown:
                     target_model = None
                     all_models = []
                     try:
-                        m_resp = requests.get("https://api.groq.com/openai/v1/models",
+                        m_resp = requests.get("https://api.x.ai/v1/models",
                                               headers={"Authorization": f"Bearer {ai_key}"}, timeout=15)
                         if m_resp.status_code == 200:
                             m_data = m_resp.json()
                             all_models = [m["id"] for m in m_data.get("data", [])]
                         elif m_resp.status_code in (401, 403):
-                            st.error(f"Groq API Key không hợp lệ hoặc đã hết hạn (HTTP {m_resp.status_code}). "
-                                     f"Nhấn 'Thay đổi' để nhập key mới tại console.groq.com/keys")
+                            st.error(f"Grok API Key không hợp lệ hoặc đã hết hạn (HTTP {m_resp.status_code}). "
+                                     f"Nhấn 'Thay đổi' để nhập key mới tại console.x.ai")
                             st.stop()
                         else:
-                            st.error(f"Groq API trả về lỗi HTTP {m_resp.status_code}: {m_resp.text[:200]}")
+                            st.error(f"xAI API trả về lỗi HTTP {m_resp.status_code}: {m_resp.text[:200]}")
                             st.stop()
                     except Exception as _m_err:
-                        st.error(f"Không thể kết nối Groq API: {_m_err}")
+                        st.error(f"Không thể kết nối xAI API: {_m_err}")
                         st.stop()
 
-                    # Model vision đã biết (Groq gỡ llama-3.2-90b cũ, có thể thêm mới theo thời gian)
+                    # Model vision của xAI (ưu tiên grok-vision, có thể thêm mới theo thời gian)
                     _KNOWN_VISION = [
-                        "meta-llama/llama-4-scout-17b-16e-instruct",
-                        "llama-4-scout-17b-16e-instruct",
-                        "meta-llama/llama-4-maverick-17b-128e-instruct",
+                        "grok-2-vision",
+                        "grok-2-vision-1212",
+                        "grok-2-vision-preview",
                     ]
                     vision_models = [
                         m for m in all_models
-                        if any(k in m.lower() for k in ["scout", "maverick", "pixtral", "vision", "vl"])
+                        if any(k in m.lower() for k in ["vision", "v1.5", "grok-2", "grok-3"])
                     ]
                     target_model = (
-                        next((m for m in vision_models if "scout" in m.lower() or "maverick" in m.lower()), vision_models[0])
+                        next((m for m in vision_models if "vision" in m.lower()), vision_models[0])
                         if vision_models
                         else next((m for m in _KNOWN_VISION if m in all_models), None)
                     )
@@ -219,7 +219,7 @@ Return ONLY valid JSON, no markdown:
                         st.error(f"Không tìm thấy Model Đọc Ảnh nào khả dụng! {_model_hint}")
                         st.stop()
 
-                    st.toast(f"Model: {target_model}", icon="🦙")
+                    st.toast(f"Model: {target_model}", icon="🤖")
 
                     # Đọc và encode tất cả ảnh trước (I/O)
                     _img_data = []
@@ -258,7 +258,7 @@ Return ONLY valid JSON, no markdown:
                         for _attempt in range(MAX_RETRY):
                             try:
                                 resp = requests.post(
-                                    "https://api.groq.com/openai/v1/chat/completions",
+                                    "https://api.x.ai/v1/chat/completions",
                                     json=_payload, headers=headers, timeout=30
                                 )
                                 if resp.status_code == 429:

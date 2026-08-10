@@ -419,11 +419,11 @@ def save_bulk_supabase(df_after: pd.DataFrame, df_before: pd.DataFrame):
 # SETTINGS PERSISTENCE (app_settings table)
 # =============================================================================
 
-def _load_groq_key_from_supabase() -> str:
+def _load_grok_key_from_supabase() -> str:
     if not USE_SUPABASE:
         return ""
     try:
-        r = supabase_client.table("app_settings").select("value").eq("key", "groq_key").execute()
+        r = supabase_client.table("app_settings").select("value").eq("key", "grok_key").execute()
         if r.data:
             return r.data[0].get("value", "")
     except Exception:
@@ -431,15 +431,15 @@ def _load_groq_key_from_supabase() -> str:
     return ""
 
 
-def _save_groq_key_to_supabase(api_key: str):
+def _save_grok_key_to_supabase(api_key: str):
     if not USE_SUPABASE:
         return
     try:
         supabase_client.table("app_settings").upsert(
-            {"key": "groq_key", "value": api_key}, on_conflict="key"
+            {"key": "grok_key", "value": api_key}, on_conflict="key"
         ).execute()
     except Exception as e:
-        st.toast(f"⚠️ Không thể lưu Groq key: {e}", icon="⚠️")
+        st.toast(f"⚠️ Không thể lưu Grok key: {e}", icon="⚠️")
 
 
 def _load_pinned_resell_from_supabase() -> dict:

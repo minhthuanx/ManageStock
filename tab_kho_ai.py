@@ -42,20 +42,36 @@ def _ocr_extract(raw: bytes) -> dict:
     if not HAS_TESSERACT:
         return {"_ok": False, "_error": "Chưa cài pytesseract"}
     try:
-        # Tiền xử lý: ảnh xám, tăng tương phản, đảo màu nếu nền sáng
+        # Tiền xử lý giúp Tesseract đọc chuẩn:
+        # 1) Phóng to 2x nếu ảnh nhỏ (chữ nhỏ đọc rõ hơn)
+        w, h = im.size
+        if max(w, h) < 1600:
+            im = im.resize((w * 2, h * 2), Image.LANCZOS)
+        # 2) Xám + tự tăng tương phản + ngưỡng
         g = ImageOps.grayscale(im)
-        g = ImageEnhance.Contrast(g).enhance(2.0)
-        g = g.point(lambda p: 0 if p < 160 else 255)
-        hist = g.histogram()
-        bright = sum(hist[200:]) / max(sum(hist), 1)
-        if bright > 0.5:
-            g = ImageOps.invert(g)
-        cfg = "--psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$./- "
+        g = ImageOps.autocontrast(g)
+        g = g.point(lambda p: 0 if p < 150 else 255)
+        # 3) LUÔN đảo màu → chữ ĐEN trên nền TRẮNG (polarity Tesseract đọc tốt nhất,
+        #    tránh chữ trắng trên nền đen bị dính, mất dấu cách)
+        g = ImageOps.invert(g)
+        # 4) PSM 3 (tự động phân đoạn) + giữ khoảng cách giữa các từ
+        cfg = ("--psm 3 -c preserve_interword_spaces=1 "
+               "-c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$./&- ")
         txt = pytesseract.image_to_string(g, config=cfg)
+        lines = [l.strip() for l in txt.splitlines() if l.strip()]
+        # 5) Fallback PSM 11 (text rải rác) nếu chưa thấy dòng M/s
+        if not any(re.search(r"[Mm]/s", l, re.IGNORECASE) for l in lines):
+            txt2 = pytesseract.image_to_string(
+                g,
+                config="--psm 11 -c preserve_interword_spaces=1 "
+                       "-c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$./&- ",
+            )
+            lines2 = [l.strip() for l in txt2.splitlines() if l.strip()]
+            if any(re.search(r"[Mm]/s", l, re.IGNORECASE) for l in lines2):
+                lines = lines2
     except Exception as e:
         return {"_ok": False, "_error": f"OCR lỗi: {e}"}
 
-    lines = [l.strip() for l in txt.splitlines() if l.strip()]
     # Tốc độ: dòng/đoạn chứa $ ... M/s (ưu tiên ký tự $)
     ms = ""
     for l in lines:
@@ -73,7 +89,7 @@ def _ocr_extract(raw: bytes) -> dict:
         if m:
             v = m.group(1).replace(",", "")
             ms_num = str(float(v) / 1000) if v.count(".") > 1 else v
-    # Tên: dòng có chữ, không phải dòng tốc độ, không phải số
+    # Tên: ưu tiên dòng có chữ + số như "Garama and Madundung" (tên ghép + dấu cách)
     name = ""
     for l in lines:
         if l == ms:
@@ -85,7 +101,9 @@ def _ocr_extract(raw: bytes) -> dict:
         if re.search(r"[A-Za-z]", l):
             name = l
             break
-    name = re.sub(r"[^\w\s&']", "", name).strip()
+    # Làm sạch: chỉ giữ chữ cái, chữ số, khoảng trắng, ký tự & và ' (không gộp từ)
+    name = re.sub(r"[^\w\s&']", "", name)
+    name = re.sub(r"\s+", " ", name).strip()
     if not name or not ms_num:
         return {"_ok": False, "_error": f"OCR không đọc đủ (name='{name}' ms='{ms_num}')"}
     return {"_ok": True, "Tên Pet": name, "M/s": ms_num}

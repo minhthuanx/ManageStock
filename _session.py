@@ -11,6 +11,7 @@ from _database import (
     USE_SUPABASE, load_inventory, load_bulk, load_bulk_history,
     _load_groq_key_from_supabase, _load_pinned_resell_from_supabase,
 )
+from tab_kho_ai import _clean_groq_key, _verify_groq_key
 from _helpers import _load_owner_ns_map, _save_owner_ns_map, normalize_df
 from _config import MAIN_SCHEMA, BULK_SCHEMA, HISTORY_SCHEMA
 
@@ -48,7 +49,9 @@ def init_session():
         st.session_state.bulk_df      = _bulk_r
         st.session_state.bulk_history = _hist_r
         if not st.session_state.get("groq_key") and _groq_r:
-            st.session_state.groq_key = _groq_r
+            _candidate = _clean_groq_key(_groq_r)
+            if _candidate and _verify_groq_key(_candidate)[0]:
+                st.session_state.groq_key = _candidate
         if "pinned_resell" not in st.session_state:
             st.session_state.pinned_resell = _pinned_r
         _sk_ph.empty()

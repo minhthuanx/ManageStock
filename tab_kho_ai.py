@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import time
 import base64
@@ -21,9 +22,63 @@ from _database import (
     load_inventory, load_csv, save_csv, supabase_client,
     to_db, _save_groq_key_to_supabase,
 )
+from _eldorado_helpers import _HAS_ELDORADO
+from _wiki import get_pet_list, normalize_pet_name
+
+try:
+    from eldorado_client import DELIVERY_MAP, OTHER_TRADE_ENV_ID
+except ImportError:
+    DELIVERY_MAP = {}
 
 
-def render_ai_vision(df, pet_db, ns_db, trait_db):
+def _clean_groq_key(raw: str) -> str:
+    """Loại bỏ ký tự ẩn (zero-width space ​, BOM...) — nguyên nhân 401 dù key nhìn đúng."""
+    if not raw:
+        return ""
+    cleaned = re.sub(r"[​‌‍⁠﻿]", "", raw)
+    return re.sub(r"[^A-Za-z0-9_\-]", "", cleaned)
+
+
+def _verify_groq_key(key: str) -> tuple[bool, str]:
+    """Gọi thử GET /models: 200 = key hoạt động; ngược lại trả thông báo lỗi cụ thể."""
+    try:
+        r = requests.get(
+            "https://api.groq.com/openai/v1/models",
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=15,
+        )
+        if r.status_code == 200:
+            return True, ""
+        return False, f"HTTP {r.status_code}: {r.text[:200]}"
+    except Exception as e:
+        return False, f"Không kết nối được: {e}"
+
+
+class _FakeUploadedFile:
+    """Dùng để lưu ảnh listing tạm trong session_state (giống tab_kho_json)."""
+    def __init__(self, data: bytes, name: str, mime: str):
+        self._data = data
+        self.name = name
+        self.type = mime
+        self._pos = 0
+
+    def read(self, size=-1):
+        if size == -1:
+            result = self._data[self._pos:]
+            self._pos = len(self._data)
+        else:
+            result = self._data[self._pos:self._pos + size]
+            self._pos += len(result)
+        return result
+
+    def seek(self, pos):
+        self._pos = pos
+
+    def getvalue(self):
+        return self._data
+
+
+def render_ai_vision(df, pet_db, ns_db, trait_db, eld_client=None):
     """Render the AI Vision expander section for auto-scanning pet images via Groq API."""
 
     # =========================================================
@@ -57,10 +112,21 @@ def render_ai_vision(df, pet_db, ns_db, trait_db):
                 help="Lấy miễn phí tại console.groq.com/keys",
             )
             if ai_key_input and ai_key_input.strip():
-                st.session_state.groq_key = ai_key_input.strip()
-                _save_groq_key_to_supabase(ai_key_input.strip())
-                st.toast("Đã lưu Groq Key vĩnh viễn!", icon="🔑")
-                st.rerun()
+                _raw_key = ai_key_input.strip()
+                _clean = _clean_groq_key(_raw_key)
+                if _clean != _raw_key:
+                    st.warning("Phát hiện ký tự ẩn trong key — đã tự động làm sạch (có thể do paste từ Zalo/Messenger).")
+                if not _clean or not _clean.startswith("gsk_"):
+                    st.error("Key Groq không hợp lệ: phải bắt đầu bằng 'gsk_' và chỉ gồm chữ/số. Vui lòng kiểm tra lại.")
+                else:
+                    _ok, _msg = _verify_groq_key(_clean)
+                    if _ok:
+                        st.session_state.groq_key = _clean
+                        _save_groq_key_to_supabase(_clean)
+                        st.toast("Đã xác minh & lưu Groq Key vĩnh viễn!", icon="🔑")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Key bị từ chối bởi Groq ({_msg}). Kiểm tra lại key tại console.groq.com/keys — chú ý không dư/mất ký tự khi paste.")
             st.info("Nhập Groq API Key để bật nhận dạng hình ảnh AI (Llama 3.2 90B Vision · miễn phí).")
             ai_key = ""
 
@@ -81,6 +147,11 @@ def render_ai_vision(df, pet_db, ns_db, trait_db):
             if batch_imgs:
                 st.caption(f"Đã chọn **{len(batch_imgs)}** ảnh — {', '.join(f.name[:18] for f in batch_imgs[:3])}{'...' if len(batch_imgs) > 3 else ''}")
 
+                # Danh sách tên pet chuẩn từ wiki (cache 7 ngày) — khóa prompt + chuẩn hóa kết quả
+                wiki_pets = get_pet_list()
+                if wiki_pets:
+                    st.caption(f"📚 Wiki: **{len(wiki_pets)}** tên pet hợp lệ")
+
                 scan_btn = st.button(
                     f"Phân tích {len(batch_imgs)} ảnh",
                     type="primary",
@@ -92,31 +163,35 @@ def render_ai_vision(df, pet_db, ns_db, trait_db):
                     results = []
                     progress = st.progress(0, text="Đang khởi tạo...")
 
-                    prompt = """Screenshot from Roblox game "Steal a Brainrot". Find the dark rounded INFO CARD near the pet.
+                    prompt = f"""Screenshot from Roblox game "Steal a Brainrot". Find the dark rounded INFO CARD near the pet.
 The card has the pet NAME at the top and the large $M/s speed value is OUTSIDE the card.
+The pet name MUST be chosen from this exact list (pick the closest match, do NOT invent names):
+{', '.join(wiki_pets) if wiki_pets else '(no pet list available — read the name as-is)'}
 Return ONLY valid JSON, no markdown:
-{
+{{
   "Tên Pet": "exact pet name from the card",
-  "Mutation": "Gold|Diamond|Divine|Rainbow|Bloodrot|Candy|Lava|Galaxy|Yin-Yang|Radioactive|Cursed|Celestial|Normal",
+  "Mutation": "Gold|Diamond|Divine|Rainbow|Bloodrot|Candy|Lava|Galaxy|Yin-Yang|Radioactive|Cursed|Cyber|Phantom|Crystal|Normal",
   "Tốc độ": "speed in Millions as plain number: $700M/s→700  $1.2B/s→1200  $55M/s→55  $500K/s→0.5"
-}"""
+}}"""
 
                     headers = {
                         "Authorization": f"Bearer {ai_key}",
                         "Content-Type": "application/json"
                     }
 
-                    # Tự động lấy danh sách Model (tránh vụ model cũ bị xoá/decommissioned)
+                    # ── XÁC THỰC KEY + TÌM MODEL VISION ──
                     target_model = None
                     all_models = []
                     try:
-                        m_resp = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {ai_key}"})
+                        m_resp = requests.get("https://api.groq.com/openai/v1/models",
+                                              headers={"Authorization": f"Bearer {ai_key}"}, timeout=15)
                         if m_resp.status_code == 200:
                             m_data = m_resp.json()
                             all_models = [m["id"] for m in m_data.get("data", [])]
-                            vision_models = [m for m in all_models if any(k in m.lower() for k in ["vision", "scout", "pixtral", "vl"])]
-                            if vision_models:
-                                target_model = next((m for m in vision_models if "90b" in m.lower() or "scout" in m.lower()), vision_models[0])
+                        elif m_resp.status_code in (401, 403):
+                            st.error(f"Groq API Key không hợp lệ hoặc đã hết hạn (HTTP {m_resp.status_code}). "
+                                     f"Nhấn 'Thay đổi' để nhập key mới tại console.groq.com/keys")
+                            st.stop()
                         else:
                             st.error(f"Groq API trả về lỗi HTTP {m_resp.status_code}: {m_resp.text[:200]}")
                             st.stop()
@@ -124,6 +199,21 @@ Return ONLY valid JSON, no markdown:
                         st.error(f"Không thể kết nối Groq API: {_m_err}")
                         st.stop()
 
+                    # Model vision đã biết (Groq gỡ llama-3.2-90b cũ, có thể thêm mới theo thời gian)
+                    _KNOWN_VISION = [
+                        "meta-llama/llama-4-scout-17b-16e-instruct",
+                        "llama-4-scout-17b-16e-instruct",
+                        "meta-llama/llama-4-maverick-17b-128e-instruct",
+                    ]
+                    vision_models = [
+                        m for m in all_models
+                        if any(k in m.lower() for k in ["scout", "maverick", "pixtral", "vision", "vl"])
+                    ]
+                    target_model = (
+                        next((m for m in vision_models if "scout" in m.lower() or "maverick" in m.lower()), vision_models[0])
+                        if vision_models
+                        else next((m for m in _KNOWN_VISION if m in all_models), None)
+                    )
                     if not target_model:
                         _model_hint = f"Danh sách model hiện tại ({len(all_models)}): {', '.join(all_models[:10])}{'...' if len(all_models) > 10 else ''}" if all_models else "Không lấy được danh sách model."
                         st.error(f"Không tìm thấy Model Đọc Ảnh nào khả dụng! {_model_hint}")
@@ -186,10 +276,12 @@ Return ONLY valid JSON, no markdown:
                                 parsed = json.loads(json_str)
                                 with _lock:
                                     _done_count[0] += 1
+                                # Chuẩn hóa tên pet theo danh sách wiki (sửa lỗi đọc lệch của model)
+                                _ai_name = normalize_pet_name(str(parsed.get("Tên Pet", "")), wiki_pets)
                                 return {
                                     "_filename": item["name"],
                                     "_ok": True,
-                                    "Tên Pet":   parsed.get("Tên Pet", ""),
+                                    "Tên Pet":   _ai_name,
                                     "Mutation":  parsed.get("Mutation", "Normal"),
                                     "M/s":       parsed.get("Tốc độ", ""),
                                     "Số Trait":  "None",
@@ -326,12 +418,44 @@ Return ONLY valid JSON, no markdown:
 
                         r_cost = c6d.text_input(f"Giá nhập", placeholder="150k / 1.5tr / 1500000", key=f"dlg_cost_{i}")
 
+                        # ── Giá bán $ + tái sử dụng ảnh đã upload (Eldorado) ──
+                        if _HAS_ELDORADO and eld_client and eld_client.logged_in:
+                            _price_col = st.empty()
+                            r_price_raw = _price_col.text_input(
+                                "Giá bán ($)", value="",
+                                placeholder="$0.50 (bỏ trống = không push Eldorado)",
+                                key=f"dlg_ai_price_{i}", label_visibility="collapsed",
+                            )
+                            # Ảnh đã upload để AI phân tích được tái dùng làm ảnh listing
+                            u_key = st.session_state.get("ai_uploader_key", 0)
+                            current_files = st.session_state.get(f"ai_batch_upload_{u_key}", [])
+                            matched_img = next((f for f in current_files if f.name == fname), None)
+                            if matched_img:
+                                _img_bytes = matched_img.getvalue()
+                                r_img = _FakeUploadedFile(_img_bytes, fname, matched_img.type or "image/png")
+                            else:
+                                r_img = None
+                        else:
+                            r_img = None
+                            r_price_raw = ""
+
                     r_ms = parse_usd(r_ms_raw)
+                    r_price = 0.0
+                    if r_price_raw.strip():
+                        try:
+                            r_price = float(r_price_raw)
+                        except (ValueError, TypeError):
+                            r_price = 0.0
                     err_row = []
                     if not r_name or r_name == "None": err_row.append("Tên Pet")
                     if r_ms <= 0:  err_row.append("M/s")
                     if not r_ns.strip(): err_row.append("NameStock")
                     if parse_vnd(r_cost) <= 0: err_row.append("Giá nhập")
+                    # Validate push fields (nếu Eldorado connected)
+                    if _HAS_ELDORADO and eld_client and eld_client.logged_in:
+                        if r_price_raw.strip():
+                            if r_price < 0.50: err_row.append("giá bán tối thiểu $0.50")
+                            if not r_img: err_row.append("thiếu ảnh pet (không push được)")
                     if err_row:
                         st.info(f"Thiếu thông tin: {', '.join(err_row)}")
                         all_valid = False
@@ -344,6 +468,10 @@ Return ONLY valid JSON, no markdown:
                         "NameStock": r_ns,
                         "Giá Nhập":  parse_vnd(r_cost),
                         "_valid":    len(err_row) == 0,
+                        "_title":    generate_auto_title(r_name, r_mut, r_trait, r_ms, r_ns),
+                        "_price":    r_price,
+                        "_image":    r_img,
+                        "_filename": fname,
                     })
 
             st.markdown("---")
@@ -424,7 +552,97 @@ Return ONLY valid JSON, no markdown:
                             _save_ok = True
 
                     if _save_ok:
-                        st.toast(f"Đã lưu {saved} mục thành công", icon="✅")
+                        # ── PUSH LÊN ELDORADO SAU KHI LƯU DB ──
+                        # Những pet có nhập giá bán $ mới push (ảnh dùng lại ảnh upload lúc scan)
+                        _push_items = [r for r in edited_rows if r.get("_valid")
+                                       and r.get("_price", 0) >= 0.50]
+                        _push_results = {"ok": [], "fail": []}
+                        if _push_items and _HAS_ELDORADO and eld_client and eld_client.logged_in:
+                            if not st.session_state.get("eld_game_loaded"):
+                                st.toast("Đang kết nối game Eldorado...", icon="🔗")
+                                st.session_state.eld_game_loaded = eld_client.ensure_game_cache()
+                            if st.session_state.get("eld_game_loaded"):
+                                _eld_set = st.session_state.get("eld_settings", {})
+                                _def_desc = _eld_set.get("default_desc", "Fast delivery! Contact me if any issues.")
+                                _def_del = _eld_set.get("default_delivery", "20 min")
+                                _def_del_code = DELIVERY_MAP.get(_def_del, "Minute20")
+                                _push_total = len(_push_items)
+                                st.toast(f"Bắt đầu push {_push_total} listing lên Eldorado...", icon="🚀")
+                                for _pci, _pcfg in enumerate(_push_items):
+                                    _pname = _pcfg.get("Tên Pet", "?")
+                                    st.toast(f"[{_pci+1}/{_push_total}] Đang upload ảnh {_pname}...", icon="📤")
+                                    try:
+                                        _pet_name = _pcfg.get("Tên Pet", "")
+                                        _img_data = None
+                                        # Ảnh đã upload để AI phân tích → dùng luôn làm ảnh listing
+                                        if _pcfg.get("_image"):
+                                            _pcfg["_image"].seek(0)
+                                            _img_bytes = _pcfg["_image"].read()
+                                            _img_data = eld_client.upload_image(
+                                                _img_bytes, _pcfg["_image"].name or "image.png")
+                                            if _img_data and _img_data.get("_rate_limit"):
+                                                _img_data = None
+                                        _env = eld_client.find_env(_pet_name)
+                                        _tid = _env["id"] if _env else OTHER_TRADE_ENV_ID
+                                        st.toast(f"[{_pci+1}/{_push_total}] Đang tạo listing {_pname}...", icon="📋")
+                                        _resp = eld_client.create_listing(
+                                            title=_pcfg.get("_title", ""),
+                                            description=_def_desc,
+                                            price=_pcfg["_price"],
+                                            ms=float(_pcfg.get("M/s", 0)),
+                                            ms_range="",
+                                            mutation=_pcfg.get("Mutation", "Normal"),
+                                            trade_env_id=_tid,
+                                            delivery_time=_def_del_code,
+                                            image_data=_img_data,
+                                        )
+                                        if _resp and not _resp.get("error"):
+                                            _push_results["ok"].append(_pcfg.get("_title", _pname))
+                                            st.toast(f"{_pname} — push thành công", icon="✅")
+                                        else:
+                                            _err = _resp.get("error", "unknown") if isinstance(_resp, dict) else str(_resp)
+                                            _push_results["fail"].append(f"{_pname}: {_err[:80]}")
+                                            st.toast(f"{_pname} — {_err[:50]}", icon="❌")
+                                    except Exception as _pe:
+                                        _push_results["fail"].append(f"{_pname}: {str(_pe)[:80]}")
+                                        st.toast(f"{_pname} — lỗi: {str(_pe)[:50]}", icon="❌")
+                                    if _pci < _push_total - 1:
+                                        time.sleep(0.5)
+                        st.session_state.ai_push_results = _push_results
+                        st.session_state.ai_push_total = len(_push_items)
+                        _ok_n = len(_push_results.get("ok", []))
+                        _fail_n = len(_push_results.get("fail", []))
+                        if _push_items:
+                            if _fail_n == 0:
+                                st.toast(f"Push thành công {_ok_n}/{len(_push_items)} listing", icon="✅")
+                            else:
+                                st.toast(f"Push xong: {_ok_n} thành công, {_fail_n} thất bại", icon="⚠️")
+                        else:
+                            st.toast(f"Đã lưu {saved} mục thành công", icon="✅")
                         st.rerun()
 
         ai_preview_dialog()
+
+    # =========================================================
+    # KẾT QUẢ PUSH ELDORADO (sau rerun)
+    # =========================================================
+    if st.session_state.get("ai_push_results"):
+        _pr = st.session_state.ai_push_results
+        _pt = st.session_state.ai_push_total
+        if _pr:
+            if _pr["ok"]:
+                st.success(f"✓ Push Eldorado thành công: {len(_pr['ok'])}/{_pt}")
+                with st.expander("Danh sách đã push", expanded=False):
+                    for _t in _pr["ok"]:
+                        st.caption(f"• {_t}")
+            if _pr["fail"]:
+                st.error(f"× Push Eldorado thất bại: {len(_pr['fail'])}/{_pt}")
+                with st.expander("Chi tiết lỗi", expanded=True):
+                    for _e in _pr["fail"]:
+                        st.caption(f"• {_e}")
+        else:
+            st.info("i Không có mục nào đủ điều kiện push lên Eldorado (cần ảnh + giá $ >=0.50).")
+        if st.button("× Ẩn kết quả push", key="btn_hide_ai_push"):
+            del st.session_state.ai_push_results
+            del st.session_state.ai_push_total
+            st.rerun()

@@ -18,7 +18,7 @@ from _helpers import (
     parse_vnd, parse_usd, get_name_options, append_row,
     generate_auto_title, apply_ngay_ton, next_id,
 )
-from _config import MAIN_SCHEMA, LIST_SCHEMA, MUTATION_OPTIONS, PET_LIST_FILE
+from _config import MAIN_SCHEMA, LIST_SCHEMA, MUTATION_OPTIONS, PET_LIST_FILE, DB_FILE
 from _database import (
     USE_SUPABASE, sb_insert_batch,
     load_inventory, save_csv, to_db,

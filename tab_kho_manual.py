@@ -92,6 +92,27 @@ def render_manual_multi(df, pet_db, ns_db, trait_db, eld_client=None):
             ns_opts_dlg = [""] + get_name_options(ns_db, fallback="")
             _show_push = _HAS_ELDORADO and eld_client and eld_client.logged_in
 
+            # ── Danh sách phân khúc M/s: ưu tiên từ gameCache Eldorado,
+            #    fallback hằng số _MS_BRACKETS (giống bên JSON) ──
+            ms_range_opts = [""]  # "" = Tự động theo M/s
+            if eld_client is not None:
+                try:
+                    _ms_attr = next(
+                        (a for a in (eld_client._game_cache or {}).get("attrs", [])
+                         if a.get("id") == "steal-a-brainrot-ms"),
+                        None,
+                    )
+                    if _ms_attr and _ms_attr.get("values"):
+                        ms_range_opts = [""] + [v.get("id", "") for v in _ms_attr["values"]]
+                except Exception:
+                    pass
+            if len(ms_range_opts) == 1:
+                try:
+                    from eldorado_client import _MS_BRACKETS
+                    ms_range_opts = [""] + [b for _, b in _MS_BRACKETS]
+                except Exception:
+                    pass
+
             st.caption("Điền từng dòng · bấm **＋ Thêm dòng** để thêm nhiều pet · "
                        "Dòng có ảnh + giá bán $ ≥ 0.50 sẽ tự push lên Eldorado")
 
@@ -172,6 +193,16 @@ def render_manual_multi(df, pet_db, ns_db, trait_db, eld_client=None):
                         key=f"mmp_title_{row_i}", label_visibility="collapsed",
                     )
 
+                    # ── Phân khúc M/s (bracket ID) + Rarity (default Secret) ──
+                    r_ms_range = col4.selectbox(
+                        "Phân khúc M/s", ms_range_opts,
+                        key=f"mmp_range_{row_i}", label_visibility="collapsed",
+                    )
+                    r_rarity = col5.selectbox(
+                        "Rarity", ["Secret", "Mythic", "Legendary", "Epic", "Rare", "Uncommon", "Common"],
+                        key=f"mmp_rarity_{row_i}", label_visibility="collapsed",
+                    )
+
                     # ── Giá bán $ + Ảnh listing (Eldorado) ──
                     if _show_push:
                         _saved_key = f"mmp_img_{row_i}"
@@ -245,6 +276,8 @@ def render_manual_multi(df, pet_db, ns_db, trait_db, eld_client=None):
                     "_title":    r_title,
                     "_price":    r_price,
                     "_image":    r_img,
+                    "_ms_range": r_ms_range,
+                    "_rarity":   r_rarity,
                 })
 
             # ── Thêm / Bớt dòng (ngay trong popup) ──
@@ -366,7 +399,9 @@ def render_manual_multi(df, pet_db, ns_db, trait_db, eld_client=None):
                                             if _img_data and _img_data.get("_rate_limit"):
                                                 _img_data = None
                                         _pet_name = _pcfg.get("Tên Pet", "")
-                                        _env = eld_client.find_env(_pet_name)
+                                        _pet_rarity = _pcfg.get("_rarity", "")
+                                        _pet_ms_range = _pcfg.get("_ms_range", "")
+                                        _env = eld_client.find_env(_pet_name, rarity=_pet_rarity)
                                         _tid = _env["id"] if _env else OTHER_TRADE_ENV_ID
                                         st.toast(f"[{_pci+1}/{_push_total}] Đang tạo listing {_pname}...", icon="📋")
                                         _resp = eld_client.create_listing(
@@ -374,7 +409,7 @@ def render_manual_multi(df, pet_db, ns_db, trait_db, eld_client=None):
                                             description=_def_desc,
                                             price=_pcfg["_price"],
                                             ms=float(_pcfg.get("M/s", 0)),
-                                            ms_range="",
+                                            ms_range=_pet_ms_range,
                                             trade_env_id=_tid,
                                             delivery_time=_def_del_code,
                                             image_data=_img_data,

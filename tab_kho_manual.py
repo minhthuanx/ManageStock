@@ -375,7 +375,6 @@ def render_manual_multi(df, pet_db, ns_db, trait_db, eld_client=None):
                                             price=_pcfg["_price"],
                                             ms=float(_pcfg.get("M/s", 0)),
                                             ms_range="",
-                                            mutation=_pcfg.get("Mutation", "Normal"),
                                             trade_env_id=_tid,
                                             delivery_time=_def_del_code,
                                             image_data=_img_data,
